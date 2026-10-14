@@ -19,6 +19,8 @@ recommendation with evidence (docs, source code, who does it this way), then wai
 | Dialplan entry | Extension `800` in context `[lab]`: `Stasis(algodial,inbound,${EXTEN},${CHANNEL(endpoint)})` |
 | CEL | `/var/log/asterisk/cel-custom/cel_trace.csv` (advanced `cel_custom` mapping; `apps=` must list apps by name, `all` does not work in 22.11) |
 | Test phones | Account `1001` = Zoiper on the laptop (127.0.0.1:5062), `1002` = Zoiper on a phone on the LAN |
+| PJSIP realtime | `res_config_pgsql` → AlgoDial PostgreSQL (127.0.0.1:5442), role `asterisk` (read-only on `ps_endpoints`, `ps_auths`, `ps_aors`). Sorcery reads `pjsip.conf` first (1001, 1002, transports), then the database. Tables by Asterisk's Alembic (`make pjsip-schema`). Applied by `deploy/asterisk/m1-pjsip-realtime.sh`; commits in `/etc/asterisk` are made as root |
+| SIP check | `lab/sipcheck.py <id> <password>` registers like a phone: `200 OK` = works, `401` = unknown account or wrong password |
 | Repo | `~/AlgoDial`, built from the team starter `~/Django Starter/django-5` (commit `263e849`) |
 | Local services | `make up` (Docker): PostgreSQL **5442**, Redis **6392**, Mailpit **8025** (UI) / **1025** (SMTP), all on 127.0.0.1. Web on 8000 |
 | Lab prototype | `~/AlgoDial/lab/` (`brain.py`, `events.py`, `celtail.py`); `ari.env` (not in git) |
