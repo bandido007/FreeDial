@@ -1,0 +1,27 @@
+# Call control: holds the ARI WebSocket and makes every call decision (project).
+[Unit]
+Description=algodial — brain (call control over ARI)
+After=network.target redis.service postgresql.service asterisk.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=algodial
+Group=algodial
+WorkingDirectory=/srv/algodial
+EnvironmentFile=/srv/algodial/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/srv/algodial/venv/bin/python manage.py run_brain
+Restart=always
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/algodial/logs
+
+[Install]
+WantedBy=multi-user.target

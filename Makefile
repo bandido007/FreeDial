@@ -7,7 +7,7 @@
 SHELL := /bin/bash
 
 PYTHON        ?= python3.12
-VENV          ?= venv
+VENV          ?= .venv
 BIN           := $(VENV)/bin
 PY            := $(BIN)/python
 MANAGE        := $(PY) manage.py
@@ -122,7 +122,7 @@ format: ## Format and auto-fix with ruff
 	$(BIN)/ruff check . --fix
 
 typecheck: ## mypy with django-stubs
-	$(BIN)/mypy apps config
+	$(BIN)/mypy apps config brain contracts  # project: + brain, contracts
 
 check: ## Django system checks + production settings dry run + generated files current
 	$(MANAGE) check
@@ -159,3 +159,13 @@ encryption-key: ## Print a fresh Fernet key for ENCRYPTION_KEYS
 deploy-check: ## Prove the production settings load and pass Django's deployment checks (needs a production .env)
 	DJANGO_SETTINGS_MODULE=config.settings.production $(PY) -c "import django; django.setup(); print('production settings OK')"
 	DJANGO_SETTINGS_MODULE=config.settings.production $(MANAGE) check --deploy --fail-level ERROR
+
+# ── project ── AlgoDial ─────────────────────────────────────────────────────
+.PHONY: brain brain-check
+
+## AlgoDial
+brain: ## Run the brain (call control): manage.py run_brain
+	$(MANAGE) run_brain
+
+brain-check: ## Check the brain can reach ARI and Redis, then exit
+	$(MANAGE) run_brain --check

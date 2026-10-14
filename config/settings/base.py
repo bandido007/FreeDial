@@ -113,6 +113,7 @@ OPTIONAL_APPS: list[str] = []
 
 # Your business apps. `make app name=<name>` adds a line here.
 PROJECT_APPS: list[str] = [
+    "brain",  # project: call control, lives in brain/ (not apps/)
     # <scaffold:project-apps>
 ]
 
@@ -168,7 +169,7 @@ TEMPLATES = [
 
 # ── Database ─────────────────────────────────────────────────────────────
 # DATABASE_URL example: postgres://USER:PASSWORD@HOST:PORT/NAME
-DEFAULT_DATABASE_URL = f"postgres://postgres:postgres@127.0.0.1:5432/{PROJECT_SLUG}"
+DEFAULT_DATABASE_URL = f"postgres://postgres:postgres@127.0.0.1:5442/{PROJECT_SLUG}"  # project
 DATABASES = {"default": env.db("DATABASE_URL", default=DEFAULT_DATABASE_URL)}
 DATABASES["default"]["ATOMIC_REQUESTS"] = False
 DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=60)
@@ -376,7 +377,7 @@ REST_FRAMEWORK = {
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": env("REDIS_URL", default="redis://127.0.0.1:6379/1"),
+        "LOCATION": env("REDIS_URL", default="redis://127.0.0.1:6392/1"),  # project
         "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
         "KEY_PREFIX": PROJECT_SLUG,
     }
@@ -387,8 +388,8 @@ RBAC_PERMISSION_CACHE_SECONDS = env.int("RBAC_PERMISSION_CACHE_SECONDS", default
 
 # ── Celery ─────────────────────────────────────────────────────────────────
 # Broker uses Redis DB 0, the Django cache DB 1, task results DB 2.
-CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://127.0.0.1:6379/0")
-CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default="redis://127.0.0.1:6379/2")
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://127.0.0.1:6392/0")  # project
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default="redis://127.0.0.1:6392/2")  # project
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
@@ -664,3 +665,16 @@ LOGGING = build_logging(level=LOG_LEVEL, fmt=LOG_FORMAT, to_file=LOG_TO_FILE)
 # Active only when SENTRY_DSN is set and sentry-sdk is installed.
 SENTRY_DSN = env("SENTRY_DSN", default="")
 SENTRY_TRACES_SAMPLE_RATE = env.float("SENTRY_TRACES_SAMPLE_RATE", default=0.0)
+
+# ── project ── AlgoDial ───────────────────────────────────────────────────
+# Everything below is AlgoDial's own; starter updates never touch it.
+# Call control: the brain reaches Asterisk over ARI (REST + WebSocket).
+ARI_URL = env("ARI_URL", default="http://127.0.0.1:8091/ari").rstrip("/")
+ARI_USER = env("ARI_USER", default="algodial")
+ARI_PASSWORD = env("ARI_PASSWORD", default="")
+ARI_APP = env("ARI_APP", default="algodial")
+
+# The bus between web, brain and writer: Redis Streams (docs: CLAUDE.md, "Messaging").
+BUS_REDIS_URL = env("BUS_REDIS_URL", default="redis://127.0.0.1:6392/4")
+BUS_COMMANDS_STREAM = env("BUS_COMMANDS_STREAM", default="algodial:commands")
+BUS_EVENTS_STREAM = env("BUS_EVENTS_STREAM", default="algodial:events")

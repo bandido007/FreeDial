@@ -12,7 +12,10 @@ ALLOWED_HOSTS = ["*"]
 
 # In-memory SQLite by default, so `make test` needs nothing running. CI sets
 # TEST_DATABASE_URL to its PostgreSQL service to test against the real engine.
-DATABASES = {"default": env.db("TEST_DATABASE_URL", default="sqlite://:memory:")}
+# project: AlgoDial tests run on PostgreSQL (PJSIP realtime tables are PostgreSQL tables).
+DATABASES = {
+    "default": env.db("TEST_DATABASE_URL", default="postgres://postgres:postgres@127.0.0.1:5442/algodial")
+}
 
 # Fast, throwaway password hashing for the test database.
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
