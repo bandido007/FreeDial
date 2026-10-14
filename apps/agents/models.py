@@ -91,3 +91,39 @@ class AgentSession(models.Model):
 
     def __str__(self):
         return f"{self.agent} on {self.endpoint}"
+
+
+class Skill(BaseModel):
+    """Something an agent can do, at a level from 1 to 10 (a language, a product, a team)."""
+
+    name = models.CharField(
+        max_length=40, help_text="Lower-case, used in skill rules: e.g. swahili, billing, vip_support"
+    )
+    description = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        db_table = "agents_skills"
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["name"], condition=Q(deleted=False), name="uniq_live_skill_name"),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class AgentSkill(models.Model):
+    agent = models.ForeignKey(Agent, on_delete=models.CASCADE, related_name="skills")
+    skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name="agents")
+    level = models.PositiveSmallIntegerField(default=5, help_text="1 (beginner) to 10 (expert)")
+
+    class Meta:
+        db_table = "agents_agent_skills"
+        ordering = ["skill__name"]
+        constraints = [
+            models.UniqueConstraint(fields=["agent", "skill"], name="uniq_agent_skill"),
+            models.CheckConstraint(condition=Q(level__gte=1, level__lte=10), name="agent_skill_level_1_10"),
+        ]
+
+    def __str__(self):
+        return f"{self.agent.number} {self.skill.name}={self.level}"

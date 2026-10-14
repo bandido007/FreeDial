@@ -546,3 +546,19 @@ async def test_an_offer_tells_the_agent_who_is_calling():
         )
         lab.sim.hangup(customer)
         await lab.all_clear()
+
+
+# ── M4: ring all, through the real service ────────────────────────────────
+@scenario
+async def test_ring_all_stops_the_other_phones_when_one_answers():
+    async with brain(config=make_config(strategy="ring_all")) as lab:
+        await lab.ready(A, PHONE_A)
+        await lab.ready(B, PHONE_B)
+        customer = lab.sim.call_in("800")
+        first, second = await lab.sim.next_ringing(), await lab.sim.next_ringing()
+        lab.sim.answer(second)
+        await eventually(lambda: first not in lab.sim.channels, timeout=0.5, what="the other phone stopped")
+        await eventually(lambda: set(lab.sim.bridge_of(customer)["channels"]) == {customer, second})
+        assert {lab.agent(A)["activity"], lab.agent(B)["activity"]} == {"idle", "talking"}
+        lab.sim.hangup(customer)
+        await lab.all_clear()

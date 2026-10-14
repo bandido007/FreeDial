@@ -1,4 +1,4 @@
-"""The brain's 9 call tests (docs/POC_PLAN.md) against the real Asterisk, with scripted phones.
+"""The brain's 9 call tests (docs/POC_PLAN.md), plus 10 = ring all (M4), against the real Asterisk.
 
     cd ~/AlgoDial && .venv/bin/python lab/calltests.py            # all
     .venv/bin/python lab/calltests.py 1 4 8                       # some
@@ -79,6 +79,14 @@ def ensure_setup():
         queues.save_entry_point(actor=None, number="800", queue=support, name="Lab entry")
     support.refresh_from_db()
     return passwords, agents["9001"], agents["9002"], support.ring_timeout
+
+
+def set_strategy(strategy):
+    """Switch queue Support's strategy the normal way (the brain hears config.changed); returns the old one."""
+    support = Queue.objects.get(name__iexact="Support")
+    before = support.strategy
+    queues.save_queue(actor=None, uid=support.uid, name=support.name, strategy=strategy)
+    return before
 
 
 # ── the world as Asterisk and the bus see it ───────────────────────────────
@@ -331,6 +339,31 @@ class Lab:
         await self.w.all_clear()
         return "connected call adopted after SIGKILL; a call that lost its customer meanwhile was cleaned"
 
+    async def t10(self):
+        """Ring all (M4): both phones ring through Asterisk, the first answer takes it, the other stops."""
+        before = await asyncio.to_thread(set_strategy, "ring_all")
+        try:
+            await asyncio.sleep(1.5)  # the brain reloads on config.changed
+            self.phone_a.mode, self.phone_b.mode = "ignore", "answer"
+            self.phone_b.answer_delay = 1.0
+            await self.a_first()
+            call, linkedid = await self.dial()
+            ringing_a = await self.phone_a.ringing()
+            ringing_b = await self.phone_b.ringing()
+            connected = await self.connected()
+            assert connected["agent"] == self.b, connected
+            await asyncio.wait_for(ringing_a.ended.wait(), 2)
+            assert "cancelled" in ringing_a.end_reason, ringing_a.end_reason
+            await call.hangup()
+            await self.w.event(m.CALL_ENDED, call=linkedid)
+            await self.w.all_clear()
+            assert self.w.agent_state(self.a)["activity"] in ("idle", "wrapup"), "ringing out with others is nobody's fault"
+        finally:
+            self.phone_b.answer_delay = 0.3
+            await asyncio.to_thread(set_strategy, before)
+            await asyncio.sleep(1.5)
+        return f"A and B rang together; B answered, A's phone was cancelled ({ringing_b.end_reason or 'B talked'})"
+
     async def t9(self):
         """Brain stopped, customer calls 800 -> the dialplan's Queue() answers."""
         self.w.kill_brain(signal.SIGTERM)
@@ -408,5 +441,5 @@ async def main(selected):
 
 
 if __name__ == "__main__":
-    chosen = [int(arg) for arg in sys.argv[1:]] or list(range(1, 10))
+    chosen = [int(arg) for arg in sys.argv[1:]] or list(range(1, 11))
     sys.exit(asyncio.run(main(chosen)))

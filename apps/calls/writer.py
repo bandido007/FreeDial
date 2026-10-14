@@ -92,6 +92,8 @@ def _project(kind: str, data: dict[str, Any], at: datetime) -> None:
         call.answered_at = call.answered_at or at
         call.agent_uid = data["agent"] or ""
         call.save()
+    elif kind == m.CALL_OVERFLOWED:
+        Call.objects.filter(linkedid=data["call"]).update(queue=data["to_queue"])  # the queue it ends in
     elif kind == m.LEG_ENDED:
         leg = Leg.objects.filter(uniqueid=data["leg"]).first()
         if leg is not None and leg.ended_at is None:

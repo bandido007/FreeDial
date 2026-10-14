@@ -2,5 +2,7 @@
   {"code": 10300, "status": false, "messageEn": "Queue not found.", "messageSw": "Foleni haipatikani."},
   {"code": 10301, "status": false, "messageEn": "A queue with this name already exists.", "messageSw": "Foleni yenye jina hili ipo tayari."},
   {"code": 10302, "status": false, "messageEn": "This number already leads somewhere.", "messageSw": "Namba hii tayari inaelekea mahali pengine."},
-  {"code": 10303, "status": false, "messageEn": "A queue setting is out of range.", "messageSw": "Mpangilio wa foleni uko nje ya kiwango."}
+  {"code": 10303, "status": false, "messageEn": "A queue setting is out of range.", "messageSw": "Mpangilio wa foleni uko nje ya kiwango."},
+  {"code": 10304, "status": false, "messageEn": "The skill condition is not valid.", "messageSw": "Sharti la ujuzi si sahihi."},
+  {"code": 10305, "status": false, "messageEn": "A queue cannot overflow into itself.", "messageSw": "Foleni haiwezi kufurikia yenyewe."}
 ]

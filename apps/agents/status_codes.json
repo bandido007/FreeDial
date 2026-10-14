@@ -6,5 +6,7 @@
   {"code": 10204, "status": false, "messageEn": "You are not set up as an agent.", "messageSw": "Hujasajiliwa kama wakala."},
   {"code": 10205, "status": false, "messageEn": "Hang up before signing out.", "messageSw": "Kata simu kabla ya kutoka."},
   {"code": 10206, "status": false, "messageEn": "Pick one of the listed reasons or codes.", "messageSw": "Chagua moja ya sababu au misimbo iliyoorodheshwa."},
-  {"code": 10207, "status": false, "messageEn": "A reason or code with this name already exists.", "messageSw": "Sababu au msimbo wenye jina hili upo tayari."}
+  {"code": 10207, "status": false, "messageEn": "A reason or code with this name already exists.", "messageSw": "Sababu au msimbo wenye jina hili upo tayari."},
+  {"code": 10208, "status": false, "messageEn": "That is not a valid skill or skill level.", "messageSw": "Huo si ujuzi au kiwango sahihi cha ujuzi."},
+  {"code": 10209, "status": false, "messageEn": "A skill with this name already exists.", "messageSw": "Ujuzi wenye jina hili upo tayari."}
 ]

@@ -39,6 +39,7 @@ CALL_OFFER_FAILED = "call.offer_failed"  # reason: rejected, no_answer, offline,
 CALL_CONNECTED = "call.connected"  # the agent answered and is in the bridge
 CALL_HELD = "call.held"
 CALL_RESUMED = "call.resumed"
+CALL_OVERFLOWED = "call.overflowed"  # max wait or a full queue sent it to another queue
 CALL_ENDED = "call.ended"  # result: answered, abandoned, overflow, failed
 LEG_ENDED = "leg.ended"
 STASIS_REJECTED = "stasis.rejected"  # a channel with unknown args, hung up (rule 3)
@@ -54,6 +55,7 @@ EVENTS: dict[str, tuple[str, ...]] = {
     CALL_CONNECTED: ("call", "leg", "agent"),
     CALL_HELD: ("call", "agent"),
     CALL_RESUMED: ("call", "agent"),
+    CALL_OVERFLOWED: ("call", "from_queue", "to_queue", "reason"),
     CALL_ENDED: ("call", "result", "reason"),
     LEG_ENDED: ("call", "leg", "role"),
     STASIS_REJECTED: ("channel", "args", "reason"),

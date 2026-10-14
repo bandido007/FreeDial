@@ -4,8 +4,9 @@ import re
 
 from django.db import transaction
 
-from apps.agents.models import Agent
+from apps.agents.models import Agent, AgentSkill, Skill
 from apps.core.exceptions import DuplicateError, NotFoundError, ValidationError
+from contracts.skills import SKILL_NAME
 
 NOT_FOUND = 10200
 NUMBER_TAKEN = 10201
@@ -65,3 +66,41 @@ def delete_agent(*, uid) -> Agent:
     agent.save(update_fields=["user"])
     agent.delete()  # soft delete; the brain logs the agent out once any call ends
     return agent
+
+
+# ── skills ─────────────────────────────────────────────────────────────────
+BAD_SKILL = 10208
+SKILL_TAKEN = 10209
+
+
+def validate_skill_name(name, *, except_pk=None) -> str:
+    name = (name or "").strip().lower()
+    if not SKILL_NAME.match(name) or name in ("true", "false"):
+        raise ValidationError(
+            "A skill name is lower-case letters, digits and _, starting with a letter (e.g. swahili).",
+            code=BAD_SKILL,
+        )
+    if Skill.objects.filter(name=name).exclude(pk=except_pk).exists():
+        raise DuplicateError(f"The skill {name} already exists.", code=SKILL_TAKEN)
+    return name
+
+
+@transaction.atomic
+def create_skill(*, actor, name, description="") -> Skill:
+    return Skill.objects.create(
+        name=validate_skill_name(name), description=description.strip(), created_by=actor
+    )
+
+
+@transaction.atomic
+def set_agent_skills(*, agent, levels: dict) -> None:
+    """Replace the agent's skills: ``{skill_name: level}``, levels 1 to 10."""
+    skills = {skill.name: skill for skill in Skill.objects.filter(name__in=levels)}
+    unknown = set(levels) - set(skills)
+    if unknown:
+        raise ValidationError(f"Unknown skill(s): {', '.join(sorted(unknown))}.", code=BAD_SKILL)
+    if any(not 1 <= int(level) <= 10 for level in levels.values()):
+        raise ValidationError("A skill level is 1 to 10.", code=BAD_SKILL)
+    AgentSkill.objects.filter(agent=agent).exclude(skill__name__in=levels).delete()
+    for name, level in levels.items():
+        AgentSkill.objects.update_or_create(agent=agent, skill=skills[name], defaults={"level": int(level)})

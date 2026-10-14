@@ -1,6 +1,19 @@
 """The unified root query, composed from every app's Query."""
 type Query {
   """
+  Calls offered, answered, abandoned and overflowed, waits and service level. permissions=['can_view_queues']
+  """
+  getQueueStats(
+    uid: UUID!
+
+    """Default: today at midnight"""
+    since: DateTime
+
+    """Default: now"""
+    until: DateTime
+  ): QueueStatsResponse
+
+  """
   The signed-in agent, their live state, Not Ready reasons and wrap-up codes. permissions=['can_take_calls']
   """
   myAgentDesk: AgentDeskResponse
@@ -212,6 +225,48 @@ type Query {
   getRegistrationStatus: RegistrationStatusResponse
 }
 
+type QueueStatsResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: QueueStatsType
+  dataList: [QueueStatsType]
+}
+
+"""A queue's calls over a period, against its service-level target."""
+type QueueStatsType {
+  queue: String
+  since: DateTime
+  until: DateTime
+  offered: Int
+  answered: Int
+  abandoned: Int
+  overflowed: Int
+  answeredWithinTarget: Int
+  targetSeconds: Int
+  targetPercent: Int
+
+  """Answered within the target, of all calls offered"""
+  serviceLevelPercent: Float
+  metTarget: Boolean
+  averageWaitSeconds: Float
+  longestWaitSeconds: Float
+  averageTalkSeconds: Float
+}
+
+"""
+The `DateTime` scalar type represents a DateTime
+value as specified by
+[iso8601](https://en.wikipedia.org/wiki/ISO_8601).
+"""
+scalar DateTime
+
+"""
+Leverages the internal Python implementation of UUID (uuid.UUID) to provide native UUID objects
+in fields, resolvers and input.
+"""
+scalar UUID
+
 type AgentDeskResponse {
   status: Boolean
   code: Int
@@ -264,19 +319,6 @@ type TeamType {
   agents: [UserType]
   createdByName: String
 }
-
-"""
-Leverages the internal Python implementation of UUID (uuid.UUID) to provide native UUID objects
-in fields, resolvers and input.
-"""
-scalar UUID
-
-"""
-The `DateTime` scalar type represents a DateTime
-value as specified by
-[iso8601](https://en.wikipedia.org/wiki/ISO_8601).
-"""
-scalar DateTime
 
 type UserType {
   lastLogin: DateTime

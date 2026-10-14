@@ -8,10 +8,13 @@ each decision is atomic and the same inputs always give the same actions.
 A call to an entry point:
   customer enters Stasis (args: inbound, <entry>, <endpoint>, <linkedid>)
     -> answer, own mixing bridge with hold music, max-wait timer
-    -> ring the longest-idle Ready agent of the entry's queue (args: agent, <call>, <agent>)
+    -> ring the agent(s) the queue's strategy picks among the free members who match the
+       skill rule for how long the caller has waited (args: agent, <call>, <agent>)
   the agent's phone rejects, rings out or is offline
     -> the next agent; the one who rang out becomes Not responding
-  the agent answers -> music off, agent into the bridge
+  nobody matches yet -> a timer for the second the next, wider skill rule starts
+  max wait or max callers -> the overflow queue, or hang up
+  an agent answers -> music off, agent into the bridge, any other ringing phone stops
   either side leaves -> every leg hung up and the bridge deleted (rule 8)
 """
 
@@ -22,9 +25,11 @@ from enum import StrEnum
 from typing import Any
 
 from brain.core import actions as a
+from brain.core import strategies
 from brain.core.agents import Activity, Agent, Availability
-from brain.core.config import Config, QueueConfig
+from brain.core.config import Config, QueueConfig, Strategy
 from contracts import messages as m
+from contracts import skills as skill_language
 
 BRIDGE_PREFIX = "algodial-call-"
 AGENT_LEG_PREFIX = "agent-"
@@ -52,6 +57,9 @@ class CallState(StrEnum):
     ENDED = "ended"
 
 
+OPEN = (CallState.WAITING, CallState.OFFERING)  # still looking for an agent
+
+
 @dataclass
 class Call:
     id: str  # the linkedid every leg shares
@@ -62,8 +70,7 @@ class Call:
     caller_id: str  # what the agent's phone shows
     queued_at: float
     state: CallState = CallState.WAITING
-    offer: str | None = None  # the ringing agent leg
-    offer_agent: str | None = None
+    offers: dict[str, str] = field(default_factory=dict)  # ringing agent leg -> agent uid
     agent_leg: str | None = None
     agent: str | None = None
     tried: set[str] = field(default_factory=set)  # agents who missed or refused it this round
@@ -71,6 +78,12 @@ class Call:
     held: bool = False  # the agent put the customer on hold: agent out of the bridge, music on
     caller_number: str = ""
     caller_name: str = ""
+    queue_entered_at: float = 0.0  # skill rules count from here (reset by an overflow)
+    visited: set[str] = field(default_factory=set)  # queues it overflowed out of
+    widen_at: float | None = None  # waiting for a wider skill rule from this many seconds
+
+    def __post_init__(self) -> None:
+        self.queue_entered_at = self.queue_entered_at or self.queued_at
 
 
 def stasis_args(channel: dict[str, Any], app: str) -> list[str] | None:
@@ -109,6 +122,10 @@ def wrapup_timer(agent: Agent) -> str:
     return f"wrapup:{agent.uid}"
 
 
+def widen_timer(call: Call) -> str:
+    return f"widen:{call.id}"
+
+
 class Brain:
     def __init__(self, config: Config, *, app: str, new_id: Callable[[], str]):
         self.app = app
@@ -117,6 +134,9 @@ class Brain:
         self.agents: dict[str, Agent] = {}
         self.calls: dict[str, Call] = {}
         self.legs: dict[str, str] = {}  # channel id -> call id
+        self.last_rung: dict[str, str] = {}  # queue uid -> agent uid (round robin)
+        self.answered: dict[str, dict[str, int]] = {}  # queue uid -> agent uid -> calls answered
+        self._conditions: dict[str, skill_language.Condition | None] = {}
         self.load_config(config, now=0.0)
 
     # ── configuration and restart ─────────────────────────────────────────
@@ -168,7 +188,10 @@ class Brain:
         if call is None:
             return []
         if kind == "maxwait" and call.state in (CallState.WAITING, CallState.OFFERING):
-            return self._end(call, "overflow", "max wait reached", now)
+            return self._overflow(call, "max wait reached", now)
+        if kind == "widen":
+            call.widen_at = None
+            return self._hunt(call, now)
         if kind == "retry":
             call.retry_pending = False
             call.tried.clear()
@@ -181,9 +204,9 @@ class Brain:
         if call is None:
             return []
         if isinstance(action, a.Originate):
-            if action.channel != call.offer:
+            if action.channel not in call.offers:
                 return []
-            return self._offer_failed(call, "offline", None, now)
+            return self._offer_failed(call, action.channel, "offline", None, now)
         return self._end(call, "failed", f"{type(action).__name__} failed: {error}", now)
 
     def on_command(self, kind: str, data: dict[str, Any], command_id: str, now: float) -> list[a.Action]:
@@ -270,8 +293,9 @@ class Brain:
                 out += self._end(call, "failed", "bridge gone while the brain was away", now)
             elif call.agent_leg and call.agent_leg not in live:
                 out += self._end(call, "answered", "agent left while the brain was away", now)
-            elif call.offer and call.offer not in live:
-                out += self._offer_failed(call, "failed", None, now)
+            else:
+                for leg in [leg for leg in call.offers if leg not in live]:
+                    out += self._offer_failed(call, leg, "failed", None, now)
 
         # Our bridges that no call owns: the brain restarted. Adopt what makes sense, clean the rest.
         owned = {call.bridge for call in self.calls.values()}
@@ -354,6 +378,8 @@ class Brain:
             return self._reject(channel, args, f"no entry point {entry}")
         if call_id in self.calls:
             return []
+        waiting = sum(1 for other in self.calls.values() if other.queue == queue.uid and other.state in OPEN)
+        full = 0 < queue.max_callers <= waiting
 
         call = Call(
             id=call_id,
@@ -388,75 +414,128 @@ class Brain:
             a.StartMoh(call.id, call.bridge, queue.moh_class),
             a.SetTimer(max_wait_timer(call), queue.max_wait),
         ]
+        if full:
+            return out + self._overflow(call, "queue full", now)
         return out + self._hunt(call, now)
 
     def _hunt(self, call: Call, now: float) -> list[a.Action]:
-        """Offer the call to the longest-idle free agent of its queue who has not refused it yet."""
+        """Offer the call to whom the queue's strategy picks among the free, matching, untried members."""
         if call.state is not CallState.WAITING:
             return []
         queue = self.config.queues.get(call.queue)
         if queue is None:
             return []
+        condition, wider_at = self._skill_rule(queue, now - call.queue_entered_at)
         free = [
             self.agents[uid]
             for uid in queue.members
-            if uid in self.agents and self.agents[uid].can_take_a_call
+            if uid in self.agents and self.agents[uid].can_take_a_call and self._qualifies(uid, condition)
         ]
         fresh = [agent for agent in free if agent.uid not in call.tried]
         if fresh:
-            return self._offer(call, min(fresh, key=lambda agent: (agent.idle_since, agent.number)), queue)
+            chosen = strategies.choose(
+                queue.strategy,
+                fresh,
+                members=queue.members,
+                last_rung=self.last_rung.get(queue.uid),
+                answered=self.answered.get(queue.uid, {}),
+                new_id=self.new_id,
+            )
+            return self._offer(call, chosen, queue)
+        out: list[a.Action] = []
         if free and not call.retry_pending:  # every free agent refused it: ask them again after a pause
             call.retry_pending = True
-            return [a.SetTimer(retry_timer(call), queue.retry_delay)]
-        return []
+            out.append(a.SetTimer(retry_timer(call), queue.retry_delay))
+        if wider_at is not None and call.widen_at != wider_at:  # a wider rule starts at that second
+            call.widen_at = wider_at
+            out.append(a.SetTimer(widen_timer(call), call.queue_entered_at + wider_at - now))
+        return out
 
-    def _offer(self, call: Call, agent: Agent, queue: QueueConfig) -> list[a.Action]:
-        leg = AGENT_LEG_PREFIX + self.new_id()
-        call.state, call.offer, call.offer_agent = CallState.OFFERING, leg, agent.uid
-        self.legs[leg] = call.id
-        agent.activity, agent.call = Activity.OFFERED, call.id
-        return [
-            a.Emit(
-                m.CALL_OFFERED,
-                {
-                    "call": call.id,
-                    "leg": leg,
-                    "agent": agent.uid,
-                    "endpoint": agent.endpoint,
-                    "caller": call.caller_number,
-                    "caller_name": call.caller_name,
-                    "queue": queue.name,
-                },
-            ),
-            a.Originate(
-                call.id,
-                channel=leg,
-                endpoint=str(agent.endpoint),
-                app_args=f"agent,{call.id},{agent.uid}",
-                caller_id=call.caller_id,
-                originator=call.caller,
-                timeout=queue.ring_timeout,
-            ),
-            *self._changed(agent),
-        ]
+    def _skill_rule(
+        self, queue: QueueConfig, waited: float
+    ) -> tuple[skill_language.Condition | None, float | None]:
+        """The condition in force after ``waited`` seconds, and when the next one starts (None: never)."""
+        current: skill_language.Condition | None = None
+        for rule in queue.skill_rules:
+            if rule.after_seconds > waited:
+                return current, float(rule.after_seconds)
+            current = self._condition(rule.condition)
+        return current, None
+
+    def _condition(self, text: str) -> skill_language.Condition | None:
+        if text not in self._conditions:
+            try:
+                self._conditions[text] = skill_language.parse(text)
+            except skill_language.SkillConditionError:
+                self._conditions[text] = ("const", False)  # the admin refuses these; never match by mistake
+        return self._conditions[text]
+
+    def _qualifies(self, uid: str, condition: skill_language.Condition | None) -> bool:
+        if condition is None:
+            return True
+        settings = self.config.agents.get(uid)
+        return skill_language.evaluate(condition, settings.skills if settings else {})
+
+    def _offer(self, call: Call, agents: list[Agent], queue: QueueConfig) -> list[a.Action]:
+        out: list[a.Action] = []
+        for agent in agents:
+            leg = AGENT_LEG_PREFIX + self.new_id()
+            call.state, call.offers[leg] = CallState.OFFERING, agent.uid
+            self.legs[leg] = call.id
+            agent.activity, agent.call = Activity.OFFERED, call.id
+            self.last_rung[queue.uid] = agent.uid
+            out += [
+                a.Emit(
+                    m.CALL_OFFERED,
+                    {
+                        "call": call.id,
+                        "leg": leg,
+                        "agent": agent.uid,
+                        "endpoint": agent.endpoint,
+                        "caller": call.caller_number,
+                        "caller_name": call.caller_name,
+                        "queue": queue.name,
+                    },
+                ),
+                a.Originate(
+                    call.id,
+                    channel=leg,
+                    endpoint=str(agent.endpoint),
+                    app_args=f"agent,{call.id},{agent.uid}",
+                    caller_id=call.caller_id,
+                    originator=call.caller,
+                    timeout=queue.ring_timeout,
+                ),
+                *self._changed(agent),
+            ]
+        return out
 
     def _offer_waiting(self, now: float) -> list[a.Action]:
+        """Free agents take waiting callers: higher-priority queues first, then who waited longest."""
+
+        def order(call: Call) -> tuple[int, float]:
+            queue = self.config.queues.get(call.queue)
+            return (-(queue.priority if queue else 0), call.queued_at)
+
         out: list[a.Action] = []
-        for call in sorted(self.calls.values(), key=lambda call: call.queued_at):
+        for call in sorted(self.calls.values(), key=order):
             out += self._hunt(call, now)
         return out
 
     def _agent_answered(self, channel: dict[str, Any], args: list[str], now: float) -> list[a.Action]:
         leg = str(channel["id"])
         call = self.calls.get(args[1])
-        if call is None or call.offer != leg:
+        if call is None or leg not in call.offers:
             self.legs.pop(leg, None)
             return self._reject(channel, args, "its call is gone")
 
-        agent = self.agents.get(str(call.offer_agent))
-        call.state, call.agent_leg, call.agent = CallState.CONNECTED, leg, call.offer_agent
-        call.offer = call.offer_agent = None
-        out: list[a.Action] = [
+        uid = call.offers.pop(leg)
+        agent = self.agents.get(uid)
+        out = self._cancel_offers(call, "answered elsewhere")
+        call.state, call.agent_leg, call.agent = CallState.CONNECTED, leg, uid
+        counts = self.answered.setdefault(call.queue, {})
+        counts[uid] = counts.get(uid, 0) + 1
+        out += [
             a.Emit(
                 m.CALL_CONNECTED,
                 {
@@ -471,9 +550,34 @@ class Brain:
             a.CancelTimer(max_wait_timer(call)),
             a.CancelTimer(retry_timer(call)),
         ]
+        if call.widen_at is not None:
+            call.widen_at = None
+            out.append(a.CancelTimer(widen_timer(call)))
         if agent is not None:
             agent.activity, agent.reason = Activity.TALKING, ""
             out += self._changed(agent)
+        return out
+
+    def _cancel_offers(self, call: Call, reason: str) -> list[a.Action]:
+        """Stop every phone still ringing for this call. Not the agents' fault: they stay where they were."""
+        out: list[a.Action] = []
+        for leg, uid in list(call.offers.items()):
+            del call.offers[leg]
+            self.legs.pop(leg, None)
+            out += [
+                a.Hangup(call.id, leg),
+                a.Emit(
+                    m.CALL_OFFER_FAILED,
+                    {"call": call.id, "leg": leg, "agent": uid, "reason": reason, "cause": None},
+                ),
+                a.Emit(m.LEG_ENDED, {"call": call.id, "leg": leg, "role": "agent", "cause": None}),
+            ]
+            agent = self.agents.get(uid)
+            if agent is not None and agent.call == call.id:
+                agent.call, agent.activity = None, Activity.IDLE
+                out += self._changed(agent)
+        if call.state is CallState.OFFERING:
+            call.state = CallState.WAITING
         return out
 
     def _leg_gone(self, leg: str, cause: Any, now: float) -> list[a.Action]:
@@ -485,16 +589,18 @@ class Brain:
             return self._end(call, "answered" if call.agent else "abandoned", "customer hung up", now)
         if leg == call.agent_leg:
             return self._end(call, "answered", "agent hung up", now)
-        if leg == call.offer:
+        if leg in call.offers:
             reason = OFFER_FAILURES.get(cause, "failed") if isinstance(cause, int) else "failed"
-            return self._offer_failed(call, reason, cause, now)
+            return self._offer_failed(call, leg, reason, cause, now)
         self.legs.pop(leg, None)
         return []
 
-    def _offer_failed(self, call: Call, reason: str, cause: Any, now: float) -> list[a.Action]:
-        leg, agent = str(call.offer), self.agents.get(str(call.offer_agent))
+    def _offer_failed(self, call: Call, leg: str, reason: str, cause: Any, now: float) -> list[a.Action]:
+        uid = call.offers.pop(leg, None)
+        agent = self.agents.get(uid or "")
         self.legs.pop(leg, None)
-        call.state, call.offer, call.offer_agent = CallState.WAITING, None, None
+        if not call.offers:
+            call.state = CallState.WAITING
         out: list[a.Action] = [
             a.Emit(
                 m.CALL_OFFER_FAILED,
@@ -512,7 +618,9 @@ class Brain:
             call.tried.add(agent.uid)
             if agent.call == call.id:
                 agent.call = None
-                if reason in NOT_RESPONDING:
+                queue = self.config.queues.get(call.queue)
+                rang_with_others = queue is not None and queue.strategy == Strategy.RING_ALL
+                if reason in NOT_RESPONDING and not (reason == "no_answer" and rang_with_others):
                     agent.activity, agent.reason = Activity.NOT_RESPONDING, reason
                 else:
                     agent.activity = Activity.IDLE  # refusing keeps the agent's place in line
@@ -527,13 +635,21 @@ class Brain:
             return []
         call.state = CallState.ENDED
         out: list[a.Action] = [a.CancelTimer(max_wait_timer(call)), a.CancelTimer(retry_timer(call))]
-        for leg, role in ((call.offer, "agent"), (call.agent_leg, "agent"), (call.caller, "customer")):
+        if call.widen_at is not None:
+            out.append(a.CancelTimer(widen_timer(call)))
+        offered = list(call.offers.values())
+        legs = [(leg, "agent") for leg in call.offers] + [
+            (call.agent_leg, "agent"),
+            (call.caller, "customer"),
+        ]
+        for leg, role in legs:
             if leg:
                 self.legs.pop(leg, None)
                 out += [
                     a.Hangup(call.id, leg),
                     a.Emit(m.LEG_ENDED, {"call": call.id, "leg": leg, "role": role}),
                 ]
+        call.offers.clear()
         out += [
             a.DeleteBridge(call.id, call.bridge),
             a.Close(call.id),
@@ -543,7 +659,7 @@ class Brain:
 
         queue = self.config.queues.get(call.queue)
         wrapup = queue.wrapup_seconds if queue else 0
-        for uid, talked in ((call.agent, True), (call.offer_agent, False)):
+        for uid, talked in [(call.agent, True)] + [(uid, False) for uid in offered]:
             agent = self.agents.get(uid or "")
             if agent is None or agent.call != call.id:
                 continue
@@ -558,6 +674,34 @@ class Brain:
             out += self._changed(agent)
             if agent.removed:
                 out += self._drop(agent)
+        return out + self._offer_waiting(now)
+
+    def _overflow(self, call: Call, reason: str, now: float) -> list[a.Action]:
+        """Max wait or a full queue: on to the queue's overflow queue, or hang up if there is none.
+
+        A queue the call already left is never entered again, so overflow chains cannot loop.
+        """
+        queue = self.config.queues.get(call.queue)
+        target = self.config.queues.get(queue.overflow_queue or "") if queue else None
+        if queue is None or target is None or target.uid in call.visited or target.uid == queue.uid:
+            return self._end(call, "overflow", reason, now)
+        out = self._cancel_offers(call, "overflowed")
+        call.visited.add(queue.uid)
+        call.queue, call.queue_entered_at = target.uid, now
+        call.tried.clear()
+        call.retry_pending = False
+        out += [a.CancelTimer(retry_timer(call)), a.SetTimer(max_wait_timer(call), target.max_wait)]
+        if call.widen_at is not None:
+            call.widen_at = None
+            out.append(a.CancelTimer(widen_timer(call)))
+        out.append(
+            a.Emit(
+                m.CALL_OVERFLOWED,
+                {"call": call.id, "from_queue": queue.name, "to_queue": target.name, "reason": reason},
+            )
+        )
+        if target.moh_class != queue.moh_class:
+            out.append(a.StartMoh(call.id, call.bridge, target.moh_class))
         return out + self._offer_waiting(now)
 
     def _adopt(
