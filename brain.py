@@ -108,6 +108,7 @@ class Brain:
                 appArgs=f"agent,{agent_ext}",
                 callerId="AlgoDial <800>",
                 channelId=call.agent,
+                originator=call.caller,  # agent leg inherits the caller's linkedid
                 timeout=str(RING_TIMEOUT),
             )
             log(f"{call} ringing agent PJSIP/{agent_ext}")
