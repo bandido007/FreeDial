@@ -1,5 +1,7 @@
-"""M3's "Done when", checked with a real browser: an agent using only Chrome signs in, goes Ready,
-takes a call from 899 (the lab entry) end to end, holds, wraps up, and every state change is in the Event table.
+"""M3's and M5's "Done when", checked with real browsers. M3: an agent using only Chrome signs in, goes
+Ready, takes a call from 899 (the lab entry) end to end, holds, wraps up, and every state change is in
+the Event table. M5: two agents in two browsers consult, conference, drop, and transfer blind to an
+agent, a queue and a number, each by clicking the page.
 
     cd ~/AlgoDial && .venv/bin/python lab/agentpage.py            # headless
     .venv/bin/python lab/agentpage.py --show                      # watch it in a window
@@ -39,7 +41,7 @@ from django.conf import settings  # noqa: E402
 from playwright.async_api import async_playwright  # noqa: E402
 
 from apps.calls import bus  # noqa: E402
-from apps.calls.models import Event  # noqa: E402
+from apps.calls.models import Event, Transfer  # noqa: E402
 from apps.core.crypto import decrypt_secret  # noqa: E402
 from apps.rbac import services as rbac  # noqa: E402
 from apps.telephony.models import SipAccount  # noqa: E402
@@ -79,6 +81,154 @@ def admin_cookie():
     client = Client()
     client.force_login(get_user_model().objects.get(email=settings.DEFAULT_ADMIN_EMAIL))
     return client.cookies["sessionid"].value
+
+
+def second_agent():
+    """Agent One (7001) from .env: the transfer target in the M5 phase. Returns (email, password, uid)."""
+    spec = next(spec for spec in agent_login.AGENTS if spec[0] == "LAB_AGENT")
+    email, password, agent = agent_login.ensure_agent(*spec)
+    return email, password, str(agent.uid)
+
+
+async def signed_in(browser, email, password, admin_session):
+    context = await browser.new_context()
+    await context.add_cookies([{"name": "sessionid", "value": admin_session, "url": f"http://127.0.0.1:{PORT}"}])
+    page = await context.new_page()
+    page.on("console", lambda message: message.type == "error" and say(f"  browser ({email}): {message.text}"))
+    await page.goto(f"http://127.0.0.1:{PORT}/agent/")
+    await page.fill("#email", email)
+    await page.fill("#password", password)
+    await page.click("button[type=submit]")
+    await page.wait_for_selector("#desk:not([hidden])", timeout=10000)
+    await until(page, "document.getElementById('phone-chip').textContent.startsWith('Phone: web')", 15)
+    await until(page, "document.getElementById('live-chip').textContent === 'Live: on'", 10)
+    return page
+
+
+async def activity(page):
+    return await page.evaluate("window.agentDesk.state && window.agentDesk.state.activity")
+
+
+async def done_wrapping_up(page):
+    if await activity(page) == "wrapup":
+        await page.click("#wrapup-done")
+    await until(page, "window.agentDesk.state.activity !== 'wrapup'", 10)
+
+
+async def take_call(customer, page, number="899"):
+    """A customer calls; the page that rings answers it."""
+    call = await customer.dial(number)
+    await asyncio.wait_for(call.answered.wait(), 10)
+    await page.wait_for_selector("#call:not([hidden])", timeout=15000)
+    await page.click("#answer")
+    await until(page, "window.agentDesk.state.activity === 'talking'", 15)
+    return call
+
+
+async def transfer_from(page, kind, target_kind, target):
+    await page.select_option("#transfer-kind", kind)
+    await page.select_option("#transfer-target-kind", target_kind)
+    if target_kind == "agent":
+        await until(page, f"[...document.getElementById('transfer-agent').options].some(o => o.value === '{target}')", 10)
+        await page.select_option("#transfer-agent", target)
+    elif target_kind == "queue":
+        await page.select_option("#transfer-queue", target)
+    else:
+        await page.fill("#transfer-number", target)
+    await page.click("#transfer-go")
+
+
+async def bridges():
+    headers = {"Authorization": aiohttp.encode_basic_auth(settings.ARI_USER, settings.ARI_PASSWORD)}
+    async with aiohttp.ClientSession(headers=headers) as http, http.get(settings.ARI_URL + "/bridges") as response:
+        return await response.json()
+
+
+async def transfers_from_the_page(playwright, show, customer, admin_session, check, password):
+    """M5's Done-when: each transfer flow works from the agent page (two agents in two browsers)."""
+    other_email, other_password, other_uid = await asyncio.to_thread(second_agent)
+    browser = await playwright.chromium.launch(
+        channel="chrome",
+        headless=not show,
+        args=["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
+    )
+    first = await signed_in(browser, EMAIL, password, admin_session)
+    second = await signed_in(browser, other_email, other_password, admin_session)
+    await first.click("#ready")
+    await until(first, "document.getElementById('availability').textContent === 'Ready'", 10)
+    check("two agents signed in, two browser phones", True, "9003 Ready, 7001 Not Ready")
+
+    say("── consult, conference, drop the other party")
+    call = await take_call(customer, first)
+    await transfer_from(first, "consult", "agent", other_uid)
+    await second.wait_for_selector("#call:not([hidden])", timeout=15000)
+    check("the consulted agent's page shows the transfer", "Transfer" in (await second.inner_text("#caller")), await second.inner_text("#caller-queue"))
+    await second.click("#answer")
+    await until(first, "!document.getElementById('consult-complete').disabled", 15)
+    check("the consulting agent sees Complete / Conference / Cancel", True)
+    await first.click("#consult-conference")
+    await until(first, "!document.getElementById('conference').hidden", 10)
+    deadline = time.monotonic() + 10
+    while not any(len(b["channels"]) == 3 for b in await bridges()):
+        assert time.monotonic() < deadline, await bridges()
+        await asyncio.sleep(0.2)
+    check("conference: customer and both agents in one bridge", True)
+    await first.click("#conference-drop")
+    await until(second, "window.agentDesk.session === null", 10)
+    check("drop the other party: their call ends, the customer stays", not call.ended.is_set())
+    await call.hangup()
+    await done_wrapping_up(first)
+    await done_wrapping_up(second)
+
+    say("── blind transfer to an agent")
+    call = await take_call(customer, first)
+    await transfer_from(first, "blind", "agent", other_uid)
+    await until(first, "window.agentDesk.session === null", 10)
+    await second.wait_for_selector("#call:not([hidden])", timeout=15000)
+    await second.click("#answer")
+    await until(second, "window.agentDesk.state.activity === 'talking'", 15)
+    check("blind to an agent: the first agent is free at once, the second talks to the customer", not call.ended.is_set())
+    await call.hangup()
+    await done_wrapping_up(first)
+    await done_wrapping_up(second)
+
+    say("── blind transfer to a queue")
+    call = await take_call(customer, first)
+    await second.click("#ready")
+    await until(second, "document.getElementById('availability').textContent === 'Ready'", 10)
+    await transfer_from(first, "blind", "queue", "Support")
+    await until(first, "window.agentDesk.session === null", 10)
+    await second.wait_for_selector("#call:not([hidden])", timeout=20000)
+    await second.click("#answer")
+    await until(second, "window.agentDesk.state.activity === 'talking'", 15)
+    check("blind to a queue: the call went back into Support and the free agent took it", not call.ended.is_set())
+    await call.hangup()
+    await done_wrapping_up(first)
+    await done_wrapping_up(second)
+
+    say("── blind transfer to a number")
+    outside = await Phone("lab-agent-b", await asyncio.to_thread(sip_password, "lab-agent-b"), mode="answer").start()
+    assert await outside.register() == 200
+    try:
+        await second.click("#not-ready")
+        call = await take_call(customer, first)
+        await transfer_from(first, "blind", "number", "lab-agent-b")
+        await until(first, "window.agentDesk.session === null", 10)
+        answered = await outside.ringing(timeout=15)
+        await asyncio.wait_for(answered.answered.wait(), 5)
+        check("blind to a number: the person called talks to the customer", not call.ended.is_set())
+        await answered.hangup()
+        await asyncio.wait_for(call.ended.wait(), 5)
+    finally:
+        await outside.close()
+    await done_wrapping_up(first)
+    for page in (first, second):
+        await page.click("#signout")
+    await browser.close()
+
+
+def sip_password(sip_id):
+    return decrypt_secret(SipAccount.objects.get(sip_id=sip_id).password_encrypted)
 
 
 def port_free(port):
@@ -161,7 +311,7 @@ async def media_stats(page):
     )
 
 
-async def main(show):
+async def main(show, transfers=True):
     password, agent_uid, customer_password = await asyncio.to_thread(setup)
     admin_session = await asyncio.to_thread(admin_cookie)
     started = datetime.now(timezone.utc)
@@ -299,6 +449,20 @@ async def main(show):
         check("the wrap-up code is in the Event table", wrapped and wrapped[-1]["code"] == "Sale", str(wrapped))
         kinds = {kind for kind, _ in rows}
         check("the call's events are there too", {"call.offered", "call.connected", "call.held", "call.resumed", "call.ended"} <= kinds)
+
+        if transfers:
+            transfers_started = datetime.now(timezone.utc)
+            async with async_playwright() as playwright:
+                await transfers_from_the_page(playwright, show, customer, admin_session, check, password)
+            await asyncio.sleep(2)  # the writer
+            statuses = await asyncio.to_thread(
+                lambda: list(Transfer.objects.filter(started_at__gte=transfers_started).order_by("started_at").values_list("kind", "target_kind", "status"))
+            )
+            check(
+                "every transfer is recorded with its status",
+                statuses == [("consult", "agent", "conference"), ("blind", "agent", "completed"), ("blind", "queue", "completed"), ("blind", "number", "completed")],
+                str(statuses),
+            )
     except Exception as exc:
         if not checks or checks[-1][1]:
             say(f"  FAIL  {type(exc).__name__}: {exc}")
@@ -314,4 +478,6 @@ async def main(show):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--show", action="store_true", help="open a visible Chrome window")
-    sys.exit(asyncio.run(main(parser.parse_args().show)))
+    parser.add_argument("--no-transfers", action="store_true", help="skip the M5 transfer phase")
+    arguments = parser.parse_args()
+    sys.exit(asyncio.run(main(arguments.show, transfers=not arguments.no_transfers)))

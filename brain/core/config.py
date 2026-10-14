@@ -86,3 +86,6 @@ class Config:
     queues: dict[str, QueueConfig] = field(default_factory=dict)
     entries: dict[str, EntryConfig] = field(default_factory=dict)  # number dialled -> entry
     skills: dict[str, str] = field(default_factory=dict)  # skill name -> kind (language, topic, tier)
+    dial_template: str = (
+        "PJSIP/{number}"  # how a transfer to a number is dialled (a trunk: PJSIP/{number}@trunk)
+    )

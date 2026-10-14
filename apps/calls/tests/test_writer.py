@@ -159,3 +159,36 @@ def test_send_command_puts_a_checked_command_on_the_stream(settings):
     with pytest.raises(Exception, match="agent"):
         bus.send_command(m.AGENT_READY, {})
     client.delete(settings.BUS_COMMANDS_STREAM)
+
+
+def test_a_transfer_is_recorded_with_its_status():
+    from apps.calls.models import Transfer
+
+    for message in a_call()[:5]:
+        writer.write(message)
+    started = Message(
+        m.TRANSFER_STARTED,
+        {
+            "call": CALL,
+            "transfer": "t1",
+            "kind": "consult",
+            "target_kind": "agent",
+            "target": "7003",
+            "agent": "b",
+            "target_agent": "c",
+        },
+    )
+    answered = Message(m.TRANSFER_ANSWERED, {"call": CALL, "transfer": "t1", "leg": "agent-9"})
+    done = Message(m.CONFERENCE_STARTED, {"call": CALL, "transfer": "t1", "legs": [], "agent": "b"})
+    for message in (started, answered, done, started):
+        writer.write(message)
+    transfer = Transfer.objects.get(transfer_id="t1")
+    assert (
+        transfer.kind,
+        transfer.target_kind,
+        transfer.target,
+        transfer.by_agent_uid,
+        transfer.target_agent_uid,
+    ) == ("consult", "agent", "7003", "b", "c")
+    assert transfer.status == "conference" and transfer.answered_at and transfer.ended_at
+    assert transfer.call.linkedid == CALL

@@ -14,7 +14,7 @@ from typing import Any
 from django.db import DatabaseError, close_old_connections, transaction
 
 from apps.calls.bus import StreamReader
-from apps.calls.models import Call, CallbackTask, Event, Leg, LegRole
+from apps.calls.models import Call, CallbackTask, Event, Leg, LegRole, Transfer, TransferStatus
 from contracts import messages as m
 from contracts.envelope import ContractError, decode
 from contracts.envelope import Event as Message
@@ -22,6 +22,13 @@ from contracts.envelope import Event as Message
 log = logging.getLogger(__name__)
 
 GROUP = "writer"
+TRANSFER_ENDINGS = {
+    m.TRANSFER_ANSWERED: TransferStatus.ANSWERED,
+    m.TRANSFER_COMPLETED: TransferStatus.COMPLETED,
+    m.TRANSFER_CANCELLED: TransferStatus.CANCELLED,
+    m.TRANSFER_FAILED: TransferStatus.FAILED,
+    m.CONFERENCE_STARTED: TransferStatus.CONFERENCE,
+}
 
 
 @transaction.atomic
@@ -92,6 +99,27 @@ def _project(kind: str, data: dict[str, Any], at: datetime) -> None:
         call.answered_at = call.answered_at or at
         call.agent_uid = data["agent"] or ""
         call.save()
+    elif kind == m.TRANSFER_STARTED:
+        Transfer.objects.get_or_create(
+            transfer_id=data["transfer"],
+            defaults={
+                "call": _call(data["call"], at),
+                "kind": data["kind"],
+                "target_kind": data["target_kind"],
+                "target": str(data["target"]),
+                "by_agent_uid": data["agent"] or "",
+                "target_agent_uid": data.get("target_agent") or "",
+                "started_at": at,
+            },
+        )
+    elif kind in TRANSFER_ENDINGS:
+        status = TRANSFER_ENDINGS[kind]
+        fields: dict[str, Any] = {"reason": str(data.get("reason") or "")[:200]}
+        if status == TransferStatus.ANSWERED:
+            fields["answered_at"] = at
+        else:
+            fields["ended_at"] = at
+        Transfer.objects.filter(transfer_id=data["transfer"]).update(status=status, **fields)
     elif kind == m.CALLBACK_REQUESTED:
         CallbackTask.objects.get_or_create(
             linkedid=data["call"],

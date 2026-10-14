@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
 
-from apps.calls.models import Call, CallbackStatus, CallbackTask, Event, Leg
+from apps.calls.models import Call, CallbackStatus, CallbackTask, Event, Leg, Transfer
 from apps.calls.permissions import HANDLE_CALLBACKS, VIEW_CALLS
 from apps.rbac.admin_access import RbacAdminMixin
 
@@ -45,12 +45,33 @@ class LegInline(admin.TabularInline):
         return False
 
 
+class TransferInline(admin.TabularInline):
+    model = Transfer
+    extra = 0
+    can_delete = False
+    fields = (
+        "kind",
+        "target_kind",
+        "target",
+        "by_agent_uid",
+        "status",
+        "reason",
+        "started_at",
+        "answered_at",
+        "ended_at",
+    )
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Call)
 class CallAdmin(ReadOnly, admin.ModelAdmin):
     list_display = ("linkedid", "entry", "queue", "caller", "started_at", "answered_at", "ended_at", "result")
     list_filter = ("result", "queue")
     search_fields = ("linkedid", "caller", "agent_uid")
-    inlines = [LegInline]
+    inlines = [LegInline, TransferInline]
 
 
 @admin.register(Event)

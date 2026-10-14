@@ -1,6 +1,11 @@
 """The unified root query, composed from every app's Query."""
 type Query {
   """
+  The signed-in agent, their live state, Not Ready reasons and wrap-up codes. permissions=['can_take_calls']
+  """
+  myAgentDesk: AgentDeskResponse
+
+  """
   Calls offered, answered, abandoned and overflowed, waits and service level. permissions=['can_view_queues']
   """
   getQueueStats(
@@ -12,11 +17,6 @@ type Query {
     """Default: now"""
     until: DateTime
   ): QueueStatsResponse
-
-  """
-  The signed-in agent, their live state, Not Ready reasons and wrap-up codes. permissions=['can_take_calls']
-  """
-  myAgentDesk: AgentDeskResponse
 
   """One team with its members. permissions=['can_view_teams']"""
   getTeam(uid: UUID!): TeamResponse
@@ -225,6 +225,54 @@ type Query {
   getRegistrationStatus: RegistrationStatusResponse
 }
 
+type AgentDeskResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: AgentDeskType
+  dataList: [AgentDeskType]
+}
+
+type AgentDeskType {
+  uid: String
+  number: String
+  name: String
+  state: AgentLiveStateType
+  notReadyReasons: [String]
+  wrapupCodes: [String]
+  transferTargets: TransferTargetsType
+}
+
+"""The agent's state as the brain last saved it."""
+type AgentLiveStateType {
+  """logged_out, ready or not_ready"""
+  availability: String
+
+  """idle, offered, talking, on_hold, wrapup or not_responding"""
+  activity: String
+  reason: String
+
+  """The call the agent is on (its linkedid)"""
+  call: String
+
+  """The call the agent is wrapping up"""
+  wrapupCall: String
+  endpoint: String
+}
+
+type TransferTargetsType {
+  agents: [TransferAgentType]
+  queues: [String]
+}
+
+type TransferAgentType {
+  uid: String
+  number: String
+  name: String
+  availability: String
+  activity: String
+}
+
 type QueueStatsResponse {
   status: Boolean
   code: Int
@@ -266,40 +314,6 @@ Leverages the internal Python implementation of UUID (uuid.UUID) to provide nati
 in fields, resolvers and input.
 """
 scalar UUID
-
-type AgentDeskResponse {
-  status: Boolean
-  code: Int
-  message: String
-  data: AgentDeskType
-  dataList: [AgentDeskType]
-}
-
-type AgentDeskType {
-  uid: String
-  number: String
-  name: String
-  state: AgentLiveStateType
-  notReadyReasons: [String]
-  wrapupCodes: [String]
-}
-
-"""The agent's state as the brain last saved it."""
-type AgentLiveStateType {
-  """logged_out, ready or not_ready"""
-  availability: String
-
-  """idle, offered, talking, on_hold, wrapup or not_responding"""
-  activity: String
-  reason: String
-
-  """The call the agent is on (its linkedid)"""
-  call: String
-
-  """The call the agent is wrapping up"""
-  wrapupCall: String
-  endpoint: String
-}
 
 type TeamResponse {
   status: Boolean
@@ -1662,6 +1676,27 @@ type Mutation {
     hold: Boolean!
   ): CommandSentResponse
 
+  """Transfer the current call. permissions=['can_take_calls']"""
+  transferMyCall(
+    """blind or consult"""
+    kind: String!
+
+    """Blind to a queue: extra required skills"""
+    skills: [SkillNeedInput]
+    target: String!
+
+    """agent, queue or number"""
+    targetKind: String!
+  ): CommandSentResponse
+
+  """
+  Complete, cancel, conference, drop the other party or leave. permissions=['can_take_calls']
+  """
+  myTransferStep(
+    """complete, cancel, conference, drop_other or leave"""
+    step: String!
+  ): CommandSentResponse
+
   """End wrap-up with a code. permissions=['can_take_calls']"""
   finishMyWrapup(
     """One of myAgentDesk.wrapupCodes"""
@@ -1926,6 +1961,11 @@ The command the brain was sent; its answer arrives on the live WebSocket.
 """
 type CommandSentType {
   commandId: String
+}
+
+input SkillNeedInput {
+  skill: String!
+  minLevel: Int!
 }
 
 input TeamInput {

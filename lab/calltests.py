@@ -1,4 +1,5 @@
-"""The brain's 9 call tests (docs/POC_PLAN.md), plus 10 = ring all and 11 = voicemail, on the real Asterisk.
+"""The brain's 9 call tests (docs/POC_PLAN.md), plus 10 ring all, 11 voicemail and 12-17 transfers (M5),
+on the real Asterisk. The transfer tests also check CEL: one linkedid for the whole call.
 
     cd ~/AlgoDial && .venv/bin/python lab/calltests.py            # all
     .venv/bin/python lab/calltests.py 1 4 8                       # some
@@ -16,6 +17,7 @@ Test 9 needs the dialplan fallback: sudo deploy/asterisk/apply.sh m2
 Your Zoipers (1001, 1002) are in Queue(support): during test 9 they may ring for a second.
 """
 import asyncio
+import csv
 import json
 import os
 import signal
@@ -49,6 +51,7 @@ from contracts import messages as m  # noqa: E402
 from contracts.envelope import decode  # noqa: E402
 from sipphone import Phone  # noqa: E402
 
+CEL = "/var/log/asterisk/cel-custom/cel_trace.csv"
 LAB_ENTRY = "899"  # needs `sudo deploy/asterisk/apply.sh m4` (every 8xx number goes to the brain)
 RECORDING = ROOT / "brain" / "sim" / "recordings" / "lab.jsonl"
 BRAIN_LOG = ROOT / "lab" / "calltests-brain.log"
@@ -400,6 +403,135 @@ class Lab:
             await asyncio.sleep(1.5)
         return f"prompt, then a {callback['duration']} s message ({len(audio)} bytes WAV) and a callback request"
 
+    # ── M5: transfers, each checked in CEL for one linkedid ──────────────
+    async def transfer_setup(self):
+        """A is on a call with the customer; B is Ready. Returns (customer call, linkedid, A's phone call)."""
+        self.phone_a.mode = self.phone_b.mode = "answer"
+        await self.a_first()
+        call, linkedid = await self.dial()
+        connected = await self.connected()
+        assert connected["agent"] == self.a
+        a_call = await self.answered_call(self.phone_a)
+        return call, linkedid, a_call
+
+    async def answered_call(self, phone, timeout=10):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            live = [c for c in phone.calls.values() if c.answered.is_set() and not c.ended.is_set()]
+            if live:
+                return live[-1]
+            await asyncio.sleep(0.1)
+        raise AssertionError(f"{phone.user} has no answered call")
+
+    async def one_linkedid(self, linkedid):
+        """CEL: every channel of this call carries the customer's linkedid (rule 4)."""
+        await asyncio.sleep(1.5)
+        legs = {linkedid}
+        for event in self.w.new_events():
+            if event.data.get("call") == linkedid and event.data.get("leg"):
+                legs.add(event.data["leg"])
+        seen = {}
+        with open(CEL) as cel:
+            for row in csv.reader(cel):
+                if len(row) > 9 and row[8] in legs:
+                    seen.setdefault(row[8], set()).add(row[9])
+        linked = set().union(*seen.values()) if seen else set()
+        assert len(seen) >= 2 and linked == {linkedid}, (seen, linkedid)
+        return len(seen)
+
+    async def t12(self):
+        """Blind transfer to an agent: A leaves at once, B gets the customer."""
+        call, linkedid, a_call = await self.transfer_setup()
+        self.w.command(m.CALL_TRANSFER, agent=self.a, kind="blind", target_kind="agent", target=self.b)
+        await asyncio.wait_for(a_call.ended.wait(), 5)
+        answered = await self.w.event(m.TRANSFER_COMPLETED, call=linkedid)
+        await self.w.agent_is(self.b, activity="talking")
+        await asyncio.sleep(1)
+        await call.hangup()
+        await self.w.event(m.CALL_ENDED, call=linkedid)
+        await self.w.all_clear()
+        channels = await self.one_linkedid(linkedid)
+        return f"A left, B answered (transfer {answered['transfer'][:8]}); {channels} channels, one linkedid in CEL"
+
+    async def consult(self, linkedid):
+        self.w.command(m.CALL_TRANSFER, agent=self.a, kind="consult", target_kind="agent", target=self.b)
+        await self.w.event(m.TRANSFER_ANSWERED, call=linkedid)
+        await self.w.agent_is(self.b, activity="talking")
+        await asyncio.sleep(1)
+
+    async def t13(self):
+        """Consult, then complete: the customer ends up with B."""
+        call, linkedid, a_call = await self.transfer_setup()
+        await self.consult(linkedid)
+        self.w.command(m.TRANSFER_COMPLETE, agent=self.a)
+        await asyncio.wait_for(a_call.ended.wait(), 5)
+        await self.w.event(m.TRANSFER_COMPLETED, call=linkedid)
+        await asyncio.sleep(1)
+        assert not call.ended.is_set()
+        await call.hangup()
+        await self.w.event(m.CALL_ENDED, call=linkedid)
+        await self.w.all_clear()
+        return f"consulted B, completed; {await self.one_linkedid(linkedid)} channels, one linkedid in CEL"
+
+    async def t14(self):
+        """Consult, then cancel: A is back with the customer, B's phone hung up."""
+        call, linkedid, a_call = await self.transfer_setup()
+        await self.consult(linkedid)
+        b_call = await self.answered_call(self.phone_b)
+        self.w.command(m.TRANSFER_CANCEL, agent=self.a)
+        await asyncio.wait_for(b_call.ended.wait(), 5)
+        await self.w.agent_is(self.a, activity="talking")
+        assert not a_call.ended.is_set() and not call.ended.is_set()
+        await call.hangup()
+        await self.w.event(m.CALL_ENDED, call=linkedid)
+        await self.w.all_clear()
+        return f"cancelled: A back with the customer; {await self.one_linkedid(linkedid)} channels, one linkedid"
+
+    async def t15(self):
+        """Conference: all three together, then A drops B."""
+        call, linkedid, a_call = await self.transfer_setup()
+        await self.consult(linkedid)
+        b_call = await self.answered_call(self.phone_b)
+        self.w.command(m.CONFERENCE_START, agent=self.a)
+        await self.w.event(m.CONFERENCE_STARTED, call=linkedid)
+        await asyncio.sleep(1.5)
+        bridges = await self.w.ari("GET", "/bridges")
+        assert len(bridges) == 1 and len(bridges[0]["channels"]) == 3, bridges
+        self.w.command(m.CONFERENCE_DROP, agent=self.a, who="other")
+        await asyncio.wait_for(b_call.ended.wait(), 5)
+        assert not a_call.ended.is_set()
+        await call.hangup()
+        await self.w.event(m.CALL_ENDED, call=linkedid)
+        await self.w.all_clear()
+        return f"three in one bridge, B dropped; {await self.one_linkedid(linkedid)} channels, one linkedid"
+
+    async def t16(self):
+        """Blind transfer to a queue: the call re-enters Support and B takes it."""
+        call, linkedid, a_call = await self.transfer_setup()
+        self.w.command(m.CALL_TRANSFER, agent=self.a, kind="blind", target_kind="queue", target="Support")
+        await asyncio.wait_for(a_call.ended.wait(), 5)
+        ticket = await self.w.event(m.ROUTING_TICKET, call=linkedid)
+        connected = await self.w.event(m.CALL_CONNECTED, call=linkedid, agent=self.b)
+        await asyncio.sleep(1)
+        await call.hangup()
+        await self.w.event(m.CALL_ENDED, call=linkedid)
+        await self.w.all_clear()
+        return f"back into {ticket['queue']}, B answered; {await self.one_linkedid(linkedid)} channels, one linkedid"
+
+    async def t17(self):
+        """Blind transfer to a number (here B's phone, dialled as a plain number)."""
+        call, linkedid, a_call = await self.transfer_setup()
+        self.w.command(m.AGENT_LOGOUT, agent=self.b)
+        self.w.command(m.CALL_TRANSFER, agent=self.a, kind="blind", target_kind="number", target="lab-agent-b")
+        await asyncio.wait_for(a_call.ended.wait(), 5)
+        await self.w.event(m.TRANSFER_COMPLETED, call=linkedid)
+        b_call = await self.answered_call(self.phone_b)
+        await asyncio.sleep(1)
+        await b_call.hangup()  # the person called hangs up: the call is over
+        await self.w.event(m.CALL_ENDED, call=linkedid)
+        await self.w.all_clear()
+        return f"PJSIP/lab-agent-b answered and hung up; {await self.one_linkedid(linkedid)} channels, one linkedid"
+
     async def t9(self):
         """Brain stopped, customer calls 899 -> the dialplan's Queue() answers."""
         self.w.kill_brain(signal.SIGTERM)
@@ -477,5 +609,5 @@ async def main(selected):
 
 
 if __name__ == "__main__":
-    chosen = [int(arg) for arg in sys.argv[1:]] or list(range(1, 12))
+    chosen = [int(arg) for arg in sys.argv[1:]] or list(range(1, 18))
     sys.exit(asyncio.run(main(chosen)))

@@ -5,16 +5,17 @@ agent's or a call's state itself. The brain's answer comes back as events on the
 page's live WebSocket; ``live_state`` reads the state the brain last saved.
 """
 
-import json
 from typing import Any
 
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from apps.agents.live import LOGGED_OUT, live_state, live_states
 from apps.agents.models import Agent, AgentSession, NotReadyReason, WrapupCode
 from apps.calls import bus
 from apps.core.exceptions import ApplicationError, ValidationError
+from apps.queues.models import Queue
 from apps.telephony import services as telephony
 from apps.telephony.enums import SipAccountKindChoices
 from apps.telephony.models import SipAccount
@@ -24,27 +25,12 @@ NOT_AN_AGENT = 10204
 ON_A_CALL = 10205
 NOT_LISTED = 10206
 
-LOGGED_OUT = {
-    "availability": "logged_out",
-    "activity": "idle",
-    "reason": "",
-    "call": None,
-    "wrapup_call": None,
-    "endpoint": None,
-}
-
 
 def agent_of(user) -> Agent:
     agent = Agent.objects.filter(user=user, active=True).first() if user and user.is_authenticated else None
     if agent is None:
         raise ApplicationError("You are not set up as an agent.", code=NOT_AN_AGENT)
     return agent
-
-
-def live_state(agent: Agent) -> dict[str, Any]:
-    """The agent's state as the brain last saved it (Redis), or logged out."""
-    raw = bus.client().hget(settings.BUS_AGENTS_KEY, str(agent.uid))
-    return {**LOGGED_OUT, **json.loads(raw)} if isinstance(raw, (str, bytes)) else dict(LOGGED_OUT)
 
 
 def desk(user) -> dict[str, Any]:
@@ -56,6 +42,7 @@ def desk(user) -> dict[str, Any]:
         "state": live_state(agent),
         "not_ready_reasons": list(NotReadyReason.objects.filter(active=True).values_list("name", flat=True)),
         "wrapup_codes": list(WrapupCode.objects.filter(active=True).values_list("name", flat=True)),
+        "transfer_targets": transfer_targets(agent),
     }
 
 
@@ -138,3 +125,59 @@ def finish_wrapup(user, *, code: str) -> dict[str, Any]:
     if codes and code not in codes:
         raise ValidationError("Pick one of the listed wrap-up codes.", code=NOT_LISTED)
     return {"command_id": bus.send_command(m.AGENT_WRAPUP_DONE, {"agent": str(agent.uid), "code": code})}
+
+
+# ── transfers and conference (M5) ─────────────────────────────────────────
+TRANSFER_KINDS = ("blind", "consult")
+TARGET_KINDS = ("agent", "queue", "number")
+
+
+def transfer_targets(agent: Agent) -> dict[str, Any]:
+    """Whom the agent can hand a call to: the other agents (with their live state) and the queues."""
+    states = live_states()
+    others = []
+    for other in Agent.objects.filter(active=True).exclude(pk=agent.pk).order_by("number"):
+        state = states.get(str(other.uid), LOGGED_OUT)
+        others.append(
+            {
+                "uid": str(other.uid),
+                "number": other.number,
+                "name": other.name,
+                "availability": state["availability"],
+                "activity": state["activity"],
+            }
+        )
+    return {
+        "agents": others,
+        "queues": list(Queue.objects.filter(active=True).values_list("name", flat=True)),
+    }
+
+
+def transfer(
+    user, *, kind: str, target_kind: str, target: str, skills: dict[str, int] | None = None
+) -> dict[str, Any]:
+    agent = agent_of(user)
+    if kind not in TRANSFER_KINDS or target_kind not in TARGET_KINDS or not (target or "").strip():
+        raise ValidationError(
+            "A transfer is blind or consult, to an agent, a queue or a number.", code=NOT_LISTED
+        )
+    data: dict[str, Any] = {
+        "agent": str(agent.uid),
+        "kind": kind,
+        "target_kind": target_kind,
+        "target": target.strip(),
+    }
+    if skills:
+        data["skills"] = {str(name): int(level) for name, level in skills.items()}
+    return {"command_id": bus.send_command(m.CALL_TRANSFER, data)}
+
+
+def transfer_step(user, step: str, who: str | None = None) -> dict[str, Any]:
+    """Complete or cancel a consult, start a conference, or drop someone from it (who: other | me)."""
+    agent = agent_of(user)
+    data: dict[str, Any] = {"agent": str(agent.uid)}
+    if step == m.CONFERENCE_DROP:
+        if who not in ("other", "me"):
+            raise ValidationError("Drop the other party or yourself.", code=NOT_LISTED)
+        data["who"] = who
+    return {"command_id": bus.send_command(step, data)}

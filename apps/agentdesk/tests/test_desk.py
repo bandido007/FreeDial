@@ -10,7 +10,7 @@ import json
 import pytest
 from django.conf import settings
 
-from apps.agents import desk
+from apps.agentdesk import desk
 from apps.agents.models import Agent, AgentSession, NotReadyReason, WrapupCode
 from apps.calls import bus
 from apps.telephony.models import PsAuth, PsEndpoint, SipAccount
@@ -180,3 +180,58 @@ def test_only_agents_with_the_permission_get_in(api, make_user, grant, commands)
     grant(no_agent, "can_take_calls")
     assert call(api(no_agent), DESK)["code"] == desk.NOT_AN_AGENT
     assert call(api(no_agent), START)["code"] == desk.NOT_AN_AGENT
+
+
+def test_the_desk_lists_whom_to_transfer_to(api, agent_user, commands):
+    from apps.queues import services as queues
+
+    other = Agent.objects.create(number="7002", name="Baraka")
+    queues.save_queue(actor=None, name="Claims")
+    bus.client().hset(
+        settings.BUS_AGENTS_KEY,
+        str(other.uid),
+        json.dumps({"agent": str(other.uid), "availability": "ready", "activity": "idle"}),
+    )
+    targets = call(
+        api(agent_user),
+        "query { myAgentDesk { data { transferTargets { queues agents { number availability activity } } } } }",
+    )["data"]["transferTargets"]
+    assert targets["agents"] == [{"number": "7002", "availability": "ready", "activity": "idle"}]
+    assert targets["queues"] == ["Claims"]
+
+
+def test_transfer_buttons_become_commands_for_the_brain(api, agent_user, commands):
+    client = api(agent_user)
+    uid = str(agent_user.agent.uid)
+    call(client, 'mutation { transferMyCall(kind: "consult", targetKind: "agent", target: "x") { code } }')
+    call(
+        client,
+        'mutation { transferMyCall(kind: "blind", targetKind: "queue", target: "Claims", skills: [{skill: "claims", minLevel: 5}]) { code } }',
+    )
+    for step in ("complete", "cancel", "conference", "drop_other", "leave"):
+        call(client, f'mutation {{ myTransferStep(step: "{step}") {{ code }} }}')
+    assert call(client, 'mutation { myTransferStep(step: "explode") { code } }')["code"] == 10206
+    assert (
+        call(
+            client, 'mutation { transferMyCall(kind: "sideways", targetKind: "agent", target: "x") { code } }'
+        )["code"]
+        == 10206
+    )
+    assert [(c.type, c.data) for c in commands()] == [
+        (m.CALL_TRANSFER, {"agent": uid, "kind": "consult", "target_kind": "agent", "target": "x"}),
+        (
+            m.CALL_TRANSFER,
+            {
+                "agent": uid,
+                "kind": "blind",
+                "target_kind": "queue",
+                "target": "Claims",
+                "skills": {"claims": 5},
+            },
+        ),
+        (m.TRANSFER_COMPLETE, {"agent": uid}),
+        (m.TRANSFER_CANCEL, {"agent": uid}),
+        (m.CONFERENCE_START, {"agent": uid}),
+        (m.CONFERENCE_DROP, {"agent": uid, "who": "other"}),
+        (m.CONFERENCE_DROP, {"agent": uid, "who": "me"}),
+    ]

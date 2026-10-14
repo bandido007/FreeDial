@@ -2,9 +2,9 @@
 
 import graphene
 
-from apps.agents import desk
+from apps.agentdesk import desk
+from apps.agentdesk.types import AgentDeskType
 from apps.agents.permissions import TAKE_CALLS
-from apps.agents.types import AgentDeskType
 from apps.core.decorators import has_permission, log_errors_and_warnings
 from apps.core.graphql.context import current_user
 from apps.core.graphql.response import Response

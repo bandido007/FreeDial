@@ -30,6 +30,7 @@ PROJECT_MODULES = (
     "apps.calls",
     "apps.agents",
     "apps.queues",
+    "apps.agentdesk",
     # <scaffold:project-modules>
 )
 

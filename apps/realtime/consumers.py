@@ -16,7 +16,7 @@ import asyncio
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
-from apps.agents import desk
+from apps.agents.live import live_state
 from apps.realtime.auth import agent_for_token
 
 AUTH_TIMEOUT = 10  # seconds a connection may stay open without a valid token
@@ -52,7 +52,7 @@ class AgentConsumer(AsyncJsonWebsocketConsumer):
         self.deadline.cancel()
         self.group = agent_group(str(agent.uid))
         await self.channel_layer.group_add(self.group, self.channel_name)
-        state = await database_sync_to_async(desk.live_state)(agent)
+        state = await database_sync_to_async(live_state)(agent)
         await self.send_json(
             {
                 "type": "hello",

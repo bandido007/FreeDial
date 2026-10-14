@@ -13,18 +13,27 @@ from brain.sim import FakeAri, FakeBus
 from contracts import messages as m
 from contracts.envelope import Command
 
-A, B = "agent-uid-a", "agent-uid-b"
-PHONE_A, PHONE_B = "PJSIP/lab-agent-a", "PJSIP/lab-agent-b"
+A, B, C = "agent-uid-a", "agent-uid-b", "agent-uid-c"
+PHONE_A, PHONE_B, PHONE_C = "PJSIP/lab-agent-a", "PJSIP/lab-agent-b", "PJSIP/lab-agent-c"
 QUEUE = QueueConfig(
     uid="queue-1", name="Support", ring_timeout=30, max_wait=60, retry_delay=1, members=(A, B)
 )
 
 
+BACKUP = QueueConfig(uid="queue-2", name="Backup", ring_timeout=30, max_wait=60, members=(C,))
+
+
 def make_config(**queue_settings) -> Config:
+    """Support (A and B) behind 800; Backup (C, a transfer target) has no entry point."""
     return Config(
-        agents={A: AgentConfig(A, "7001", "Asha"), B: AgentConfig(B, "7002", "Baraka")},
-        queues={QUEUE.uid: replace(QUEUE, **queue_settings)},
+        agents={
+            A: AgentConfig(A, "7001", "Asha"),
+            B: AgentConfig(B, "7002", "Baraka"),
+            C: AgentConfig(C, "7003", "Chiku", {"billing": 6}),
+        },
+        queues={QUEUE.uid: replace(QUEUE, **queue_settings), BACKUP.uid: BACKUP},
         entries={"800": EntryConfig("800", QUEUE.uid)},
+        skills={"billing": "topic"},
     )
 
 
@@ -51,8 +60,8 @@ class Lab:
     def __init__(self, sim: FakeAri, bus: FakeBus, runtime: Runtime):
         self.sim, self.bus, self.runtime = sim, bus, runtime
 
-    async def command(self, kind: str, **data) -> Command:
-        command = Command(type=kind, data=data)
+    async def command(self, command_type: str, /, **data) -> Command:
+        command = Command(type=command_type, data=data)
         await self.bus.send(command)
         return command
 

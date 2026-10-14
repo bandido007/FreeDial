@@ -20,133 +20,41 @@ A call to an entry point:
 """
 
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, field
-from datetime import datetime
-from enum import StrEnum
 from typing import Any
 
 from brain.core import actions as a
 from brain.core import routing, strategies
 from brain.core.agents import Activity, Agent, Availability
+from brain.core.calls import (  # noqa: F401 (re-exported: tests and the service import them from here)
+    AGENT_LEG_PREFIX,
+    BRIDGE_PREFIX,
+    BUSY,
+    CONSULT_PREFIX,
+    NOT_RESPONDING,
+    OFFER_FAILURES,
+    OPEN,
+    TRANSFER_COMMANDS,
+    VOICEMAIL_MEDIA,
+    WRAPUP_AFTER_RESTART,
+    Call,
+    CallState,
+    Transfer,
+    caller_id,
+    max_wait_timer,
+    parse_time,
+    retry_timer,
+    stasis_args,
+    voicemail_prompt,
+    voicemail_recording,
+    widen_timer,
+    wrapup_timer,
+)
 from brain.core.config import Config, EntryConfig, OverflowAction, QueueConfig, Requirement, Strategy
+from brain.core.transfers import TransferMixin
 from contracts import messages as m
 
-BRIDGE_PREFIX = "algodial-call-"
-AGENT_LEG_PREFIX = "agent-"
 
-# Q.850 causes on an agent leg that never answered, and what they mean for the offer.
-OFFER_FAILURES = {
-    3: "offline",  # no route to destination
-    17: "rejected",  # user busy (SIP 486)
-    18: "no_answer",  # no user responding
-    19: "no_answer",  # no answer: the ring timeout ran out
-    20: "offline",  # subscriber absent
-    21: "rejected",  # call rejected (SIP 603)
-    27: "offline",  # destination out of order
-}
-# An agent who misses an offer this way is offered nothing until Ready again.
-NOT_RESPONDING = ("no_answer", "offline")
-BUSY = (Activity.OFFERED, Activity.TALKING, Activity.ON_HOLD)
-WRAPUP_AFTER_RESTART = 60  # seconds left for a wrap-up a restarted brain finds (its timer died)
-
-
-class CallState(StrEnum):
-    WAITING = "waiting"  # in the bridge with music, no agent ringing
-    OFFERING = "offering"  # an agent's phone is ringing
-    CONNECTED = "connected"
-    VOICEMAIL = "voicemail"  # out of the queue: the caller hears the prompt, then is recorded
-    ENDED = "ended"
-
-
-OPEN = (CallState.WAITING, CallState.OFFERING)  # still looking for an agent
-
-
-@dataclass
-class Call:
-    id: str  # the linkedid every leg shares
-    caller: str  # the customer's channel id
-    entry: str
-    queue: str  # queue uid
-    bridge: str
-    caller_id: str  # what the agent's phone shows
-    queued_at: float
-    state: CallState = CallState.WAITING
-    offers: dict[str, str] = field(default_factory=dict)  # ringing agent leg -> agent uid
-    agent_leg: str | None = None
-    agent: str | None = None
-    tried: set[str] = field(default_factory=set)  # agents who missed or refused it this round
-    retry_pending: bool = False
-    held: bool = False  # the agent put the customer on hold: agent out of the bridge, music on
-    caller_number: str = ""
-    caller_name: str = ""
-    queue_entered_at: float = 0.0  # skill rules count from here (reset by an overflow)
-    visited: set[str] = field(default_factory=set)  # queues it overflowed out of
-    widen_at: float | None = None  # waiting for a wider skill rule from this many seconds
-    # The routing ticket (ROUTING_DESIGN.md): language, priority and extra skills, and who set them last.
-    language: str | None = None
-    priority: int | None = None  # None: the queue's priority
-    extra: tuple[Requirement, ...] = ()
-    ticket_source: str = "entry_point"
-    callback_number: str = ""  # the caller-ID number to ring back (not the endpoint: a trunk has no number)
-    recording: str | None = None  # voicemail: the stored recording, once recording starts
-    recorded_seconds: int | None = None
-
-    def __post_init__(self) -> None:
-        self.queue_entered_at = self.queue_entered_at or self.queued_at
-
-
-def stasis_args(channel: dict[str, Any], app: str) -> list[str] | None:
-    """The Stasis args of a channel sitting in our app, else None."""
-    dialplan = channel.get("dialplan") or {}
-    if dialplan.get("app_name") != "Stasis":
-        return None
-    name, *args = str(dialplan.get("app_data") or "").split(",")
-    return args if name == app else None
-
-
-def parse_time(stamp: str | None) -> float | None:
-    """ARI's timestamps, e.g. 2026-10-14T04:10:59.569+0300, as epoch seconds."""
-    try:
-        return datetime.strptime(stamp or "", "%Y-%m-%dT%H:%M:%S.%f%z").timestamp()
-    except ValueError:
-        return None
-
-
-def caller_id(channel: dict[str, Any]) -> str:
-    caller = channel.get("caller") or {}
-    name = str(caller.get("name") or "").replace('"', "")
-    number = str(caller.get("number") or "")
-    return f'"{name}" <{number}>' if name else number
-
-
-def max_wait_timer(call: Call) -> str:
-    return f"maxwait:{call.id}"
-
-
-def retry_timer(call: Call) -> str:
-    return f"retry:{call.id}"
-
-
-def wrapup_timer(agent: Agent) -> str:
-    return f"wrapup:{agent.uid}"
-
-
-def widen_timer(call: Call) -> str:
-    return f"widen:{call.id}"
-
-
-def voicemail_prompt(call: Call) -> str:
-    return f"vm-{call.id}"
-
-
-def voicemail_recording(call: Call) -> str:
-    return f"callback-{call.id}"
-
-
-VOICEMAIL_MEDIA = "sound:vm-intro"  # "Please leave your message after the tone…"
-
-
-class Brain:
+class Brain(TransferMixin):
     def __init__(self, config: Config, *, app: str, new_id: Callable[[], str]):
         self.app = app
         self.new_id = new_id
@@ -193,6 +101,8 @@ class Brain:
                 return self._inbound(channel, args, now)
             if args[:1] == ["agent"] and len(args) >= 3:
                 return self._agent_answered(channel, args, now)
+            if args[:1] == ["transfer"] and len(args) >= 3:
+                return self._transfer_answered(channel, args, now)
             return self._reject(channel, args, "unknown args")
         if kind in ("StasisEnd", "ChannelDestroyed"):
             return self._leg_gone(str(channel.get("id")), event.get("cause"), now)
@@ -297,7 +207,12 @@ class Brain:
             call = self.calls.get(agent.call or "")
             if call is None or call.state is not CallState.CONNECTED or call.agent != agent.uid:
                 return self._refuse(command_id, kind, "the agent has no connected call", agent.uid)
+            if call.transfer is not None or call.third is not None:
+                return self._refuse(command_id, kind, "a transfer or conference is under way", agent.uid)
             return self._hold(call, agent, kind == m.CALL_HOLD)
+
+        if kind in TRANSFER_COMMANDS:
+            return self._transfer_command(kind, data, command_id, agent, now)
 
         return self._refuse(command_id, kind, "unknown command", agent.uid)
 
@@ -320,6 +235,8 @@ class Brain:
                 out += self._end(call, "failed", "bridge gone while the brain was away", now)
             elif call.agent_leg and call.agent_leg not in live:
                 out += self._end(call, "answered", "agent left while the brain was away", now)
+            elif call.transfer is not None and call.transfer.leg and call.transfer.leg not in live:
+                out += self._transfer_leg_gone(call, None, now)
             else:
                 for leg in [leg for leg in call.offers if leg not in live]:
                     out += self._offer_failed(call, leg, "failed", None, now)
@@ -334,8 +251,16 @@ class Brain:
             and len(leg_args) > 2
             and str(channel["id"]) not in in_a_bridge
         }
+        consults = {
+            call.transfer.bridge for call in self.calls.values() if call.transfer and call.transfer.bridge
+        }
         for bridge in bridges:
-            if not str(bridge.get("name") or "").startswith(BRIDGE_PREFIX) or bridge["id"] in owned:
+            name = str(bridge.get("name") or "")
+            if name.startswith(CONSULT_PREFIX) and bridge["id"] not in consults:
+                out += [a.DeleteBridge(str(bridge["id"]), str(bridge["id"])), a.Close(str(bridge["id"]))]
+                deleted.append(str(bridge["id"]))
+                continue
+            if not name.startswith(BRIDGE_PREFIX) or bridge["id"] in owned:
                 continue
             present = [live[str(cid)] for cid in bridge.get("channels") or [] if str(cid) in live]
             callers = [ch for ch in present if (stasis_args(ch, self.app) or [""])[0] == "inbound"]
@@ -617,7 +542,13 @@ class Brain:
                 return self._end(call, "voicemail", "caller hung up during voicemail", now)
             return self._end(call, "answered" if call.agent else "abandoned", "customer hung up", now)
         if leg == call.agent_leg:
+            if call.transfer is not None or call.third is not None:
+                return self._agent_left(call, now)
             return self._end(call, "answered", "agent hung up", now)
+        if call.transfer is not None and leg == call.transfer.leg:
+            return self._transfer_leg_gone(call, cause, now)
+        if call.third is not None and leg == call.third[0]:
+            return self._third_left(call, "hung up", now)
         if leg in call.offers:
             reason = OFFER_FAILURES.get(cause, "failed") if isinstance(cause, int) else "failed"
             return self._offer_failed(call, leg, reason, cause, now)
@@ -667,10 +598,13 @@ class Brain:
         if call.widen_at is not None:
             out.append(a.CancelTimer(widen_timer(call)))
         offered = list(call.offers.values())
-        legs = [(leg, "agent") for leg in call.offers] + [
-            (call.agent_leg, "agent"),
-            (call.caller, "customer"),
-        ]
+        transfer, third = call.transfer, call.third
+        legs = [(leg, "agent") for leg in call.offers] + [(call.agent_leg, "agent")]
+        if third is not None:
+            legs.append((third[0], "agent" if third[1] else "external"))
+        if transfer is not None and transfer.leg:
+            legs.append((transfer.leg, "agent" if transfer.target_agent else "external"))
+        legs.append((call.caller, "customer"))
         for leg, role in legs:
             if leg:
                 self.legs.pop(leg, None)
@@ -681,6 +615,9 @@ class Brain:
         call.offers.clear()
         if result == "voicemail":
             out.append(self._callback(call))
+        if transfer is not None and transfer.bridge:
+            out.append(a.DeleteBridge(call.id, transfer.bridge))
+        call.transfer = call.third = None
         out += [
             a.DeleteBridge(call.id, call.bridge),
             a.Close(call.id),
@@ -688,24 +625,35 @@ class Brain:
         ]
         del self.calls[call.id]
 
+        people = [(call.agent, True)] + [(uid, False) for uid in offered]
+        if third is not None:
+            people.append((third[1], True))
+        if transfer is not None:
+            people.append((transfer.target_agent, transfer.state == "consulting"))
+        for uid, talked in people:
+            out += self._release(uid, call, talked, now)
+        return out + self._offer_waiting(now)
+
+    def _release(self, uid: str | None, call: Call, talked: bool, now: float) -> list[a.Action]:
+        """An agent's part in a call is over: wrap-up (if they talked and the queue wants it) or idle."""
+        agent = self.agents.get(uid or "")
+        if agent is None or agent.call != call.id:
+            return []
+        out: list[a.Action] = []
         queue = self.config.queues.get(call.queue)
         wrapup = queue.wrapup_seconds if queue else 0
-        for uid, talked in [(call.agent, True)] + [(uid, False) for uid in offered]:
-            agent = self.agents.get(uid or "")
-            if agent is None or agent.call != call.id:
-                continue
-            agent.call = None
-            if agent.activity in BUSY:
-                agent.activity = Activity.IDLE
-                if talked:
-                    agent.idle_since = now
-                    if wrapup > 0 and agent.availability is not Availability.LOGGED_OUT:
-                        agent.activity, agent.wrapup_call = Activity.WRAPUP, call.id
-                        out.append(a.SetTimer(wrapup_timer(agent), wrapup))
-            out += self._changed(agent)
-            if agent.removed:
-                out += self._drop(agent)
-        return out + self._offer_waiting(now)
+        agent.call = None
+        if agent.activity in BUSY:
+            agent.activity = Activity.IDLE
+            if talked:
+                agent.idle_since = now
+                if wrapup > 0 and agent.availability is not Availability.LOGGED_OUT:
+                    agent.activity, agent.wrapup_call = Activity.WRAPUP, call.id
+                    out.append(a.SetTimer(wrapup_timer(agent), wrapup))
+        out += self._changed(agent)
+        if agent.removed:
+            out += self._drop(agent)
+        return out
 
     def _overflow(self, call: Call, reason: str, now: float) -> list[a.Action]:
         """Max wait or a full queue: the queue's overflow action (another queue, voicemail, hang up).

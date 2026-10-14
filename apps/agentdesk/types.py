@@ -14,6 +14,19 @@ class AgentLiveStateType(graphene.ObjectType):
     endpoint = graphene.String()
 
 
+class TransferAgentType(graphene.ObjectType):
+    uid = graphene.String()
+    number = graphene.String()
+    name = graphene.String()
+    availability = graphene.String()
+    activity = graphene.String()
+
+
+class TransferTargetsType(graphene.ObjectType):
+    agents = graphene.List(TransferAgentType)
+    queues = graphene.List(graphene.String)
+
+
 class AgentDeskType(graphene.ObjectType):
     uid = graphene.String()
     number = graphene.String()
@@ -21,6 +34,7 @@ class AgentDeskType(graphene.ObjectType):
     state = graphene.Field(AgentLiveStateType)
     not_ready_reasons = graphene.List(graphene.String)
     wrapup_codes = graphene.List(graphene.String)
+    transfer_targets = graphene.Field(TransferTargetsType)
 
 
 class AgentPhoneType(graphene.ObjectType):

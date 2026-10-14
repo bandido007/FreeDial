@@ -111,6 +111,12 @@ def load_config() -> Config:
             if str(entry.queue.uid) in queues
         }
         skills = dict(Skill.objects.filter(active=True).values_list("name", "kind"))
-        return Config(agents=agents, queues=queues, entries=entries, skills=skills)
+        return Config(
+            agents=agents,
+            queues=queues,
+            entries=entries,
+            skills=skills,
+            dial_template=settings.TRANSFER_DIAL_TEMPLATE,
+        )
     finally:
         connections.close_all()  # loads are rare: hold no idle connection in between

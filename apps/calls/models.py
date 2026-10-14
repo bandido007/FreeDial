@@ -4,6 +4,7 @@
 * :class:`Call` — one row per call (its linkedid), kept up to date from the events.
 * :class:`Leg` — one row per channel of a call (customer, each agent rung).
 * :class:`CallbackTask` — a caller to ring back: the queue overflowed to voicemail.
+* :class:`Transfer` — an agent handed the call on (blind or consult) or made a conference.
 
 Machine-written records, so plain models: no soft delete and no audit entries
 (the Event log is the trail). Ids are strings: Asterisk's ids are not all numbers.
@@ -124,3 +125,36 @@ class CallbackTask(models.Model):
 
     def __str__(self):
         return f"call back {self.caller} ({self.queue})"
+
+
+class TransferStatus(models.TextChoices):
+    STARTED = "started", "Ringing"
+    ANSWERED = "answered", "Answered"
+    COMPLETED = "completed", "Completed"
+    CANCELLED = "cancelled", "Cancelled"
+    FAILED = "failed", "Failed"
+    CONFERENCE = "conference", "Became a conference"
+
+
+class Transfer(models.Model):
+    """One transfer of a call (M5), from the transfer.* events."""
+
+    transfer_id = models.CharField(max_length=64, unique=True)
+    call = models.ForeignKey(Call, on_delete=models.CASCADE, related_name="transfers")
+    kind = models.CharField(max_length=20, help_text="blind or consult")
+    target_kind = models.CharField(max_length=20, help_text="agent, queue or number")
+    target = models.CharField(max_length=120)
+    by_agent_uid = models.CharField(max_length=64, blank=True)
+    target_agent_uid = models.CharField(max_length=64, blank=True)
+    status = models.CharField(max_length=20, choices=TransferStatus.choices, default=TransferStatus.STARTED)
+    reason = models.CharField(max_length=200, blank=True)
+    started_at = models.DateTimeField()
+    answered_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "calls_transfers"
+        ordering = ["started_at"]
+
+    def __str__(self):
+        return f"{self.kind} transfer to {self.target_kind} {self.target}: {self.status}"

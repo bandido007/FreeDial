@@ -704,7 +704,12 @@ PJSIP_TRANSPORT_BROWSER = env("PJSIP_TRANSPORT_BROWSER", default="transport-ws")
 # Where the agent page's browser phone reaches Asterisk (SIP over WebSocket, the HTTP server's /ws).
 # ws:// is enough on 127.0.0.1 (a secure context); another machine needs wss:// and HTTPS.
 PJSIP_WS_URL = env("PJSIP_WS_URL", default="ws://127.0.0.1:8091/ws")
-PJSIP_DOMAIN = env("PJSIP_DOMAIN", default="127.0.0.1")  # the domain in the browser phone's SIP URI
+PJSIP_DOMAIN = env("PJSIP_DOMAIN", default="127.0.0.1")
+# How the brain dials a number an agent transfers to. Internal phones here: PJSIP/{number};
+# with a SIP trunk: PJSIP/{number}@<trunk endpoint>.
+TRANSFER_DIAL_TEMPLATE = env(
+    "TRANSFER_DIAL_TEMPLATE", default="PJSIP/{number}"
+)  # the domain in the browser phone's SIP URI
 # The read-only database role Asterisk logs in with (res_pgsql.conf); `manage.py pjsip_schema` creates it.
 ASTERISK_DB_USER = env("ASTERISK_DB_USER", default="asterisk")
 ASTERISK_DB_PASSWORD = env("ASTERISK_DB_PASSWORD", default="")

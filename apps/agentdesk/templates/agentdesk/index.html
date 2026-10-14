@@ -58,6 +58,32 @@
           <button id="resume" class="secondary" hidden>Resume</button>
           <button id="hangup" class="danger" hidden>Hang up</button>
         </div>
+        <div id="transfer" class="row" hidden>
+          <select id="transfer-kind" aria-label="Transfer kind">
+            <option value="blind">Blind transfer</option>
+            <option value="consult">Consult first</option>
+          </select>
+          <select id="transfer-target-kind" aria-label="Transfer to">
+            <option value="agent">to an agent</option>
+            <option value="queue">to a queue</option>
+            <option value="number">to a number</option>
+          </select>
+          <select id="transfer-agent" aria-label="Agent"></select>
+          <select id="transfer-queue" aria-label="Queue" hidden></select>
+          <input id="transfer-number" aria-label="Number" placeholder="Number" hidden>
+          <button id="transfer-go" class="secondary">Transfer</button>
+        </div>
+        <div id="consult" class="row" hidden>
+          <span id="consult-status" class="muted"></span>
+          <button id="consult-complete">Complete transfer</button>
+          <button id="consult-conference" class="secondary">Conference</button>
+          <button id="consult-cancel" class="danger">Cancel</button>
+        </div>
+        <div id="conference" class="row" hidden>
+          <span class="muted">Conference: you, the customer and the other party</span>
+          <button id="conference-drop" class="secondary">Drop the other party</button>
+          <button id="conference-leave" class="danger">Leave</button>
+        </div>
       </section>
 
       <section id="wrapup" class="card" hidden>

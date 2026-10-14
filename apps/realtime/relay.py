@@ -20,9 +20,8 @@ log = logging.getLogger(__name__)
 
 
 def agents_concerned(event: Event) -> set[str]:
-    """Every event naming an agent goes to that agent's page."""
-    agent = event.data.get("agent")
-    return {str(agent)} if agent else set()
+    """Every event naming an agent goes to that agent's page; a transfer also to its target agent."""
+    return {str(event.data[key]) for key in ("agent", "target_agent") if event.data.get(key)}
 
 
 def push(layer: Any, event: Event) -> int:

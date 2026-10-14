@@ -23,6 +23,14 @@ AGENT_WRAPUP_DONE = "agent.wrapup_done"  # the agent finished the after-call wor
 # The AI agent (M8) or a transfer changes a waiting call's routing ticket. Only configured queues and
 # skills are accepted; anything else sends the call to its entry point's fallback queue.
 ROUTING_UPDATE = "routing.update"  # call, source; optional queue (name), language, skills {name: min level}
+# M5: the agent on a call transfers it. kind: blind | consult; target_kind: agent (uid) | queue (name;
+# blind only, optional skills) | number | ai (M8). A consult is then completed, cancelled or made a
+# conference; in a conference the agent drops the other party (who=other) or leaves (who=me).
+CALL_TRANSFER = "call.transfer"
+TRANSFER_COMPLETE = "transfer.complete"
+TRANSFER_CANCEL = "transfer.cancel"
+CONFERENCE_START = "conference.start"
+CONFERENCE_DROP = "conference.drop"
 
 COMMANDS: dict[str, tuple[str, ...]] = {
     AGENT_LOGIN: ("agent", "endpoint"),
@@ -34,6 +42,11 @@ COMMANDS: dict[str, tuple[str, ...]] = {
     CALL_RESUME: ("agent",),
     AGENT_WRAPUP_DONE: ("agent", "code"),
     ROUTING_UPDATE: ("call", "source"),
+    CALL_TRANSFER: ("agent", "kind", "target_kind", "target"),
+    TRANSFER_COMPLETE: ("agent",),
+    TRANSFER_CANCEL: ("agent",),
+    CONFERENCE_START: ("agent",),
+    CONFERENCE_DROP: ("agent", "who"),
 }
 
 # ── Events: what happened, in the order the brain decided it ──────────────
@@ -48,6 +61,13 @@ CALL_VOICEMAIL = "call.voicemail"  # overflow to voicemail: the caller is asked 
 CALLBACK_REQUESTED = "callback.requested"  # a callback task, with the message if one was left
 ROUTING_TICKET = "routing.ticket"  # the call's queue, language, priority and skills, and who set them
 ROUTING_AI_TAG_REJECTED = "routing.ai_tag_rejected"  # an AI decision naming what is not configured
+TRANSFER_STARTED = "transfer.started"  # agent = who transfers; target_agent when the target is an agent
+TRANSFER_ANSWERED = "transfer.answered"
+TRANSFER_COMPLETED = "transfer.completed"
+TRANSFER_CANCELLED = "transfer.cancelled"
+TRANSFER_FAILED = "transfer.failed"  # reason: rejected, no_answer, offline, failed
+CONFERENCE_STARTED = "conference.started"
+CALL_PARTY_LEFT = "call.party_left"  # someone left a conference; the call goes on
 CALL_ENDED = "call.ended"  # result: answered, abandoned, overflow, voicemail, failed
 LEG_ENDED = "leg.ended"
 STASIS_REJECTED = "stasis.rejected"  # a channel with unknown args, hung up (rule 3)
@@ -68,6 +88,13 @@ EVENTS: dict[str, tuple[str, ...]] = {
     CALLBACK_REQUESTED: ("call", "queue", "caller", "recording", "duration"),
     ROUTING_TICKET: ("call", "queue", "language", "priority", "skills", "source"),
     ROUTING_AI_TAG_REJECTED: ("call", "source", "rejected"),
+    TRANSFER_STARTED: ("call", "transfer", "kind", "target_kind", "target", "agent"),
+    TRANSFER_ANSWERED: ("call", "transfer", "leg"),
+    TRANSFER_COMPLETED: ("call", "transfer"),
+    TRANSFER_CANCELLED: ("call", "transfer", "reason"),
+    TRANSFER_FAILED: ("call", "transfer", "reason"),
+    CONFERENCE_STARTED: ("call", "transfer", "legs"),
+    CALL_PARTY_LEFT: ("call", "leg", "reason"),
     CALL_ENDED: ("call", "result", "reason"),
     LEG_ENDED: ("call", "leg", "role"),
     STASIS_REJECTED: ("channel", "args", "reason"),

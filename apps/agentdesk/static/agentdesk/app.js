@@ -29,6 +29,7 @@
   let liveRetry = 1000;
   let state = null;     // the agent's state as the brain last said
   let offer = null;     // the last call.offered event for this agent
+  let transfer = null;  // { id, kind, state: ringing | consulting | conference } while this agent transfers
   let since = Date.now();
   let refreshTimer = null;
   let signingOut = false;
@@ -115,7 +116,8 @@
     try {
       desk = await api(`query { myAgentDesk { status code message data {
         uid number name notReadyReasons wrapupCodes
-        state { availability activity reason call wrapupCall endpoint } } } }`);
+        state { availability activity reason call wrapupCall endpoint }
+        transferTargets { queues agents { uid number name availability activity } } } } }`);
     } catch (error) {
       showSignIn(error.message);
       return;
@@ -126,6 +128,7 @@
     $("agent-number").textContent = desk.number;
     fill($("reason"), desk.notReadyReasons, "Not Ready");
     fill($("wrapup-code"), desk.wrapupCodes, "No code");
+    fillTargets(desk.transferTargets);
     applyState(desk.state);
     connectLive();
     await startPhone();
@@ -135,6 +138,25 @@
     select.replaceChildren();
     if (!names.length) select.append(new Option(empty, ""));
     for (const name of names) select.append(new Option(name, name));
+  }
+
+  function fillTargets(targets) {
+    const agents = $("transfer-agent");
+    agents.replaceChildren();
+    for (const other of targets.agents) {
+      const busy = other.availability === "logged_out" || other.activity !== "idle";
+      const option = new Option(`${other.number} ${other.name} (${busy ? other.activity.replace("_", " ") : other.availability.replace("_", " ")})`, other.uid);
+      option.disabled = other.availability === "logged_out";
+      agents.append(option);
+    }
+    fill($("transfer-queue"), targets.queues, "No queue");
+  }
+
+  async function refreshTargets() {
+    try {
+      const data = await api("query { myAgentDesk { status code message data { transferTargets { queues agents { uid number name availability activity } } } } }");
+      fillTargets(data.transferTargets);
+    } catch { /* keep the old list */ }
   }
 
   function showSignIn(message) {
@@ -227,6 +249,34 @@
         break;
       case "call.ended":
         note(`Call ended: ${data.result} (${data.reason})`);
+        transfer = null;
+        break;
+      case "transfer.started":
+        if (data.agent === desk.uid) {
+          transfer = { id: data.transfer, kind: data.kind, state: "ringing" };
+          note(`${data.kind === "blind" ? "Transferring" : "Consulting"} ${data.target_kind} ${data.target}`);
+        } else if (data.target_agent === desk.uid) {
+          offer = { caller: "Transfer", caller_name: "Transferred call", queue: data.kind === "consult" ? "a colleague wants to consult" : "transferred to you" };
+        }
+        break;
+      case "transfer.answered":
+        if (transfer && transfer.id === data.transfer && transfer.kind === "consult") transfer.state = "consulting";
+        break;
+      case "transfer.completed":
+      case "transfer.cancelled":
+      case "transfer.failed":
+        if (transfer && transfer.id === data.transfer) {
+          note(`Transfer ${event.type.split(".")[1]}${data.reason ? ` (${data.reason.replace("_", " ")})` : ""}`);
+          transfer = null;
+        }
+        break;
+      case "conference.started":
+        if (data.agent === desk.uid) transfer = { id: data.transfer, kind: "consult", state: "conference" };
+        note("Conference started");
+        break;
+      case "call.party_left":
+        if (transfer && transfer.state === "conference") transfer = null;
+        note("Someone left the conference");
         break;
       case "agent.wrapped_up":
         note(data.by === "timeout" ? "Wrap-up time ran out" : `Wrapped up: ${data.code || "no code"}`);
@@ -237,6 +287,7 @@
       default:
         break;
     }
+    renderCall();
   }
 
   // ── the browser phone ────────────────────────────────────────────────────
@@ -313,8 +364,13 @@
     const held = state && state.activity === "on_hold";
     $("answer").hidden = $("reject").hidden = !ringing;
     $("hangup").hidden = !talking;
-    $("hold").hidden = !talking || held;
-    $("resume").hidden = !talking || !held;
+    $("hold").hidden = !talking || held || Boolean(transfer);
+    $("resume").hidden = !talking || !held || Boolean(transfer);
+    $("transfer").hidden = !talking || held || Boolean(transfer);
+    $("consult").hidden = !(transfer && transfer.kind === "consult" && transfer.state !== "conference");
+    $("consult-status").textContent = transfer && transfer.state === "ringing" ? "Ringing…" : "Talking to them; the customer is on hold";
+    $("consult-complete").disabled = $("consult-conference").disabled = !(transfer && transfer.state === "consulting");
+    $("conference").hidden = !(transfer && transfer.state === "conference");
   }
 
   // A soft two-tone ring while a call is offered (Web Audio, no files).
@@ -357,6 +413,29 @@
   $("hangup").addEventListener("click", () => session && session.terminate());
   $("hold").addEventListener("click", () => command("mutation { holdMyCall(hold: true) { status code message } }"));
   $("resume").addEventListener("click", () => command("mutation { holdMyCall(hold: false) { status code message } }"));
+  function showTargetField() {
+    const kind = $("transfer-target-kind").value;
+    $("transfer-agent").hidden = kind !== "agent";
+    $("transfer-queue").hidden = kind !== "queue";
+    $("transfer-number").hidden = kind !== "number";
+    if (kind === "agent") refreshTargets();
+  }
+  $("transfer-target-kind").addEventListener("change", showTargetField);
+  $("transfer-go").addEventListener("click", () => {
+    const targetKind = $("transfer-target-kind").value;
+    const target = { agent: $("transfer-agent").value, queue: $("transfer-queue").value, number: $("transfer-number").value.trim() }[targetKind];
+    command(
+      "mutation T($kind: String!, $targetKind: String!, $target: String!) { transferMyCall(kind: $kind, targetKind: $targetKind, target: $target) { status code message } }",
+      { kind: $("transfer-kind").value, targetKind, target },
+    );
+  });
+  const step = (name) => () => command("mutation S($step: String!) { myTransferStep(step: $step) { status code message } }", { step: name });
+  $("consult-complete").addEventListener("click", step("complete"));
+  $("consult-conference").addEventListener("click", step("conference"));
+  $("consult-cancel").addEventListener("click", step("cancel"));
+  $("conference-drop").addEventListener("click", step("drop_other"));
+  $("conference-leave").addEventListener("click", step("leave"));
+
   $("wrapup-done").addEventListener("click", () =>
     command("mutation W($code: String!) { finishMyWrapup(code: $code) { status code message } }",
       { code: $("wrapup-code").value }));
@@ -397,7 +476,11 @@
 
   window.addEventListener("beforeunload", () => { if (ua) ua.stop(); });
   // For lab/agentpage.py: read-only access to the current call (WebRTC stats).
-  window.agentDesk = Object.freeze({ get session() { return session; }, get state() { return state; } });
+  window.agentDesk = Object.freeze({
+    get session() { return session; },
+    get state() { return state; },
+    get transfer() { return transfer; },
+  });
 
   if (tokens) {
     openDesk();
