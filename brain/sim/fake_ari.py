@@ -113,6 +113,18 @@ class FakeAri:
                 self._channel(cid)
                 self._destroy(cid, cause=16, cause_txt="Normal Clearing")
                 return None
+            case "POST", ["channels", cid, "snoop"]:
+                target = self._channel(cid)
+                sid = params.get("snoopId") or str(uuid.uuid4())
+                snoop = self._new_channel(sid, f"Snoop/{target['id']}", state="Up", caller=("", ""))
+                snoop["_snoop"] = {
+                    "target": cid,
+                    "spy": params.get("spy", "none"),
+                    "whisper": params.get("whisper", "none"),
+                }
+                snoop["_app_args"] = params.get("appArgs", "")
+                self._enter_stasis(sid, params.get("appArgs", "").split(","))
+                return self._public(snoop)
             case "POST", ["channels", cid, "play"]:
                 channel = self._channel(cid)
                 playback = {
@@ -228,6 +240,12 @@ class FakeAri:
     def bridge_of(self, cid: str) -> dict[str, Any] | None:
         return next((bridge for bridge in self.bridges.values() if cid in bridge["channels"]), None)
 
+    def snoops(self) -> list[dict[str, Any]]:
+        """Live snoop channels: what each listens to (spy) and whom it talks to (whisper)."""
+        return [
+            dict(channel["_snoop"], id=cid) for cid, channel in self.channels.items() if "_snoop" in channel
+        ]
+
     def originates(self) -> list[dict[str, str]]:
         return [params for method, path, params in self.requests if (method, path) == ("POST", "/channels")]
 
@@ -313,6 +331,8 @@ class FakeAri:
                 channel["_subscribed"] = False  # a customer leaves the app; the dialplan hangs it up
         self._emit("ChannelDestroyed", channel, cause=cause, cause_txt=cause_txt)
         del self.channels[cid]
+        for other in [c for c in self.channels.values() if c.get("_snoop", {}).get("target") == cid]:
+            self._destroy(other["id"], cause=16, cause_txt="Normal Clearing")
 
     def _leave_bridges(self, cid: str) -> None:
         for bridge in self.bridges.values():

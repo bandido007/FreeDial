@@ -227,6 +227,92 @@ async def transfers_from_the_page(playwright, show, customer, admin_session, che
     await browser.close()
 
 
+def supervisor_tone_file():
+    """A WAV of a steady 1300 Hz tone: the supervisor's "voice" (Chrome's fake microphone plays it)."""
+    import math
+    import struct
+    import tempfile
+    import wave
+
+    path = Path(tempfile.gettempdir()) / "algodial-supervisor-1300hz.wav"
+    with wave.open(str(path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(16000)
+        wav.writeframes(b"".join(struct.pack("<h", int(12000 * math.sin(2 * math.pi * 1300 * n / 16000))) for n in range(16000 * 5)))
+    return str(path)
+
+
+async def supervision_from_the_page(playwright, show, customer, admin_session, check, password):
+    """M6's Done-when: a supervisor in the browser switches monitor, whisper and barge on one call,
+    and only the right people hear them (the customer hears the supervisor's tone only in barge)."""
+    email, sup_password = await asyncio.to_thread(agent_login.ensure_supervisor)
+    tone = supervisor_tone_file()
+    agent_browser = await playwright.chromium.launch(
+        channel="chrome",
+        headless=not show,
+        args=["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
+    )
+    sup_browser = await playwright.chromium.launch(
+        channel="chrome",
+        headless=not show,
+        args=[
+            "--use-fake-ui-for-media-stream",
+            "--use-fake-device-for-media-stream",
+            f"--use-file-for-fake-audio-capture={tone}",
+            "--autoplay-policy=no-user-gesture-required",
+        ],
+    )
+    agent = await signed_in(agent_browser, EMAIL, password, admin_session)
+    await agent.click("#ready")
+    await until(agent, "document.getElementById('availability').textContent === 'Ready'", 10)
+
+    context = await sup_browser.new_context()
+    sup = await context.new_page()
+    sup.on("console", lambda message: message.type == "error" and say(f"  browser (supervisor): {message.text}"))
+    await sup.goto(f"http://127.0.0.1:{PORT}/supervisor/")
+    await sup.fill("#email", email)
+    await sup.fill("#password", sup_password)
+    await sup.click("button[type=submit]")
+    await sup.wait_for_selector("#desk:not([hidden])", timeout=10000)
+    await until(sup, "document.getElementById('phone-chip').textContent.startsWith('Phone: websup')", 15)
+    await until(sup, "document.getElementById('live-chip').textContent === 'Live: on'", 10)
+    check("supervisor signed in with a browser phone and the live view", True, await sup.inner_text("#me"))
+
+    customer.tone_hz = 440
+    call = await take_call(customer, agent)
+    await until(sup, "window.supervisorDesk.calls.some(c => c.state === 'connected')", 10)
+    check("the supervisor sees the call live", True)
+
+    async def switch(mode, button):
+        await sup.click(button)
+        await until(sup, f"window.supervisorDesk.listening && window.supervisorDesk.listening.mode === '{mode}'", 20)
+        await until(sup, "window.supervisorDesk.session && window.supervisorDesk.session.isEstablished()", 10)
+        await asyncio.sleep(2.5)  # only audio heard in this mode counts
+        return customer.hears(1300, 1.5)
+
+    await sup.click("#calls button:text('Monitor')")
+    await until(sup, "window.supervisorDesk.listening && window.supervisorDesk.listening.mode === 'monitor'", 20)
+    await until(sup, "window.supervisorDesk.session && window.supervisorDesk.session.isEstablished()", 10)
+    await asyncio.sleep(2.5)
+    monitor = customer.hears(1300, 1.5)
+    whisper = await switch("whisper", "#mode-whisper")
+    barge = await switch("barge", "#mode-barge")
+    say(f"  the customer hears the supervisor's tone: monitor {monitor:.3f}, whisper {whisper:.3f}, barge {barge:.3f}")
+    check("monitor: the customer does not hear the supervisor", monitor < 0.01, f"{monitor:.3f}")
+    check("whisper: the customer does not hear the supervisor", whisper < 0.01, f"{whisper:.3f}")
+    check("barge: the customer hears the supervisor", barge > 0.05, f"{barge:.3f}")
+    await sup.click("#stop")
+    await until(sup, "window.supervisorDesk.listening === null", 10)
+    check("stop: the supervisor's phone call ends, the call goes on", not call.ended.is_set())
+    await call.hangup()
+    await done_wrapping_up(agent)
+    await agent.click("#signout")
+    await sup.click("#signout")
+    await agent_browser.close()
+    await sup_browser.close()
+
+
 def sip_password(sip_id):
     return decrypt_secret(SipAccount.objects.get(sip_id=sip_id).password_encrypted)
 
@@ -311,7 +397,7 @@ async def media_stats(page):
     )
 
 
-async def main(show, transfers=True):
+async def main(show, transfers=True, supervision=True):
     password, agent_uid, customer_password = await asyncio.to_thread(setup)
     admin_session = await asyncio.to_thread(admin_cookie)
     started = datetime.now(timezone.utc)
@@ -450,6 +536,10 @@ async def main(show, transfers=True):
         kinds = {kind for kind, _ in rows}
         check("the call's events are there too", {"call.offered", "call.connected", "call.held", "call.resumed", "call.ended"} <= kinds)
 
+        if supervision:
+            async with async_playwright() as playwright:
+                await supervision_from_the_page(playwright, show, customer, admin_session, check, password)
+
         if transfers:
             transfers_started = datetime.now(timezone.utc)
             async with async_playwright() as playwright:
@@ -479,5 +569,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--show", action="store_true", help="open a visible Chrome window")
     parser.add_argument("--no-transfers", action="store_true", help="skip the M5 transfer phase")
+    parser.add_argument("--no-supervision", action="store_true", help="skip the M6 supervisor phase")
     arguments = parser.parse_args()
-    sys.exit(asyncio.run(main(arguments.show, transfers=not arguments.no_transfers)))
+    sys.exit(asyncio.run(main(arguments.show, transfers=not arguments.no_transfers, supervision=not arguments.no_supervision)))

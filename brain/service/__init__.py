@@ -98,6 +98,8 @@ async def run(settings: BrainSettings, record: TextIO | None = None) -> None:
         commands_stream=settings.commands_stream,
         events_stream=settings.events_stream,
         agents_key=settings.agents_key,
+        calls_key=settings.calls_key,
+        live_channel=settings.live_channel,
     )
     async with ari, bus:
         core = Brain(config, app=settings.ari_app, new_id=lambda: str(uuid.uuid4()))

@@ -10,13 +10,17 @@ django_application = get_asgi_application()  # first: it sets Django up before t
 
 from channels.routing import ProtocolTypeRouter, URLRouter  # noqa: E402
 from channels.security.websocket import AllowedHostsOriginValidator  # noqa: E402
+from django.urls import path  # noqa: E402
 
 from apps.realtime.routing import websocket_urlpatterns  # noqa: E402
+from apps.supervisor.consumers import SupervisorConsumer  # noqa: E402
 
 application = ProtocolTypeRouter(
     {
         "http": django_application,
         # project: the live WebSocket. Origin checked against ALLOWED_HOSTS; the token in the first message.
-        "websocket": AllowedHostsOriginValidator(URLRouter(websocket_urlpatterns)),
+        "websocket": AllowedHostsOriginValidator(
+            URLRouter([*websocket_urlpatterns, path("ws/supervisor", SupervisorConsumer.as_asgi())])
+        ),
     }
 )

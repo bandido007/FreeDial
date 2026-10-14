@@ -82,6 +82,9 @@ class Command(BaseCommand):
         agent_role = rbac_selectors.get_role_by_name("Agent")
         for name, *_ in demo.AGENTS:
             rbac.grant_role(users[name], agent_role)
+        supervisor_role = rbac_selectors.get_role_by_name("Supervisor")
+        for supervisor in demo.TEAMS.values():
+            rbac.grant_role(users[supervisor], supervisor_role)
         return users
 
     def _agents(self, users):
@@ -179,7 +182,9 @@ class Command(BaseCommand):
             lines.append(
                 f"  {number} {name:<7} {name.lower()}@example.org  {team:<19} {', '.join(member_of)}"
             )
-        lines.append(f"  supervisors: {', '.join(f'{s.lower()}@example.org' for s in demo.TEAMS.values())}")
+        lines.append(
+            f"  supervisors (Supervisor role, /supervisor/): {', '.join(f'{s.lower()}@example.org' for s in demo.TEAMS.values())}"
+        )
         lines.append(
             "  entry points: 800 General (swahili), 801 Providers (swahili, priority 10), 802 General (english)"
         )

@@ -123,6 +123,7 @@ PROJECT_APPS: list[str] = [
     "apps.queues",
     "apps.realtime",
     "apps.agentdesk",
+    "apps.supervisor",
     # <scaffold:project-apps>
 ]
 
@@ -689,6 +690,9 @@ BUS_COMMANDS_STREAM = env("BUS_COMMANDS_STREAM", default="algodial:commands")
 BUS_EVENTS_STREAM = env("BUS_EVENTS_STREAM", default="algodial:events")
 # Live agent state: one Redis hash the brain writes (agent uid -> JSON) and the web reads.
 BUS_AGENTS_KEY = env("BUS_AGENTS_KEY", default="algodial:agents")
+# Live calls (supervisor pages): a hash the brain writes, and a Pub/Sub channel announcing each change.
+BUS_CALLS_KEY = env("BUS_CALLS_KEY", default="algodial:calls")
+BUS_LIVE_CHANNEL = env("BUS_LIVE_CHANNEL", default="algodial:live")
 # The brain's name in the commands consumer group; keep it stable so a restart re-reads its own pending.
 BRAIN_CONSUMER = env("BRAIN_CONSUMER", default="brain-1")
 # The password every demo-centre user gets (manage.py seed_demo); generated into .env when empty.

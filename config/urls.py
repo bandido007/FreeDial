@@ -10,6 +10,7 @@ Routes:
     /oauth2/external/<name>  external sign-in (OIDC ID-token exchange)
     /files/…                 file upload / download
     /agent/                  the agent page (project; its live WebSocket is /ws/agent, see config/asgi.py)
+    /supervisor/             the supervisor page (project; live WebSocket /ws/supervisor)
 
 Every route is also served under ``/<API_MOUNT_PREFIX>/`` (``/backend/`` by
 default) for deployments that publish the API behind a path prefix on the
@@ -44,6 +45,7 @@ core_urlpatterns = [
     path("files/", include("apps.attachments.urls")),
     path("", include("apps.agentdesk.urls")),  # project: /agent/, the agent page
     path("", include("apps.calls.urls")),  # project: voicemail messages for callback tasks
+    path("", include("apps.supervisor.urls")),  # project: /supervisor/, the supervisor page
 ]
 
 

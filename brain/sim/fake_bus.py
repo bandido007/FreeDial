@@ -11,6 +11,8 @@ class FakeBus:
     def __init__(self) -> None:
         self.events: list[Event] = []
         self.agents: dict[str, dict[str, Any]] = {}
+        self.calls: dict[str, dict[str, Any]] = {}
+        self.live: list[dict[str, Any]] = []  # what was published for supervisor pages
         self._commands: list[tuple[str, str]] = []  # (entry id, raw)
         self._delivered = 0  # entries handed to the group so far
         self._pending: dict[str, str] = {}  # delivered, not acknowledged
@@ -35,6 +37,18 @@ class FakeBus:
             self.agents.pop(uid, None)
         else:
             self.agents[uid] = json.loads(json.dumps(state))
+
+    async def save_call(self, call: str, snapshot: dict[str, Any] | None) -> None:
+        self._check()
+        if snapshot is None:
+            self.calls.pop(call, None)
+        else:
+            self.calls[call] = json.loads(json.dumps(snapshot))
+        self.live.append({"type": "call.snapshot", "call": call, "snapshot": snapshot})
+
+    async def clear_calls(self) -> None:
+        self._check()
+        self.calls.clear()
 
     async def load_agents(self) -> list[dict[str, Any]]:
         self._check()

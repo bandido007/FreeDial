@@ -20,6 +20,7 @@ from contracts.envelope import Command, encode
 log = logging.getLogger(__name__)
 
 FIELD = "message"  # one encoded envelope per stream entry, the same field the brain uses
+SUPERVISORS_GROUP = "supervisors"  # Channels group of every supervisor page's socket (browser push only)
 
 
 @lru_cache(maxsize=1)

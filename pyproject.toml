@@ -111,6 +111,7 @@ type = "layers"
 ignore_imports = ["apps.**.tests.** -> apps.**"]
 unmatched_ignore_imports_alerting = "none"
 layers = [
+    "apps.supervisor",  # project: uses the agent page's phone types
     "apps.realtime | apps.agentdesk",  # project
     "apps.queues",  # project
     "apps.agents",  # project

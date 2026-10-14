@@ -8,7 +8,8 @@ written there, and running this again resets each user to the password in .env.
   agent 7001 "Agent One"          LAB_AGENT_EMAIL / LAB_AGENT_PASSWORD               for you
   agent 9003 "Lab browser agent"  LAB_CHECK_AGENT_EMAIL / LAB_CHECK_AGENT_PASSWORD   make agentcheck uses it
 
-Both have the Agent role and sit in queue Support (entry point 800).
+Both have the Agent role and sit in queue Support (lab entry point 899). A lab supervisor
+(LAB_SUPERVISOR_EMAIL / LAB_SUPERVISOR_PASSWORD) supervises them as team "Lab".
 """
 import os
 import re
@@ -111,6 +112,36 @@ def ensure_agent(prefix, default_email, number, name, first, last, phone):
     return email, password, agent
 
 
+def ensure_supervisor():
+    """A lab supervisor (LAB_SUPERVISOR_* in .env) of team "Lab": the two lab agents. Returns (email, password)."""
+    from apps.teams import services as teams
+    from apps.teams.models import Team
+
+    email = env_value("LAB_SUPERVISOR_EMAIL") or "lab.supervisor@example.org"
+    password = env_value("LAB_SUPERVISOR_PASSWORD") or "Sup-" + secrets.token_urlsafe(9)
+    set_env("LAB_SUPERVISOR_EMAIL", email)
+    set_env("LAB_SUPERVISOR_PASSWORD", password)
+    User = get_user_model()
+    user = User.objects.filter(email=email).first()
+    if user is None:
+        user = User.objects.create_user(
+            email=email, password=password, first_name="Lab", last_name="Supervisor",
+            is_verified=True, account_type="Internal", phone="+255700009901",
+        )
+    else:
+        user.set_password(password)
+        user.is_active = True
+        user.save()
+    rbac.grant_role(user, rbac_selectors.get_role_by_name("Supervisor"))
+    agent_users = [agent.user for agent in Agent.objects.filter(number__in=["7001", "9003"]) if agent.user]
+    team = Team.objects.filter(name="Lab").first()
+    if team is None:
+        teams.create_team(actor=None, name="Lab", supervisors=[user], agents=agent_users)
+    else:
+        teams.update_team(uid=team.uid, actor=None, supervisors=[user], agents=agent_users)
+    return email, password
+
+
 def ensure_pick_lists():
     for name in WRAPUP_CODES:
         WrapupCode.objects.get_or_create(name=name)
@@ -125,6 +156,9 @@ def main():
     for spec in AGENTS:
         email, password, agent = ensure_agent(*spec)
         print(f"  agent {agent.number} {agent.name!r:22} {email:26} password {password}")
+    email, password = ensure_supervisor()
+    print(f"Supervisor page: http://127.0.0.1:8000/supervisor/  (team Lab: agents 7001, 9003)")
+    print(f"  {email:26} password {password}")
     print(f"Wrap-up codes: {', '.join(WRAPUP_CODES)}")
     print(f"Not Ready reasons: {', '.join(NOT_READY_REASONS)}")
 

@@ -4,7 +4,9 @@ Like Pub/Sub, it reads from "now" and keeps no group: a page that missed somethi
 re-reads the state when it reconnects. Only browser push goes this way.
 """
 
+import json
 import logging
+import threading
 import time
 from typing import Any
 
@@ -25,15 +27,37 @@ def agents_concerned(event: Event) -> set[str]:
 
 
 def push(layer: Any, event: Event) -> int:
+    """To the pages of the agents it names, and to every supervisor page (each filters by its teams)."""
     payload = {"type": event.type, "data": event.data, "at": event.at, "event_id": event.event_id}
     targets = agents_concerned(event)
     for uid in targets:
         async_to_sync(layer.group_send)(agent_group(uid), {"type": "brain.event", "event": payload})
+    async_to_sync(layer.group_send)(bus.SUPERVISORS_GROUP, {"type": "brain.event", "event": payload})
     return len(targets)
+
+
+def follow_live_calls(layer: Any, stop=lambda: False) -> None:
+    """The brain's live-call changes (Redis Pub/Sub) to the supervisor pages. Runs in its own thread."""
+    while not stop():
+        try:
+            listener = bus.client().pubsub(ignore_subscribe_messages=True)
+            listener.subscribe(settings.BUS_LIVE_CHANNEL)
+            while not stop():
+                message = listener.get_message(timeout=1.0)
+                if message and message.get("type") == "message":
+                    change = json.loads(message["data"])
+                    async_to_sync(layer.group_send)(
+                        bus.SUPERVISORS_GROUP,
+                        {"type": "live.call", "call": change["call"], "snapshot": change["snapshot"]},
+                    )
+        except Exception as exc:  # Redis away: pages re-read the live list when they reconnect
+            log.error("live calls channel unavailable: %s", exc)
+            time.sleep(1)
 
 
 def run(*, stop=lambda: False, start: str = "$", block_ms: int = 5000) -> None:
     layer = get_channel_layer()
+    threading.Thread(target=follow_live_calls, args=(layer, stop), name="live-calls", daemon=True).start()
     redis = bus.client()
     last = start
     log.info("live relay reading %s", settings.BUS_EVENTS_STREAM)

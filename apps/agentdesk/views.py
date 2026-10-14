@@ -26,8 +26,11 @@ def agent_page(request):
         "graphqlUrl": "/graphql",
         "liveUrl": "/ws/agent",
     }
-    response = render(request, "agentdesk/index.html", {"config": config})
+    return page_headers(request, render(request, "agentdesk/index.html", {"config": config}))
 
+
+def page_headers(request, response):
+    """CSP for a desk page: its own scripts, its WebSockets and Asterisk's SIP socket; the microphone allowed."""
     host = request.get_host()
     connect = " ".join(
         filter(None, ["'self'", f"ws://{host}", f"wss://{host}", _origin(settings.PJSIP_WS_URL)])

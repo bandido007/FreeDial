@@ -17,8 +17,6 @@ from apps.calls import bus
 from apps.core.exceptions import ApplicationError, ValidationError
 from apps.queues.models import Queue
 from apps.telephony import services as telephony
-from apps.telephony.enums import SipAccountKindChoices
-from apps.telephony.models import SipAccount
 from contracts import messages as m
 
 NOT_AN_AGENT = 10204
@@ -59,20 +57,7 @@ def start_session(user) -> dict[str, Any]:
     """
     agent = agent_of(user)
     sip_id = browser_sip_id(agent)
-    password = telephony.generate_password()
-    account = SipAccount.objects.filter(sip_id=sip_id).first()
-    if account is None:
-        account = telephony.create_sip_account(
-            actor=user,
-            sip_id=sip_id,
-            kind=SipAccountKindChoices.BROWSER.value,
-            password=password,
-            display_name=agent.name,
-        )
-    else:
-        account = telephony.update_sip_account(uid=account.uid, actor=user, password=password)
-        if not account.active:
-            telephony.set_sip_account_active(uid=account.uid, actor=user, active=True)
+    account, password = telephony.issue_browser_phone(actor=user, sip_id=sip_id, display_name=agent.name)
 
     endpoint = f"PJSIP/{sip_id}"
     AgentSession.objects.filter(agent=agent, logout_at=None).update(logout_at=timezone.now())
@@ -96,9 +81,7 @@ def end_session(user) -> dict[str, Any]:
         raise ApplicationError("Hang up before signing out.", code=ON_A_CALL)
     command_id = bus.send_command_on_commit(m.AGENT_LOGOUT, {"agent": str(agent.uid)})
     AgentSession.objects.filter(agent=agent, logout_at=None).update(logout_at=timezone.now())
-    account = SipAccount.objects.filter(sip_id=browser_sip_id(agent), active=True).first()
-    if account is not None:
-        telephony.set_sip_account_active(uid=account.uid, actor=user, active=False)
+    telephony.retire_browser_phone(actor=user, sip_id=browser_sip_id(agent))
     return {"command_id": command_id}
 
 

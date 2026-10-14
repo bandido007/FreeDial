@@ -1,5 +1,6 @@
 """The brain's 9 call tests (docs/POC_PLAN.md), plus 10 ring all, 11 voicemail and 12-17 transfers (M5),
-on the real Asterisk. The transfer tests also check CEL: one linkedid for the whole call.
+and 18 supervision (M6) on the real Asterisk. The transfer tests also check CEL: one linkedid for the
+whole call; test 18 checks, by the tones each phone receives, that only the right people hear the supervisor.
 
     cd ~/AlgoDial && .venv/bin/python lab/calltests.py            # all
     .venv/bin/python lab/calltests.py 1 4 8                       # some
@@ -532,6 +533,58 @@ class Lab:
         await self.w.all_clear()
         return f"PJSIP/lab-agent-b answered and hung up; {await self.one_linkedid(linkedid)} channels, one linkedid"
 
+    # ── M6: supervision, judged by what each phone really hears ──────────
+    async def t18(self):
+        """Supervisor: monitor, whisper, barge on one call; only the right people hear the supervisor."""
+        tones = {"customer": 440, "agent": 700, "supervisor": 1300}
+        self.customer.tone_hz, self.phone_a.tone_hz, self.phone_b.tone_hz = tones["customer"], tones["agent"], tones["supervisor"]
+        present, absent = 0.05, 0.01
+        try:
+            self.phone_a.mode = self.phone_b.mode = "answer"
+            await self.ready(self.a, "lab-agent-a")
+            self.w.command(m.AGENT_LOGOUT, agent=self.b)  # B's phone is the supervisor's phone now
+            await self.w.agent_is(self.b, availability="logged_out")
+            call, linkedid = await self.dial()
+            await self.connected()
+            supervisor = "lab-supervisor"
+            self.w.command(m.SUPERVISE_START, supervisor=supervisor, endpoint="PJSIP/lab-agent-b", call=linkedid, mode="monitor")
+            await self.w.event(m.SUPERVISE_STARTED, call=linkedid)
+            heard = {}
+            for mode in ("monitor", "whisper", "barge", "stopped"):
+                if mode == "stopped":
+                    self.w.command(m.SUPERVISE_STOP, supervisor=supervisor)
+                    await self.w.event(m.SUPERVISE_STOPPED, call=linkedid)
+                elif mode != "monitor":
+                    self.w.command(m.SUPERVISE_MODE, supervisor=supervisor, mode=mode)
+                    await self.w.event(m.SUPERVISE_CHANGED, call=linkedid, mode=mode)
+                await asyncio.sleep(2.5)  # only audio heard in this mode counts
+                heard[mode] = {
+                    "customer<-sup": self.customer.hears(tones["supervisor"], 1.5),
+                    "agent<-sup": self.phone_a.hears(tones["supervisor"], 1.5),
+                    "sup<-customer": self.phone_b.hears(tones["customer"], 1.5),
+                    "sup<-agent": self.phone_b.hears(tones["agent"], 1.5),
+                }
+                say(f"  {mode:<8} " + "  ".join(f"{who} {level:.3f}" for who, level in heard[mode].items()))
+            expected = {  # who must hear the supervisor (True), must not (False); what the supervisor hears
+                "monitor": {"customer<-sup": False, "agent<-sup": False, "sup<-customer": True, "sup<-agent": True},
+                "whisper": {"customer<-sup": False, "agent<-sup": True, "sup<-customer": True, "sup<-agent": True},
+                "barge": {"customer<-sup": True, "agent<-sup": True},
+                "stopped": {"customer<-sup": False, "agent<-sup": False},
+            }
+            wrong = [
+                f"{mode}: {who} {heard[mode][who]:.3f}"
+                for mode, wants in expected.items()
+                for who, should in wants.items()
+                if ((heard[mode][who] < present) if should else (heard[mode][who] > absent))
+            ]
+            assert not wrong, wrong
+            await call.hangup()
+            await self.w.event(m.CALL_ENDED, call=linkedid)
+            await self.w.all_clear()
+        finally:
+            self.customer.tone_hz = self.phone_a.tone_hz = self.phone_b.tone_hz = 440
+        return "monitor: nobody hears the supervisor; whisper: only the agent; barge: everyone (measured at each phone)"
+
     async def t9(self):
         """Brain stopped, customer calls 899 -> the dialplan's Queue() answers."""
         self.w.kill_brain(signal.SIGTERM)
@@ -609,5 +662,5 @@ async def main(selected):
 
 
 if __name__ == "__main__":
-    chosen = [int(arg) for arg in sys.argv[1:]] or list(range(1, 18))
+    chosen = [int(arg) for arg in sys.argv[1:]] or list(range(1, 19))
     sys.exit(asyncio.run(main(chosen)))

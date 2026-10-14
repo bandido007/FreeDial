@@ -50,11 +50,14 @@ from brain.core.calls import (  # noqa: F401 (re-exported: tests and the service
     wrapup_timer,
 )
 from brain.core.config import Config, EntryConfig, OverflowAction, QueueConfig, Requirement, Strategy
+from brain.core.supervision import SUPERVISOR_COMMANDS, Supervision, SupervisionMixin
 from brain.core.transfers import TransferMixin
 from contracts import messages as m
 
+FORCEABLE = (m.AGENT_READY, m.AGENT_NOT_READY, m.AGENT_LOGOUT)  # with "by": a supervisor forced it
 
-class Brain(TransferMixin):
+
+class Brain(TransferMixin, SupervisionMixin):
     def __init__(self, config: Config, *, app: str, new_id: Callable[[], str]):
         self.app = app
         self.new_id = new_id
@@ -64,6 +67,7 @@ class Brain(TransferMixin):
         self.legs: dict[str, str] = {}  # channel id -> call id
         self.last_rung: dict[str, str] = {}  # queue uid -> agent uid (round robin)
         self.answered: dict[str, dict[str, int]] = {}  # queue uid -> agent uid -> calls answered
+        self.supervisions: dict[str, Supervision] = {}  # supervisor uid -> what they supervise
         self.load_config(config, now=0.0)
 
     # ── configuration and restart ─────────────────────────────────────────
@@ -103,6 +107,10 @@ class Brain(TransferMixin):
                 return self._agent_answered(channel, args, now)
             if args[:1] == ["transfer"] and len(args) >= 3:
                 return self._transfer_answered(channel, args, now)
+            if args[:1] == ["supervisor"] and len(args) >= 3:
+                return self._supervisor_answered(channel, args, now)
+            if args[:1] == ["snoop"] and len(args) >= 3:
+                return self._snoop_started(channel, args)
             return self._reject(channel, args, "unknown args")
         if kind in ("StasisEnd", "ChannelDestroyed"):
             return self._leg_gone(str(channel.get("id")), event.get("cause"), now)
@@ -148,6 +156,27 @@ class Brain(TransferMixin):
         """Agent requests. Each is idempotent: asking twice changes nothing the second time (rule 12)."""
         if kind == m.ROUTING_UPDATE:
             return self._routing_update(data, command_id, now)
+        if kind in SUPERVISOR_COMMANDS:
+            return self._supervise_command(kind, data, command_id)
+        out = self._agent_command(kind, data, command_id, now)
+        if (
+            data.get("by")
+            and kind in FORCEABLE
+            and not any(isinstance(x, a.Emit) and x.type == m.COMMAND_REJECTED for x in out)
+        ):
+            state = {m.AGENT_READY: "ready", m.AGENT_NOT_READY: "not_ready", m.AGENT_LOGOUT: "logged_out"}[
+                kind
+            ]
+            forced = {
+                "agent": data.get("agent"),
+                "by": data["by"],
+                "state": state,
+                "reason": data.get("reason", ""),
+            }
+            out.append(a.Emit(m.AGENT_FORCED, forced))
+        return out
+
+    def _agent_command(self, kind: str, data: dict[str, Any], command_id: str, now: float) -> list[a.Action]:
         agent = self.agents.get(str(data.get("agent")))
         if agent is None or agent.removed:
             return self._refuse(command_id, kind, "unknown agent")
@@ -485,6 +514,7 @@ class Brain(TransferMixin):
         agent = self.agents.get(uid)
         out = self._cancel_offers(call, "answered elsewhere")
         call.state, call.agent_leg, call.agent = CallState.CONNECTED, leg, uid
+        call.connected_at = call.connected_at or now
         counts = self.answered.setdefault(call.queue, {})
         counts[uid] = counts.get(uid, 0) + 1
         out += [
@@ -547,6 +577,9 @@ class Brain(TransferMixin):
             return self._end(call, "answered", "agent hung up", now)
         if call.transfer is not None and leg == call.transfer.leg:
             return self._transfer_leg_gone(call, cause, now)
+        supervised = self._supervision_leg_gone(call, leg)
+        if supervised is not None:
+            return supervised
         if call.third is not None and leg == call.third[0]:
             return self._third_left(call, "hung up", now)
         if leg in call.offers:
@@ -618,6 +651,7 @@ class Brain(TransferMixin):
         if transfer is not None and transfer.bridge:
             out.append(a.DeleteBridge(call.id, transfer.bridge))
         call.transfer = call.third = None
+        out += self._end_supervisions(call)
         out += [
             a.DeleteBridge(call.id, call.bridge),
             a.Close(call.id),
@@ -633,6 +667,43 @@ class Brain(TransferMixin):
         for uid, talked in people:
             out += self._release(uid, call, talked, now)
         return out + self._offer_waiting(now)
+
+    def live_calls(self) -> dict[str, dict[str, Any]]:
+        """What a supervisor's page shows of each call now (the service stores and pushes changes)."""
+        out = {}
+        for call in self.calls.values():
+            queue = self.config.queues.get(call.queue)
+            transfer = call.transfer
+            out[call.id] = {
+                "call": call.id,
+                "entry": call.entry,
+                "queue": queue.name if queue else "",
+                "caller": call.callback_number or call.caller_number,
+                "caller_name": call.caller_name,
+                "language": call.language,
+                "priority": self._priority(call),
+                "state": str(call.state),
+                "agent": call.agent,
+                "held": call.held,
+                "waiting_since": call.queued_at,
+                "connected_at": call.connected_at,
+                "ringing": sorted(call.offers.values()),
+                "transfer": None
+                if transfer is None
+                else {
+                    "kind": transfer.kind,
+                    "state": transfer.state,
+                    "target_kind": transfer.target_kind,
+                    "target": transfer.target,
+                },
+                "conference": call.third is not None,
+                "supervisors": [
+                    {"supervisor": s.supervisor, "mode": s.mode}
+                    for s in self.supervisions.values()
+                    if s.call == call.id and s.answered
+                ],
+            }
+        return out
 
     def _release(self, uid: str | None, call: Call, talked: bool, now: float) -> list[a.Action]:
         """An agent's part in a call is over: wrap-up (if they talked and the queue wants it) or idle."""

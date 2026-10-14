@@ -270,6 +270,7 @@ class TransferMixin:
         ]
         call.agent_leg, call.agent, call.held = transfer.leg, transfer.target_agent, False
         call.transfer = None
+        call.connected_at = call.connected_at or now
         if transfer.target_agent:
             out.append(
                 a.Emit(

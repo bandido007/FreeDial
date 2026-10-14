@@ -157,3 +157,35 @@ def resync_pjsip() -> int:
     for account in accounts:
         pjsip.write(account)
     return len(accounts)
+
+
+# ── browser phones (the agent and supervisor pages) ───────────────────────
+@transaction.atomic
+def issue_browser_phone(*, actor, sip_id, display_name="") -> tuple[SipAccount, str]:
+    """The person's own browser account with a fresh password for this session only.
+
+    The previous password stops working at once, so an old tab or a copied password cannot
+    register any more. Returns the account and the new password (shown to the page once).
+    """
+    password = generate_password()
+    account = SipAccount.objects.filter(sip_id=sip_id).first()
+    if account is None:
+        account = create_sip_account(
+            actor=actor,
+            sip_id=sip_id,
+            kind=SipAccountKindChoices.BROWSER.value,
+            password=password,
+            display_name=display_name,
+        )
+    else:
+        account = update_sip_account(uid=account.uid, actor=actor, password=password)
+        if not account.active:
+            set_sip_account_active(uid=account.uid, actor=actor, active=True)
+    return account, password
+
+
+def retire_browser_phone(*, actor, sip_id) -> None:
+    """Switch the browser account off: its password is useless until the next session."""
+    account = SipAccount.objects.filter(sip_id=sip_id, active=True).first()
+    if account is not None:
+        set_sip_account_active(uid=account.uid, actor=actor, active=False)

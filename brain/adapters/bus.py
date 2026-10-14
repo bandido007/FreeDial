@@ -5,6 +5,8 @@
   and acknowledges each one after handling it, so none is lost if it stops mid-way.
 * Live agent state: one hash, agent uid -> JSON. The web reads it; a restarted brain
   starts from it.
+* Live calls: one hash, call -> JSON, plus a Pub/Sub message per change for supervisor pages.
+  Nothing that must not be lost goes through Pub/Sub: a page re-reads the hash when it connects.
 """
 
 import json
@@ -26,12 +28,16 @@ class Bus:
         commands_stream: str = "algodial:commands",
         events_stream: str = "algodial:events",
         agents_key: str = "algodial:agents",
+        calls_key: str = "algodial:calls",
+        live_channel: str = "algodial:live",
         events_maxlen: int = 1_000_000,
         timeout: float = 2.0,
     ):
         self.commands_stream = commands_stream
         self.events_stream = events_stream
         self.agents_key = agents_key
+        self.calls_key = calls_key
+        self.live_channel = live_channel
         self.events_maxlen = events_maxlen
         self._redis = redis.Redis.from_url(url, socket_connect_timeout=timeout, socket_timeout=timeout + 8)
 
@@ -58,6 +64,20 @@ class Bus:
     async def load_agents(self) -> list[dict[str, Any]]:
         saved = await self._redis.hgetall(self.agents_key)
         return [json.loads(value) for value in saved.values()]
+
+    async def save_call(self, call: str, snapshot: dict[str, Any] | None) -> None:
+        """Keep the live call list (supervisor pages read it) and push the change (Pub/Sub: browser push only)."""
+        if snapshot is None:
+            await self._redis.hdel(self.calls_key, call)
+        else:
+            await self._redis.hset(self.calls_key, call, json.dumps(snapshot))
+        await self._redis.publish(
+            self.live_channel, json.dumps({"type": "call.snapshot", "call": call, "snapshot": snapshot})
+        )
+
+    async def clear_calls(self) -> None:
+        """A starting brain rebuilds the live call list from what Asterisk has."""
+        await self._redis.delete(self.calls_key)
 
     async def join(self, group: str) -> None:
         """Create the consumer group (and the stream) once; later calls do nothing."""

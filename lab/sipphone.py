@@ -15,6 +15,7 @@ Run on its own as a fake agent:  python lab/sipphone.py t-agent1 'secret' --mode
 """
 import argparse
 import asyncio
+import collections
 import hashlib
 import math
 import re
@@ -36,6 +37,16 @@ def ulaw(sample):
     exponent = max(0, magnitude.bit_length() - 8)
     mantissa = (magnitude >> (exponent + 3)) & 0x0F
     return ~(sign | (exponent << 4) | mantissa) & 0xFF
+
+
+def ulaw_to_linear(byte):
+    byte = ~byte & 0xFF
+    sign, exponent, mantissa = byte & 0x80, (byte >> 4) & 0x07, byte & 0x0F
+    sample = ((mantissa << 3) + 132) << exponent
+    return -(sample - 132) if sign else sample - 132
+
+
+ULAW_TO_LINEAR = [ulaw_to_linear(byte) for byte in range(256)]
 
 
 def log(phone, msg):
@@ -124,7 +135,7 @@ class Call:
 
 
 class Phone:
-    def __init__(self, user, password, server="127.0.0.1:5062", mode="answer", answer_delay=0.3):
+    def __init__(self, user, password, server="127.0.0.1:5062", mode="answer", answer_delay=0.3, tone_hz=440):
         self.user, self.password = user, password
         host, port = server.rsplit(":", 1)
         self.server = (host, int(port))
@@ -141,6 +152,8 @@ class Phone:
         self.reg_cseq = 0
         self.registered = False
         self.rtp_packets = 0
+        self.tone_hz = tone_hz  # the "voice" this phone sends: tell phones apart by frequency
+        self.received = collections.deque(maxlen=8000 * 4)  # the last 4 s of audio heard (PCMU, decoded)
 
     # ── transport ──────────────────────────────────────────────────────────
     async def start(self):
@@ -154,6 +167,7 @@ class Phone:
         class Sink(asyncio.DatagramProtocol):
             def datagram_received(self, data, addr):
                 phone.rtp_packets += 1  # proof that audio reaches this phone
+                phone.heard(data)
 
         self.transport, _ = await loop.create_datagram_endpoint(Proto, local_addr=("127.0.0.1", 0))
         self.rtp, _ = await loop.create_datagram_endpoint(Sink, local_addr=("127.0.0.1", 0))
@@ -488,13 +502,35 @@ class Phone:
         asyncio.ensure_future(self._send_tone(call, target))
 
     async def _send_tone(self, call, target):
-        payload = bytes(ulaw(int(6000 * math.sin(2 * math.pi * 440 * n / 8000))) for n in range(160))
+        payload = bytes(ulaw(int(6000 * math.sin(2 * math.pi * self.tone_hz * n / 8000))) for n in range(160))
         ssrc, sequence, stamp = secrets.randbits(32), secrets.randbits(16), secrets.randbits(32)
         while not call.ended.is_set():
             header = struct.pack("!BBHII", 0x80, 0, sequence & 0xFFFF, stamp & 0xFFFFFFFF, ssrc)
             self.rtp.sendto(header + payload, target)
             sequence, stamp = sequence + 1, stamp + 160
             await asyncio.sleep(0.02)
+
+    def heard(self, packet):
+        """Keep the audio of an RTP packet (PCMU) to tell later which tones this phone hears."""
+        if len(packet) < 12 or packet[1] & 0x7F != 0:
+            return
+        start = 12 + 4 * (packet[0] & 0x0F)
+        if packet[0] & 0x10 and len(packet) >= start + 4:  # header extension
+            start += 4 + 4 * int.from_bytes(packet[start + 2:start + 4], "big")
+        self.received.extend(ULAW_TO_LINEAR[byte] for byte in packet[start:])
+
+    def hears(self, frequency, seconds=1.0):
+        """How much of what this phone heard in the last ``seconds`` is ``frequency`` (0 to 1, Goertzel)."""
+        samples = list(self.received)[-int(8000 * seconds):]
+        if len(samples) < 800:
+            return 0.0
+        energy = sum(x * x for x in samples) or 1.0
+        k = 2 * math.cos(2 * math.pi * frequency / 8000)
+        s1 = s2 = 0.0
+        for x in samples:
+            s1, s2 = x + k * s1 - s2, s1
+        power = s1 * s1 + s2 * s2 - k * s1 * s2
+        return min(1.0, 2 * power / (len(samples) * energy))
 
     async def ringing(self, timeout=15):
         return await asyncio.wait_for(self.incoming.get(), timeout)

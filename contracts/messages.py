@@ -31,6 +31,12 @@ TRANSFER_COMPLETE = "transfer.complete"
 TRANSFER_CANCEL = "transfer.cancel"
 CONFERENCE_START = "conference.start"
 CONFERENCE_DROP = "conference.drop"
+# M6: a supervisor listens to a call. mode: monitor (hears both sides, nobody hears them),
+# whisper (only the agent hears them), barge (everyone hears everyone). endpoint: the supervisor's
+# phone. Agent commands may carry "by" (the supervisor who forced the state).
+SUPERVISE_START = "supervise.start"
+SUPERVISE_MODE = "supervise.mode"
+SUPERVISE_STOP = "supervise.stop"
 
 COMMANDS: dict[str, tuple[str, ...]] = {
     AGENT_LOGIN: ("agent", "endpoint"),
@@ -47,6 +53,9 @@ COMMANDS: dict[str, tuple[str, ...]] = {
     TRANSFER_CANCEL: ("agent",),
     CONFERENCE_START: ("agent",),
     CONFERENCE_DROP: ("agent", "who"),
+    SUPERVISE_START: ("supervisor", "endpoint", "call", "mode"),
+    SUPERVISE_MODE: ("supervisor", "mode"),
+    SUPERVISE_STOP: ("supervisor",),
 }
 
 # ── Events: what happened, in the order the brain decided it ──────────────
@@ -68,6 +77,10 @@ TRANSFER_CANCELLED = "transfer.cancelled"
 TRANSFER_FAILED = "transfer.failed"  # reason: rejected, no_answer, offline, failed
 CONFERENCE_STARTED = "conference.started"
 CALL_PARTY_LEFT = "call.party_left"  # someone left a conference; the call goes on
+SUPERVISE_STARTED = "supervise.started"
+SUPERVISE_CHANGED = "supervise.changed"
+SUPERVISE_STOPPED = "supervise.stopped"
+AGENT_FORCED = "agent.forced"  # a supervisor changed an agent's availability
 CALL_ENDED = "call.ended"  # result: answered, abandoned, overflow, voicemail, failed
 LEG_ENDED = "leg.ended"
 STASIS_REJECTED = "stasis.rejected"  # a channel with unknown args, hung up (rule 3)
@@ -95,6 +108,10 @@ EVENTS: dict[str, tuple[str, ...]] = {
     TRANSFER_FAILED: ("call", "transfer", "reason"),
     CONFERENCE_STARTED: ("call", "transfer", "legs"),
     CALL_PARTY_LEFT: ("call", "leg", "reason"),
+    SUPERVISE_STARTED: ("call", "supervisor", "mode", "agent"),
+    SUPERVISE_CHANGED: ("call", "supervisor", "mode"),
+    SUPERVISE_STOPPED: ("call", "supervisor", "reason"),
+    AGENT_FORCED: ("agent", "by", "state"),
     CALL_ENDED: ("call", "result", "reason"),
     LEG_ENDED: ("call", "leg", "role"),
     STASIS_REJECTED: ("channel", "args", "reason"),

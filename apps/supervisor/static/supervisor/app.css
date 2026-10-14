@@ -1,0 +1,13 @@
+main.wide { max-width: 1100px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { color: var(--muted); font-weight: 600; }
+td .row { margin: 0; flex-wrap: nowrap; }
+td button { padding: 4px 10px; font-size: 0.85rem; }
+td select { min-width: 110px; padding: 4px 6px; }
+.state-ready { color: var(--ok); font-weight: 600; }
+.state-not_ready { color: var(--warn); font-weight: 600; }
+.state-logged_out { color: var(--muted); }
+button.active { background: var(--accent); color: #fff; }
+.good { color: var(--ok); }
+.bad { color: var(--bad); }

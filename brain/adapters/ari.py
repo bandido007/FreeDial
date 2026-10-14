@@ -107,6 +107,16 @@ async def perform(ari: AriLike, action: a.AriAction) -> None:
                 callerId=action.caller_id,
                 timeout=str(action.timeout),
             )
+        case a.Snoop():
+            await ari.request(
+                "POST",
+                f"/channels/{action.channel}/snoop",
+                spy=action.spy,
+                whisper=action.whisper,
+                app=ari_app(ari),
+                appArgs=action.app_args,
+                snoopId=action.snoop_id,
+            )
         case a.Play(channel=channel, media=media, playback_id=playback_id):
             await ari.request("POST", f"/channels/{channel}/play", media=media, playbackId=playback_id)
         case a.Record():

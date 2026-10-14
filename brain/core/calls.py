@@ -98,6 +98,7 @@ class Call:
     third: tuple[str, str | None] | None = None  # conference: the third party's leg and agent uid (or None)
     recording: str | None = None  # voicemail: the stored recording, once recording starts
     recorded_seconds: int | None = None
+    connected_at: float | None = None  # when an agent (or the person transferred to) first answered
 
     def __post_init__(self) -> None:
         self.queue_entered_at = self.queue_entered_at or self.queued_at

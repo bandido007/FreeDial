@@ -132,4 +132,8 @@ def test_the_relay_sends_each_event_to_the_agent_it_names():
 
     assert relay.push(Layer(), Event(type=m.CALL_OFFERED, data={"agent": "a1", "call": "c"})) == 1
     assert relay.push(Layer(), Event(type=m.CALL_STARTED, data={"call": "c"})) == 0
-    assert sent == [("agent.a1", m.CALL_OFFERED)]
+    assert sent == [
+        ("agent.a1", m.CALL_OFFERED),
+        ("supervisors", m.CALL_OFFERED),  # every supervisor page gets it and keeps what concerns its teams
+        ("supervisors", m.CALL_STARTED),
+    ]

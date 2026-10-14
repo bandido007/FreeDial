@@ -1,0 +1,5 @@
+[
+  {"code": 10700, "status": false, "messageEn": "That agent or call is not in your teams.", "messageSw": "Wakala au simu hiyo haiko kwenye timu zako."},
+  {"code": 10701, "status": false, "messageEn": "That call has ended or has no agent.", "messageSw": "Simu hiyo imeisha au haina wakala."},
+  {"code": 10702, "status": false, "messageEn": "Choose monitor, whisper or barge (or ready, not ready, logged out).", "messageSw": "Chagua monitor, whisper au barge (au tayari, si tayari, nje)."}
+]

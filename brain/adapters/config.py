@@ -25,6 +25,8 @@ class BrainSettings:
     commands_stream: str
     events_stream: str
     agents_key: str = "algodial:agents"
+    calls_key: str = "algodial:calls"
+    live_channel: str = "algodial:live"
     consumer: str = "brain-1"
 
     @classmethod
@@ -38,6 +40,8 @@ class BrainSettings:
             commands_stream=settings.BUS_COMMANDS_STREAM,
             events_stream=settings.BUS_EVENTS_STREAM,
             agents_key=settings.BUS_AGENTS_KEY,
+            calls_key=settings.BUS_CALLS_KEY,
+            live_channel=settings.BUS_LIVE_CHANNEL,
             consumer=settings.BRAIN_CONSUMER,
         )
 

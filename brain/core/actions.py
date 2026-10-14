@@ -67,6 +67,17 @@ class Originate(AriAction):
 
 
 @dataclass(frozen=True)
+class Snoop(AriAction):
+    """A channel listening to (spy) and/or talking into (whisper) ``channel``; it enters the app as ``snoop_id``."""
+
+    channel: str
+    snoop_id: str
+    spy: str  # none | in | out | both
+    whisper: str  # none | in | out | both
+    app_args: str
+
+
+@dataclass(frozen=True)
 class Play(AriAction):
     """Play a sound to a channel; Asterisk answers with PlaybackFinished for ``playback_id``."""
 

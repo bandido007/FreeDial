@@ -1,6 +1,11 @@
 """The unified root query, composed from every app's Query."""
 type Query {
   """
+  Your teams now: agents, live calls, queues. permissions=['can_monitor_calls', 'can_whisper_calls', 'can_barge_calls', 'can_force_agent_state']
+  """
+  mySupervisorDesk: SupervisorDeskResponse
+
+  """
   The signed-in agent, their live state, Not Ready reasons and wrap-up codes. permissions=['can_take_calls']
   """
   myAgentDesk: AgentDeskResponse
@@ -223,6 +228,61 @@ type Query {
   Whether people may create their own account, and the policy versions. Public.
   """
   getRegistrationStatus: RegistrationStatusResponse
+}
+
+type SupervisorDeskResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: SupervisorDeskType
+  dataList: [SupervisorDeskType]
+}
+
+type SupervisorDeskType {
+  user: String
+  name: String
+
+  """monitor, whisper, barge, force"""
+  can: [String]
+  agents: [SupervisedAgentType]
+
+  """Live calls of your teams, as the brain describes them"""
+  calls: [GenericScalar]
+  queues: [QueueNowType]
+  notReadyReasons: [String]
+}
+
+type SupervisedAgentType {
+  uid: String
+  number: String
+  name: String
+  availability: String
+  activity: String
+  reason: String
+  call: String
+  idleSince: Float
+}
+
+"""
+The `GenericScalar` scalar type represents a generic
+GraphQL scalar value that could be:
+String, Boolean, Int, Float, List or Object.
+"""
+scalar GenericScalar
+
+type QueueNowType {
+  name: String
+  waiting: Int
+
+  """Seconds the longest-waiting caller has waited"""
+  longestWait: Int
+
+  """Today"""
+  serviceLevelPercent: Float
+  targetPercent: Int
+  targetSeconds: Int
+  offered: Int
+  answered: Int
 }
 
 type AgentDeskResponse {
@@ -633,13 +693,6 @@ type SystemSettingType {
   """Readable without signing in."""
   public: Boolean
 }
-
-"""
-The `GenericScalar` scalar type represents a generic
-GraphQL scalar value that could be:
-String, Boolean, Int, Float, List or Object.
-"""
-scalar GenericScalar
 
 type PublicSettingsResponse {
   status: Boolean
@@ -1652,6 +1705,34 @@ type RegistrationStatusType {
 
 """The unified root mutation, composed from every app's Mutation."""
 type Mutation {
+  """The supervisor's browser phone."""
+  startSupervisorSession: AgentPhoneResponse
+
+  """Stop supervising and switch the phone off."""
+  endSupervisorSession: CommandSentResponse
+
+  """Monitor, whisper or barge into a call of your teams."""
+  superviseCall(
+    call: String!
+
+    """monitor, whisper or barge"""
+    mode: String!
+  ): CommandSentResponse
+
+  """Hang up the supervision."""
+  stopSupervising: CommandSentResponse
+
+  """Ready, Not Ready or log out an agent of your teams."""
+  forceAgentState(
+    agent: String!
+
+    """For not_ready"""
+    reason: String
+
+    """ready, not_ready or logged_out"""
+    state: String!
+  ): CommandSentResponse
+
   """
   Start the browser phone for this session. permissions=['can_take_calls']
   """

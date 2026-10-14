@@ -18,6 +18,7 @@ import logging
 import time
 from collections import deque
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, TextIO
 
@@ -45,6 +46,14 @@ LOGGED_EVENTS = {
     messages.COMMAND_REJECTED: "command {type} refused: {reason}",
     messages.BRAIN_RECONCILED: "reconciled: adopted {adopted}, hung up {hung_up}, deleted bridges {bridges_deleted}",
 }
+
+
+@dataclass(frozen=True)
+class LiveCall:
+    """A changed call for the supervisor pages (None: it ended)."""
+
+    call: str
+    snapshot: dict[str, Any] | None
 
 
 class CallQueue:
@@ -113,7 +122,8 @@ class Runtime:
         self.record = record
         self.queues: dict[str, CallQueue] = {}
         self.timers: dict[str, asyncio.TimerHandle] = {}
-        self.outbox: asyncio.Queue[Event | a.SaveAgent] = asyncio.Queue()
+        self.outbox: asyncio.Queue[Event | a.SaveAgent | LiveCall] = asyncio.Queue()
+        self._live: dict[str, dict[str, Any]] = {}  # the call views last published
         self.connected = asyncio.Event()
         self.reconciled = 0  # how many times the brain (re)connected and reconciled
         self._seen: deque[str] = deque(maxlen=SEEN_COMMANDS)
@@ -154,7 +164,17 @@ class Runtime:
             self.record.write(json.dumps(line, default=str) + "\n")
             self.record.flush()
         self.carry_out(actions, command_id)
+        self._publish_live_calls()
         return actions
+
+    def _publish_live_calls(self) -> None:
+        now = self.core.live_calls()
+        for call, view in now.items():
+            if self._live.get(call) != view:
+                self.outbox.put_nowait(LiveCall(call, view))
+        for call in self._live.keys() - now.keys():
+            self.outbox.put_nowait(LiveCall(call, None))
+        self._live = now
 
     def carry_out(self, actions: list[a.Action], command_id: str | None = None) -> None:
         batches: dict[str, list[a.AriAction]] = {}
@@ -325,6 +345,8 @@ class Runtime:
                 try:
                     if isinstance(item, Event):
                         await self.bus.publish(item)
+                    elif isinstance(item, LiveCall):
+                        await self.bus.save_call(item.call, item.snapshot)
                     else:
                         await self.bus.save_agent(item.agent, item.state)
                     break
@@ -336,6 +358,10 @@ class Runtime:
 
     # ── life ──────────────────────────────────────────────────────────────
     async def run_forever(self, stop: asyncio.Event) -> None:
+        try:
+            await self.bus.clear_calls()  # rebuilt by the first reconcile
+        except Exception as exc:
+            log.error("could not clear the live call list: %s", exc)
         readers = [
             asyncio.create_task(self.follow_ari(), name="ari"),
             asyncio.create_task(self.follow_commands(), name="commands"),

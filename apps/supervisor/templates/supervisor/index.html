@@ -1,0 +1,71 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AlgoDial supervisor</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="{% static 'agentdesk/app.css' %}">
+  <link rel="stylesheet" href="{% static 'supervisor/app.css' %}">
+  {{ config|json_script:"desk-config" }}
+  <script src="{% static 'agentdesk/vendor/jssip-3.12.0.min.js' %}" defer></script>
+  <script src="{% static 'supervisor/app.js' %}" defer></script>
+</head>
+<body>
+  <main class="wide">
+    <section id="signin" class="card" hidden>
+      <h1>AlgoDial supervisor</h1>
+      <form id="signin-form" autocomplete="on">
+        <label>Email <input id="email" type="email" autocomplete="username" required></label>
+        <label>Password <input id="password" type="password" autocomplete="current-password" required></label>
+        <label id="otp-row" hidden>Two-factor code <input id="otp" inputmode="numeric" autocomplete="one-time-code"></label>
+        <button type="submit">Sign in</button>
+        <p id="signin-error" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="desk" hidden>
+      <header class="card bar">
+        <div><strong id="me"></strong> <span class="muted">supervisor</span></div>
+        <div class="chips">
+          <span id="phone-chip" class="chip">Phone: off</span>
+          <span id="live-chip" class="chip">Live: off</span>
+          <button id="signout" class="quiet">Sign out</button>
+        </div>
+      </header>
+
+      <section id="listening" class="card call" hidden>
+        <h2>Listening to <span id="listening-caller"></span></h2>
+        <p class="muted" id="listening-mode-help"></p>
+        <div class="row">
+          <button id="mode-monitor" class="secondary" data-mode="monitor">Monitor</button>
+          <button id="mode-whisper" class="secondary" data-mode="whisper">Whisper</button>
+          <button id="mode-barge" class="secondary" data-mode="barge">Barge</button>
+          <button id="stop" class="danger">Stop</button>
+        </div>
+      </section>
+
+      <p id="notice" class="error" role="alert"></p>
+
+      <section class="card">
+        <h2>Queues</h2>
+        <table><thead><tr><th>Queue</th><th>Waiting</th><th>Longest wait</th><th>Today</th></tr></thead>
+          <tbody id="queues"></tbody></table>
+      </section>
+
+      <section class="card">
+        <h2>Calls</h2>
+        <table><thead><tr><th>Caller</th><th>Queue</th><th>State</th><th>Agent</th><th>Time</th><th></th></tr></thead>
+          <tbody id="calls"></tbody></table>
+      </section>
+
+      <section class="card">
+        <h2>Agents</h2>
+        <table><thead><tr><th>Agent</th><th>State</th><th>Since</th><th></th></tr></thead>
+          <tbody id="agents"></tbody></table>
+      </section>
+    </section>
+  </main>
+  <audio id="remote-audio" autoplay></audio>
+</body>
+</html>
