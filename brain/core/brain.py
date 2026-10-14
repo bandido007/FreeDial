@@ -433,6 +433,7 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
         out += [
             a.StartMoh(call.id, call.bridge, queue.moh_class),
             a.SetTimer(max_wait_timer(call), queue.max_wait),
+            self._queued(call, "entry"),
         ]
         if full:
             return out + self._overflow(call, "queue full", now)
@@ -793,7 +794,11 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
         call.queue, call.queue_entered_at = target.uid, now
         call.tried.clear()
         call.retry_pending = False
-        out += [a.CancelTimer(retry_timer(call)), a.SetTimer(max_wait_timer(call), target.max_wait)]
+        out += [
+            a.CancelTimer(retry_timer(call)),
+            a.SetTimer(max_wait_timer(call), target.max_wait),
+            self._queued(call, "routing" if reason == "routing" else "overflow"),
+        ]
         if call.widen_at is not None:
             call.widen_at = None
             out.append(a.CancelTimer(widen_timer(call)))
@@ -960,6 +965,7 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
             out += [
                 a.StartMoh(call.id, call.bridge, queue.moh_class),
                 a.SetTimer(max_wait_timer(call), queue.max_wait),
+                self._queued(call, "adopted"),
             ]
         return call, out
 
@@ -991,6 +997,13 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
             ),
         ]
         return out
+
+    def _queued(self, call: Call, reason: str) -> a.Emit:
+        """The call starts waiting in its queue (reports measure each queue's waits from here)."""
+        queue = self.config.queues.get(call.queue)
+        return a.Emit(
+            m.CALL_QUEUED, {"call": call.id, "queue": queue.name if queue else "", "reason": reason}
+        )
 
     def _reject(self, channel: dict[str, Any], args: list[str], reason: str) -> list[a.Action]:
         """Rule 3: a StasisStart nobody can handle is logged and hung up, never left silent."""

@@ -52,6 +52,7 @@ class TransferMixin:
         def _changed(self, agent: Agent) -> list[a.Action]: ...
         def _release(self, uid: str | None, call: Call, talked: bool, now: float) -> list[a.Action]: ...
         def _hunt(self, call: Call, now: float) -> list[a.Action]: ...
+        def _queued(self, call: Call, reason: str) -> a.Emit: ...
         def _priority(self, call: Call) -> int: ...
         def _move(
             self, call: Call, queue: QueueConfig, target: QueueConfig, reason: str, now: float
@@ -173,10 +174,18 @@ class TransferMixin:
         ]
         current = self.config.queues.get(call.queue)
         if current is not None and queue.uid != call.queue:
-            return out + self._move(call, current, queue, "routing", now)
+            moved = self._move(call, current, queue, "routing", now)
+            for x in moved:
+                if isinstance(x, a.Emit) and x.type == m.CALL_QUEUED:
+                    x.data["reason"] = "transfer"
+            return out + moved
         call.queue_entered_at = now
         call.tried.clear()
-        return out + [a.SetTimer(max_wait_timer(call), queue.max_wait)] + self._hunt(call, now)
+        return (
+            out
+            + [a.SetTimer(max_wait_timer(call), queue.max_wait), self._queued(call, "transfer")]
+            + self._hunt(call, now)
+        )
 
     def _ring_target(
         self,
@@ -446,7 +455,10 @@ class TransferMixin:
         call.state, call.held = CallState.WAITING, False
         call.queue_entered_at = now
         call.tried.clear()
-        out.append(a.SetTimer(max_wait_timer(call), queue.max_wait if queue else 300))
+        out += [
+            a.SetTimer(max_wait_timer(call), queue.max_wait if queue else 300),
+            self._queued(call, "transfer_back"),
+        ]
         return out + self._hunt(call, now)
 
     def _queue_named(self, name: str) -> QueueConfig | None:

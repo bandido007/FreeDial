@@ -1,0 +1,4 @@
+[
+  {"code": 10900, "status": false, "messageEn": "The report period is not valid.", "messageSw": "Kipindi cha ripoti si sahihi."},
+  {"code": 10901, "status": false, "messageEn": "Unknown report section or file format.", "messageSw": "Sehemu ya ripoti au aina ya faili haijulikani."}
+]

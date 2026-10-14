@@ -1,6 +1,34 @@
 """The unified root query, composed from every app's Query."""
 type Query {
   """
+  Calls per queue, service level, abandon rate, handle time, agent time in state, and the AI's containment and handoff reasons, from the event log. permissions=['can_view_reports']
+  """
+  getReport(
+    """
+    One of today, yesterday, last_7_days, last_30_days, custom; custom takes since and until (dates, both days included).
+    """
+    period: String = "today"
+    since: Date
+    until: Date
+  ): ReportResponse
+
+  """
+  One report table as a file (PDF, Excel, CSV or Word). permissions=['can_view_reports']
+  """
+  exportReport(
+    """One of queues, agents, ai"""
+    section: String!
+    format: TableExportFormatChoices!
+
+    """
+    One of today, yesterday, last_7_days, last_30_days, custom; custom takes since and until (dates, both days included).
+    """
+    period: String = "today"
+    since: Date
+    until: Date
+  ): ExportFileResponse
+
+  """
   Your teams now: agents, live calls, queues. permissions=['can_monitor_calls', 'can_whisper_calls', 'can_barge_calls', 'can_force_agent_state']
   """
   mySupervisorDesk: SupervisorDeskResponse
@@ -230,6 +258,144 @@ type Query {
   getRegistrationStatus: RegistrationStatusResponse
 }
 
+type ReportResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: ReportType
+  dataList: [ReportType]
+}
+
+type ReportType {
+  since: DateTime
+  until: DateTime
+  queues: [QueueReportType]
+  total: QueueReportType
+  agents: [AgentReportType]
+  ai: [AiReportType]
+}
+
+"""
+The `DateTime` scalar type represents a DateTime
+value as specified by
+[iso8601](https://en.wikipedia.org/wiki/ISO_8601).
+"""
+scalar DateTime
+
+type QueueReportType {
+  queue: String
+  offered: Int
+  answered: Int
+
+  """Answered within the queue's service-level seconds"""
+  answeredWithin: Int
+  targetSeconds: Int
+  targetPercent: Int
+
+  """Answered within target, of all offered"""
+  serviceLevelPercent: Float
+  metTarget: Boolean
+  abandoned: Int
+
+  """Abandoned within the first 5 seconds (included in abandoned)"""
+  shortAbandoned: Int
+  abandonRatePercent: Float
+
+  """Left unanswered for another queue"""
+  overflowed: Int
+  voicemail: Int
+
+  """Seconds"""
+  averageSpeedOfAnswer: Float
+
+  """Seconds"""
+  longestWait: Float
+
+  """Seconds, hold included"""
+  averageTalk: Float
+
+  """Seconds"""
+  averageWrapup: Float
+
+  """Seconds: talk + wrap-up"""
+  averageHandleTime: Float
+}
+
+type AgentReportType {
+  """The agent's uid"""
+  agent: String
+  name: String
+  answered: Int
+
+  """Seconds"""
+  averageHandleTime: Float
+
+  """
+  Seconds per state: available, ringing, talking, on_hold, wrapup, not_responding, 'not_ready: <reason>'
+  """
+  seconds: GenericScalar
+}
+
+"""
+The `GenericScalar` scalar type represents a generic
+GraphQL scalar value that could be:
+String, Boolean, Int, Float, List or Object.
+"""
+scalar GenericScalar
+
+type AiReportType {
+  """The AI agent's uid"""
+  aiAgent: String
+  name: String
+  calls: Int
+  resolved: Int
+
+  """Resolved by the AI, of its calls"""
+  containmentPercent: Float
+  handedOff: Int
+
+  """Handoffs per reason"""
+  reasons: GenericScalar
+  failed: Int
+  callerLeft: Int
+
+  """Seconds the caller spent with the AI"""
+  averageSeconds: Float
+}
+
+"""
+The `Date` scalar type represents a Date
+value as specified by
+[iso8601](https://en.wikipedia.org/wiki/ISO_8601).
+"""
+scalar Date
+
+type ExportFileResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: ExportFileType
+  dataList: [ExportFileType]
+}
+
+"""
+A generated file, inline. Decode ``contentBase64`` into a Blob client-side.
+"""
+type ExportFileType {
+  fileName: String
+  mimeType: String
+  sizeBytes: Int
+  contentBase64: String
+}
+
+"""An enumeration."""
+enum TableExportFormatChoices {
+  PDF
+  EXCEL
+  CSV
+  WORD
+}
+
 type SupervisorDeskResponse {
   status: Boolean
   code: Int
@@ -262,13 +428,6 @@ type SupervisedAgentType {
   call: String
   idleSince: Float
 }
-
-"""
-The `GenericScalar` scalar type represents a generic
-GraphQL scalar value that could be:
-String, Boolean, Int, Float, List or Object.
-"""
-scalar GenericScalar
 
 type QueueNowType {
   name: String
@@ -363,13 +522,6 @@ type QueueStatsType {
 }
 
 """
-The `DateTime` scalar type represents a DateTime
-value as specified by
-[iso8601](https://en.wikipedia.org/wiki/ISO_8601).
-"""
-scalar DateTime
-
-"""
 Leverages the internal Python implementation of UUID (uuid.UUID) to provide native UUID objects
 in fields, resolvers and input.
 """
@@ -462,13 +614,6 @@ enum UsersUserGenderChoices {
   """FEMALE"""
   FEMALE
 }
-
-"""
-The `Date` scalar type represents a Date
-value as specified by
-[iso8601](https://en.wikipedia.org/wiki/ISO_8601).
-"""
-scalar Date
 
 """An enumeration."""
 enum AccountTypeChoices {
@@ -935,32 +1080,6 @@ type AuditLogResponse {
   message: String
   data: AuditLogType
   dataList: [AuditLogType]
-}
-
-type ExportFileResponse {
-  status: Boolean
-  code: Int
-  message: String
-  data: ExportFileType
-  dataList: [ExportFileType]
-}
-
-"""
-A generated file, inline. Decode ``contentBase64`` into a Blob client-side.
-"""
-type ExportFileType {
-  fileName: String
-  mimeType: String
-  sizeBytes: Int
-  contentBase64: String
-}
-
-"""An enumeration."""
-enum TableExportFormatChoices {
-  PDF
-  EXCEL
-  CSV
-  WORD
 }
 
 type RequestLogPageResponse {

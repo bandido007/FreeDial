@@ -181,6 +181,8 @@ def _project(kind: str, data: dict[str, Any], at: datetime) -> None:
         )
     elif kind == m.ROUTING_TICKET:
         Call.objects.filter(linkedid=data["call"]).update(queue=data["queue"])
+    elif kind == m.CALL_QUEUED:
+        Call.objects.filter(linkedid=data["call"]).update(queue=data["queue"])  # where it waits now
     elif kind == m.CALL_OVERFLOWED:
         Call.objects.filter(linkedid=data["call"]).update(queue=data["to_queue"])  # the queue it ends in
     elif kind == m.LEG_ENDED:

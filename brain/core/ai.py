@@ -47,6 +47,7 @@ class AiMixin:
         def _hunt(self, call: Call, now: float) -> list[a.Action]: ...
         def _end(self, call: Call, result: str, reason: str, now: float) -> list[a.Action]: ...
         def _routing_update(self, data: dict[str, Any], command_id: str, now: float) -> list[a.Action]: ...
+        def _queued(self, call: Call, reason: str) -> a.Emit: ...
 
     # ── start ─────────────────────────────────────────────────────────────
     def _ai_for(self, entry: EntryConfig) -> AiAgentConfig | None:
@@ -101,10 +102,18 @@ class AiMixin:
         call.summary, call.ai_reason = summary, reason
         out = self._ai_leaves(call, "handoff", reason, summary, transcript)
         routing = {key: data[key] for key in ROUTING_FIELDS if data.get(key)}
-        out += self._to_queue(call, self._queue_of(call), now, hunt=not routing)
-        if routing:
-            out += self._routing_update({"call": call.id, "source": "ai", **routing}, command_id, now)
-        return out + self._hunt(call, now)  # a rejected ticket with no fallback still looks for agents
+        if not routing:
+            return out + self._to_queue(call, self._queue_of(call), now, "ai_handoff")
+        out += self._to_queue(call, self._queue_of(call), now, None, hunt=False)
+        routed = self._routing_update({"call": call.id, "source": "ai", **routing}, command_id, now)
+        moved = [x for x in routed if isinstance(x, a.Emit) and x.type == m.CALL_QUEUED]
+        for queued in moved:
+            queued.data["reason"] = "ai_handoff"  # it is the AI's handoff, to the queue the AI chose
+        if not moved:  # the call waits in the entry's queue after all
+            out.append(self._queued(call, "ai_handoff"))
+        return (
+            out + routed + self._hunt(call, now)
+        )  # a rejected ticket with no fallback still looks for agents
 
     # ── failures ──────────────────────────────────────────────────────────
     def _ai_failed(self, call: Call, reason: str, now: float) -> list[a.Action]:
@@ -112,7 +121,7 @@ class AiMixin:
         out = self._ai_leaves(call, "failed", reason, "", [])
         entry = self.config.entries.get(call.entry)
         fallback = self.config.queues.get((entry.fallback_queue if entry else None) or "")
-        return out + self._to_queue(call, fallback or self._queue_of(call), now)
+        return out + self._to_queue(call, fallback or self._queue_of(call), now, "ai_failed")
 
     def _ai_timed_out(self, call: Call, now: float) -> list[a.Action]:
         if call.state is not CallState.AI or call.ai_connected:
@@ -162,9 +171,10 @@ class AiMixin:
         return self.config.queues.get(call.queue)
 
     def _to_queue(
-        self, call: Call, queue: QueueConfig | None, now: float, hunt: bool = True
+        self, call: Call, queue: QueueConfig | None, now: float, reason: str | None, hunt: bool = True
     ) -> list[a.Action]:
-        """The caller now waits for a person in ``queue``: hold music, max wait, skill rules from now."""
+        """The caller now waits for a person in ``queue``: hold music, max wait, skill rules from now.
+        ``reason`` for call.queued; None: a routing decision follows and says where it waits."""
         if queue is None:
             return self._end(call, "failed", "no queue to hand the call to", now)
         call.state, call.queue, call.queue_entered_at = CallState.WAITING, queue.uid, now
@@ -172,4 +182,6 @@ class AiMixin:
             a.StartMoh(call.id, call.bridge, queue.moh_class),
             a.SetTimer(max_wait_timer(call), queue.max_wait),
         ]
+        if reason:
+            out.append(self._queued(call, reason))
         return out + (self._hunt(call, now) if hunt else [])

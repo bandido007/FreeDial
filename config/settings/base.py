@@ -126,6 +126,7 @@ PROJECT_APPS: list[str] = [
     "apps.realtime",
     "apps.agentdesk",
     "apps.supervisor",
+    "apps.reports",
     # <scaffold:project-apps>
 ]
 

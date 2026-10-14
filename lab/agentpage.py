@@ -129,6 +129,15 @@ async def done_wrapping_up(page):
     await until(page, "window.agentDesk.state.activity !== 'wrapup'", 10)
 
 
+async def go_ready(page):
+    """Click Ready once the page has settled (right after a sign-in it may still show the last session's state)."""
+    ready = "document.getElementById('availability').textContent === 'Ready'"
+    await until(page, f"!document.getElementById('ready').disabled || {ready}", 15)
+    if not await page.evaluate("document.getElementById('ready').disabled"):
+        await page.click("#ready")
+    await until(page, ready, 10)
+
+
 async def take_call(customer, page, number="899"):
     """A customer calls; the page that rings answers it."""
     call = await customer.dial(number)
@@ -168,8 +177,7 @@ async def transfers_from_the_page(playwright, show, customer, admin_session, che
     )
     first = await signed_in(browser, EMAIL, password, admin_session)
     second = await signed_in(browser, other_email, other_password, admin_session)
-    await first.click("#ready")
-    await until(first, "document.getElementById('availability').textContent === 'Ready'", 10)
+    await go_ready(first)
     check("two agents signed in, two browser phones", True, "9003 Ready, 7001 Not Ready")
 
     say("── consult, conference, drop the other party")
@@ -208,8 +216,7 @@ async def transfers_from_the_page(playwright, show, customer, admin_session, che
 
     say("── blind transfer to a queue")
     call = await take_call(customer, first)
-    await second.click("#ready")
-    await until(second, "document.getElementById('availability').textContent === 'Ready'", 10)
+    await go_ready(second)
     await transfer_from(first, "blind", "queue", "Support")
     await until(first, "window.agentDesk.session === null", 10)
     await second.wait_for_selector("#call:not([hidden])", timeout=20000)
@@ -278,8 +285,7 @@ async def supervision_from_the_page(playwright, show, customer, admin_session, c
         ],
     )
     agent = await signed_in(agent_browser, EMAIL, password, admin_session)
-    await agent.click("#ready")
-    await until(agent, "document.getElementById('availability').textContent === 'Ready'", 10)
+    await go_ready(agent)
 
     context = await sup_browser.new_context()
     sup = await context.new_page()
@@ -442,8 +448,7 @@ async def ai_from_the_page(playwright, show, customer, admin_session, check, pas
         args=["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
     )
     page = await signed_in(browser, EMAIL, password, admin_session)
-    await page.click("#ready")
-    await until(page, "document.getElementById('availability').textContent === 'Ready'", 10)
+    await go_ready(page)
     customer.tone_hz = 0
     started = datetime.now(timezone.utc)
     try:
@@ -511,10 +516,41 @@ async def ai_from_the_page(playwright, show, customer, admin_session, check, pas
     await browser.close()
 
 
+async def report_of_the_run(since, agent_uid, admin_session, check, ai):
+    """M9: the report for exactly this run's time counts what the run did (read from the Event table)."""
+    from apps.reports.selectors import build_report
+
+    report = await asyncio.to_thread(build_report, since=since, until=datetime.now(timezone.utc))
+    support = next((line for line in report.queues if line.queue == "Support"), None)
+    check(
+        "the report counts this run's calls in Support, all answered, none abandoned",
+        support is not None and support.offered >= 2 and support.answered == support.offered and support.abandoned == 0,
+        "-" if support is None else f"offered {support.offered}, answered {support.answered}, "
+        f"service level {support.service_level_percent}%, avg handle time {support.average_handle_time} s",
+    )
+    agent = next((line for line in report.agents if line.agent == agent_uid), None)
+    check(
+        "the browser agent's time in state is there",
+        agent is not None and agent.seconds.get("talking", 0) > 0 and agent.answered >= 1,
+        "-" if agent is None else str(agent.seconds),
+    )
+    if ai:
+        lab_ai = next((line for line in report.ai if line.name == "Lab AI"), None)
+        check(
+            "the AI's call is in the report: handed to a person on request",
+            lab_ai is not None and lab_ai.calls == 1 and lab_ai.reasons == {"asked_for_person": 1},
+            "-" if lab_ai is None else f"{lab_ai.calls} call, {lab_ai.reasons}, {lab_ai.average_seconds} s with the AI",
+        )
+    async with aiohttp.ClientSession(cookies={"sessionid": admin_session}) as http:
+        async with http.get(f"http://127.0.0.1:{PORT}/admin/reports/report/") as response:
+            html = await response.text()
+    check("the admin's Reports page shows today", response.status == 200 and "Calls per queue" in html and "Support" in html)
+
+
 async def main(show, transfers=True, supervision=True, ai=True):
     password, agent_uid, customer_password = await asyncio.to_thread(setup)
     admin_session = await asyncio.to_thread(admin_cookie)
-    started = datetime.now(timezone.utc)
+    started = run_started = datetime.now(timezone.utc)
     if brain_running():
         say("A brain is running on this machine (make dev or make brain). Stop it first.")
         return 2
@@ -575,11 +611,10 @@ async def main(show, transfers=True, supervision=True, ai=True):
             check("live WebSocket open", True)
 
             say("── Ready")
-            await page.click("#ready")
-            await until(page, "document.getElementById('availability').textContent === 'Ready'", 10)
+            await go_ready(page)
             check("agent is Ready (state pushed by the brain)", True)
 
-            say("── a customer calls 800")
+            say("── a customer calls 899")
             call = await customer.dial("899")
             await asyncio.wait_for(call.answered.wait(), 10)
             await page.wait_for_selector("#call:not([hidden])", timeout=15000)
@@ -699,6 +734,10 @@ async def main(show, transfers=True, supervision=True, ai=True):
                 statuses == [("consult", "agent", "conference"), ("blind", "agent", "completed"), ("blind", "queue", "completed"), ("blind", "number", "completed")],
                 str(statuses),
             )
+
+        say("── M9: this run in the reports")
+        await asyncio.sleep(2)  # the writer
+        await report_of_the_run(run_started, agent_uid, admin_session, check, ai)
     except Exception as exc:
         if not checks or checks[-1][1]:
             say(f"  FAIL  {type(exc).__name__}: {exc}")

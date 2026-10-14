@@ -74,6 +74,9 @@ CALL_OFFER_FAILED = "call.offer_failed"  # reason: rejected, no_answer, offline,
 CALL_CONNECTED = "call.connected"  # the agent answered and is in the bridge
 CALL_HELD = "call.held"
 CALL_RESUMED = "call.resumed"
+# M9: the call starts waiting in a queue. reason: entry, overflow, routing, ai_handoff, ai_failed,
+# transfer, transfer_back, adopted. Reports measure each queue's waits from here.
+CALL_QUEUED = "call.queued"
 CALL_OVERFLOWED = "call.overflowed"  # max wait or a full queue sent it to another queue
 CALL_VOICEMAIL = "call.voicemail"  # overflow to voicemail: the caller is asked to leave a message
 CALLBACK_REQUESTED = "callback.requested"  # a callback task, with the message if one was left
@@ -111,6 +114,7 @@ EVENTS: dict[str, tuple[str, ...]] = {
     CALL_CONNECTED: ("call", "leg", "agent"),
     CALL_HELD: ("call", "agent"),
     CALL_RESUMED: ("call", "agent"),
+    CALL_QUEUED: ("call", "queue", "reason"),
     CALL_OVERFLOWED: ("call", "from_queue", "to_queue", "reason"),
     CALL_VOICEMAIL: ("call", "queue", "reason"),
     CALLBACK_REQUESTED: ("call", "queue", "caller", "recording", "duration"),
