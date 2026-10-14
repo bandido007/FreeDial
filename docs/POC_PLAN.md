@@ -53,9 +53,18 @@ Admin pages for users, roles, teams. SIP accounts are written as **PJSIP realtim
 Turn `~/AlgoDial/brain.py` into the brain service: per-call event queues, reconcile on (re)connect, unknown args hang up, `originator` on every originate, total cleanup, every event written to the Event table and published to Redis. Add the `STASISSTATUS` fallback to extension 800.
 **Done when:** unit tests run the brain against a fake ARI (recorded event sequences); on the real lab, the 9 call tests below pass and `core show channels` / `bridge show all` are empty after each.
 
-### M3: Agent desktop with browser phone
-Agent login (pick or get a SIP account), browser softphone over WSS (`webrtc=yes` endpoint, TLS on Asterisk's HTTP server), Ready / Not Ready with reasons, call offer popup, answer, hold, hang up, wrap-up with codes. Live updates over one WebSocket.
-**Done when:** an agent in the browser takes a call from 800 end to end, and every state change appears in the Event table.
+### M3: Agent web page with browser phone
+A web page (served by Django, plain JS, signed in with the starter's OAuth token). No desktop
+app: everything runs in the browser, like Wazo, VICIdial, Genesys and Cisco Finesse.
+- Login: email + password (+ two-factor), then pick or get a SIP account for this session.
+- Browser phone: SIP over WSS from the page (endpoint with webrtc=yes, TLS on Asterisk's
+  HTTP server). Mic permission needs HTTPS.
+- Agent controls: Ready / Not Ready with reason, call offer popup, answer, hold, hang up,
+  wrap-up with codes.
+- Live updates: one WebSocket per page, checked with the same OAuth token.
+Zoiper stays only for test users.
+**Done when:** an agent using only a browser logs in, goes Ready, takes a call from 800 end
+to end, wraps up, and every state change appears in the Event table.
 
 ### M4: Queues, strategies, skills
 Brain queue with strategies longest_idle, ring_all, round_robin, linear, fewest_calls, random; ring timeout, retry, max wait, max callers, overflow; skill rule sets that widen with wait time; service level stats.
