@@ -107,6 +107,19 @@ async def perform(ari: AriLike, action: a.AriAction) -> None:
                 callerId=action.caller_id,
                 timeout=str(action.timeout),
             )
+        case a.ExternalMedia():
+            await ari.request(
+                "POST",
+                "/channels/externalMedia",
+                app=ari_app(ari),
+                channelId=action.channel,
+                transport="websocket",
+                encapsulation="none",
+                connection_type="server",  # the AI worker connects to Asterisk's /media/<connection id>
+                format=action.format,
+                data=action.app_args,  # the StasisStart args once the worker has connected
+                transport_data="f(json)",  # control messages as JSON
+            )
         case a.Snoop():
             await ari.request(
                 "POST",

@@ -74,3 +74,27 @@ def test_the_admins_strategy_choices_are_the_brains_strategies():
     from brain.core.config import Strategy
 
     assert set(StrategyChoices.values) == {strategy.value for strategy in Strategy}
+
+
+@pytest.mark.django_db(transaction=True)
+def test_an_entry_point_with_an_ai_agent():
+    from apps.ai.models import AiAgent
+    from apps.queues.models import EntryPoint
+
+    support = queues.save_queue(actor=None, name="Support")
+    msaidizi = AiAgent.objects.create(name="Msaidizi", instructions="A helpline.", start_timeout=8)
+    retired = AiAgent.objects.create(name="Old", instructions="-")
+    queues.save_entry_point(actor=None, number="800", queue=support)
+    queues.save_entry_point(actor=None, number="801", queue=support)
+    EntryPoint.objects.filter(number="800").update(ai_agent=msaidizi)
+    EntryPoint.objects.filter(number="801").update(ai_agent=retired)
+    retired.deactivate()
+
+    config = load_config()
+
+    assert config.ai_agents[str(msaidizi.uid)].name == "Msaidizi"
+    assert config.ai_agents[str(msaidizi.uid)].start_timeout == 8.0
+    assert config.entries["800"].ai_agent == str(msaidizi.uid)
+    assert config.entries["801"].ai_agent is None, (
+        "an inactive AI agent answers nothing: straight to the queue"
+    )

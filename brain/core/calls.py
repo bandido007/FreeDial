@@ -32,6 +32,8 @@ class Transfer:
 
 BRIDGE_PREFIX = "algodial-call-"
 AGENT_LEG_PREFIX = "agent-"
+AI_LEG_PREFIX = "ai-"  # the AI agent's media leg (ARI externalMedia over WebSocket)
+AI_MEDIA_FORMAT = "slin24"  # 24 kHz 16-bit: what OpenAI's speech models take and give
 
 # Q.850 causes on an agent leg that never answered, and what they mean for the offer.
 OFFER_FAILURES = {
@@ -50,6 +52,7 @@ WRAPUP_AFTER_RESTART = 60  # seconds left for a wrap-up a restarted brain finds 
 
 
 class CallState(StrEnum):
+    AI = "ai"  # an AI agent talks with the caller (M8); no queue yet
     WAITING = "waiting"  # in the bridge with music, no agent ringing
     OFFERING = "offering"  # an agent's phone is ringing
     CONNECTED = "connected"
@@ -99,6 +102,12 @@ class Call:
     recording: str | None = None  # voicemail: the stored recording, once recording starts
     recorded_seconds: int | None = None
     connected_at: float | None = None  # when an agent (or the person transferred to) first answered
+    # M8: the AI agent's part. ``summary`` and ``ai_reason`` travel with the offer to the agent.
+    ai_agent: str | None = None
+    ai_leg: str | None = None
+    ai_connected: bool = False
+    summary: str = ""
+    ai_reason: str = ""
 
     def __post_init__(self) -> None:
         self.queue_entered_at = self.queue_entered_at or self.queued_at
@@ -142,6 +151,10 @@ def wrapup_timer(agent: Agent) -> str:
 
 def widen_timer(call: Call) -> str:
     return f"widen:{call.id}"
+
+
+def ai_start_timer(call: Call) -> str:
+    return f"aistart:{call.id}"
 
 
 def voicemail_prompt(call: Call) -> str:

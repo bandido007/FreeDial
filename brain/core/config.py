@@ -77,7 +77,17 @@ class EntryConfig:
     queue: str  # queue uid
     language: str | None = None  # language skill, e.g. swahili
     priority: int | None = None  # None: the queue's priority
-    fallback_queue: str | None = None  # where a rejected AI decision sends the call
+    fallback_queue: str | None = None  # where a rejected AI decision, or a failed AI, sends the call
+    ai_agent: str | None = None  # M8: an AI agent answers first, then hands off to ``queue``
+
+
+@dataclass(frozen=True)
+class AiAgentConfig:
+    """What the brain needs of an AI agent; its prompt, voice and models are the AI worker's business."""
+
+    uid: str
+    name: str
+    start_timeout: float = 10.0  # seconds for the AI worker to connect, else the call goes to a queue
 
 
 @dataclass(frozen=True)
@@ -85,6 +95,7 @@ class Config:
     agents: dict[str, AgentConfig] = field(default_factory=dict)
     queues: dict[str, QueueConfig] = field(default_factory=dict)
     entries: dict[str, EntryConfig] = field(default_factory=dict)  # number dialled -> entry
+    ai_agents: dict[str, AiAgentConfig] = field(default_factory=dict)  # uid -> AI agent
     skills: dict[str, str] = field(default_factory=dict)  # skill name -> kind (language, topic, tier)
     dial_template: str = (
         "PJSIP/{number}"  # how a transfer to a number is dialled (a trunk: PJSIP/{number}@trunk)

@@ -20,13 +20,16 @@ Your Zoipers (1001, 1002) are in Queue(support): during test 9 they may ring for
 """
 import asyncio
 import csv
+import io
 import json
 import os
 import signal
+import struct
 import subprocess
 import sys
 import time
 import traceback
+import wave
 from pathlib import Path
 
 import aiohttp
@@ -43,7 +46,7 @@ django.setup()
 from django.conf import settings  # noqa: E402
 
 from apps.agents.models import Agent  # noqa: E402
-from apps.calls import bus  # noqa: E402
+from apps.calls import asterisk, bus, recordings  # noqa: E402
 from apps.core.crypto import decrypt_secret  # noqa: E402
 from apps.queues import services as queues  # noqa: E402
 from apps.queues.models import EntryPoint, Queue  # noqa: E402
@@ -51,11 +54,14 @@ from apps.telephony import services as telephony  # noqa: E402
 from apps.telephony.models import SipAccount  # noqa: E402
 from contracts import messages as m  # noqa: E402
 from contracts.envelope import decode  # noqa: E402
-from sipphone import Phone  # noqa: E402
+from sipphone import Phone, tone_share  # noqa: E402
 
 CEL = "/var/log/asterisk/cel-custom/cel_trace.csv"
 LAB_ENTRY = "899"  # needs `sudo deploy/asterisk/apply.sh m4` (every 8xx number goes to the brain)
-ALL_TESTS = list(range(1, 19))
+ALL_TESTS = list(range(1, 21))
+LAB_AI_ENTRY = "897"  # the lab AI agent answers, then hands off to queue Support (test 20)
+AI_LOG = ROOT / "lab" / "calltests-ai.log"
+VOICES = ROOT / "lab" / "voices"  # the scripted customer's recorded sentences (not in git)
 RECORDING = ROOT / "brain" / "sim" / "recordings" / "lab.jsonl"  # a full run; test_replay.py replays it
 PARTIAL_RECORDING = ROOT / "lab" / "calltests-partial.jsonl"  # a run of some tests (git-ignored)
 BRAIN_LOG = ROOT / "lab" / "calltests-brain.log"
@@ -95,8 +101,53 @@ def ensure_setup():
     elif entry.queue_id != support.pk:
         entry.queue = support
         entry.save()
+    ensure_lab_ai(support)
     support.refresh_from_db()
     return passwords, agents["9001"], agents["9002"], support.ring_timeout
+
+
+def ensure_lab_ai(support):
+    """The lab AI agent (the demo helpline's knowledge) on entry 897, handing callers to Support."""
+    from apps.agents.models import Skill
+    from apps.ai import demo
+    from apps.ai.models import AiAgent, AiRoute
+
+    ai = AiAgent.objects.filter(name="Lab AI", deleted=False).first() or AiAgent(name="Lab AI")
+    ai.instructions = demo.INSTRUCTIONS.replace("Complaints go to Escalations. Anything else goes to General.", "")
+    ai.greeting_english = "Hello, this is the lab assistant. How can I help you?"
+    ai.greeting_swahili = "Habari, mimi ni msaidizi wa maabara. Nikusaidie nini?"
+    ai.active = True
+    ai.save()
+    AiRoute.objects.update_or_create(ai_agent=ai, queue=support, defaults={"when": "anything a person must handle"})
+    AiRoute.objects.filter(ai_agent=ai).exclude(queue=support).delete()
+    entry = EntryPoint.objects.filter(number=LAB_AI_ENTRY).first()
+    if entry is None:
+        queues.save_entry_point(actor=None, number=LAB_AI_ENTRY, queue=support, name="Lab AI tests")
+        entry = EntryPoint.objects.get(number=LAB_AI_ENTRY)
+    entry.queue, entry.ai_agent = support, ai
+    entry.language = Skill.objects.filter(name="english", deleted=False).first()
+    entry.save()
+
+
+async def voice(text):
+    """``text`` as a caller says it on a phone line (8 kHz 16-bit), made once with OpenAI and kept."""
+    import hashlib
+
+    from aiworker.adapters.openai import OpenAi
+    from aiworker.core.audio import telephone_line
+
+    path = VOICES / f"{hashlib.sha1(text.encode()).hexdigest()[:16]}.pcm"
+    if path.exists():
+        return path.read_bytes()
+    assert settings.OPENAI_API_KEY, "OPENAI_API_KEY is not set (.env)"
+    style = "You are a caller on the phone. Speak English with a Tanzanian accent, at a natural pace."
+    async with aiohttp.ClientSession() as http:
+        speech = OpenAi(http, settings.OPENAI_API_KEY)
+        chunks = [c async for c in speech.speak(text, model="gpt-4o-mini-tts", voice="ash", style=style, timeout=90)]
+    line = telephone_line(b"".join(chunks))
+    VOICES.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(line)
+    return line
 
 
 def set_strategy(strategy):
@@ -121,6 +172,7 @@ class World:
         self.cursor = "$"
         self.seen = []
         self.brain = None
+        self.dialled = []  # linkedids of this run's calls: their recordings are removed at the end
 
     async def ari(self, method, path, **params):
         async with self.http.request(method, settings.ARI_URL + path, params=params) as response:
@@ -192,6 +244,21 @@ class World:
         await self.event(m.BRAIN_RECONCILED, timeout=20)
         say(f"  brain started (pid {self.brain.pid})")
 
+    def start_ai(self):
+        log = open(AI_LOG, "a")  # noqa: SIM115
+        self.ai = subprocess.Popen(
+            [str(ROOT / ".venv" / "bin" / "python"), "manage.py", "run_ai"], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT
+        )
+
+    def stop_ai(self):
+        ai = getattr(self, "ai", None)
+        if ai is not None and ai.poll() is None:
+            ai.send_signal(signal.SIGINT)
+            try:
+                ai.wait(10)
+            except subprocess.TimeoutExpired:
+                ai.kill()
+
     def kill_brain(self, sig=signal.SIGKILL):
         if self.brain and self.brain.poll() is None:
             self.brain.send_signal(sig)
@@ -224,6 +291,7 @@ class Lab:
         call = await self.customer.dial(LAB_ENTRY)
         await asyncio.wait_for(call.answered.wait(), 10)
         started = await self.w.event(m.CALL_STARTED)
+        self.w.dialled.append(started["call"])
         return call, started["call"]
 
     async def connected(self, timeout=15):
@@ -598,6 +666,108 @@ class Lab:
         await self.w.all_clear()
         return "monitor: nobody hears the supervisor; whisper: only the agent; barge: everyone (measured at each phone)"
 
+    # ── M7: stereo recording, judged by what is on each channel ──────────
+    async def t19(self):
+        """Stereo recording: the customer only on the left, what they hear on the right."""
+        self.customer.tone_hz, self.phone_a.tone_hz = 440, 700
+        try:
+            self.phone_a.mode = self.phone_b.mode = "answer"
+            await self.a_first()
+            call, linkedid = await self.dial()
+            await self.connected()
+            await asyncio.sleep(3)  # both talk: the customer 440 Hz, agent A 700 Hz
+            await call.hangup()
+            await self.w.event(m.CALL_ENDED, call=linkedid)
+            await self.w.all_clear()
+        finally:
+            self.customer.tone_hz = self.phone_a.tone_hz = 440
+        name = recordings.asterisk_name(linkedid)
+        raw = None
+        for _ in range(25):  # MixMonitor closes the file as the customer's channel goes
+            raw = await asyncio.to_thread(asterisk.fetch_recording, name)
+            if raw:
+                break
+            await asyncio.sleep(0.2)
+        assert raw, f"Asterisk has no recording {name}: run `sudo deploy/asterisk/apply.sh m7`"
+        with wave.open(io.BytesIO(recordings.stereo_wav(raw))) as wav:
+            assert (wav.getnchannels(), wav.getframerate()) == (2, 8000), wav.getparams()
+            frames = wav.readframes(wav.getnframes())
+        samples = struct.unpack(f"<{len(frames) // 2}h", frames)
+        left, right = list(samples[0::2])[-16000:-4000], list(samples[1::2])[-16000:-4000]  # while talking
+        shares = {
+            "left 440 (customer)": tone_share(left, 440),
+            "left 700 (agent)": tone_share(left, 700),
+            "right 700 (agent)": tone_share(right, 700),
+            "right 440 (customer)": tone_share(right, 440),
+        }
+        say("  " + "  ".join(f"{what} {share:.3f}" for what, share in shares.items()))
+        assert shares["left 440 (customer)"] > 0.5 and shares["left 700 (agent)"] < 0.01, shares
+        assert shares["right 700 (agent)"] > 0.5 and shares["right 440 (customer)"] < 0.01, shares
+        await asyncio.to_thread(asterisk.delete_recording, name)
+        seconds = len(raw) // recordings.FRAME // recordings.RATE
+        return f"{name}: {seconds} s stereo; the customer only on the left, the agent only on the right"
+
+    # ── M8: the AI agent, on the real Asterisk with real OpenAI ──────────
+    async def until_heard(self, phone, timeout=15, level=300.0):
+        """Seconds until ``phone`` hears speech (the AI talking)."""
+        started = time.monotonic()
+        while phone.loudness(0.3) < level:
+            assert time.monotonic() - started < timeout, f"{phone.user} heard nothing for {timeout}s"
+            await asyncio.sleep(0.05)
+        return time.monotonic() - started
+
+    async def until_quiet(self, phone, timeout=30, level=100.0):
+        """Wait until ``phone`` has heard 0.8 s of quiet (the AI finished its sentence)."""
+        started = time.monotonic()
+        while phone.loudness(0.8) > level:
+            assert time.monotonic() - started < timeout, f"{phone.user} still hearing speech after {timeout}s"
+            await asyncio.sleep(0.05)
+
+    async def t20(self):
+        """AI agent: answers 897, answers one question, hands off on request; the offer carries its summary."""
+        question = await voice("What time does your office open on Saturday?")
+        person = await voice("I want to talk to a person, please.")
+        self.customer.tone_hz = 0  # the customer is quiet except when speaking
+        self.w.start_ai()
+        try:
+            self.phone_a.mode = self.phone_b.mode = "answer"
+            await self.a_first()
+            await asyncio.sleep(2)  # the worker joins the bus
+            call = await self.customer.dial(LAB_AI_ENTRY)
+            await asyncio.wait_for(call.answered.wait(), 10)
+            linkedid = (await self.w.event(m.CALL_STARTED))["call"]
+            self.w.dialled.append(linkedid)
+            await self.w.event(m.AI_CONNECTED, call=linkedid, timeout=15)
+            greeted = await self.until_heard(self.customer)
+            await self.until_quiet(self.customer)
+            await asyncio.sleep(self.customer.say(question))
+            answered = await self.until_heard(self.customer)
+            await self.until_quiet(self.customer)
+            await asyncio.sleep(self.customer.say(person))
+            offered = await self.w.event(m.CALL_OFFERED, call=linkedid, timeout=30)
+            ai = await self.w.event(m.AI_ENDED, call=linkedid)
+            say(f"  AI: {ai['outcome']} ({ai['reason']}); summary: {ai['summary']!r}")
+            for turn in ai["transcript"]:
+                say(f"    {turn['at']:>5} s  {turn['who']:>6}: {turn['text']}")
+            assert ai["outcome"] == "handoff" and ai["reason"] == "asked_for_person", ai
+            assert offered["summary"] == ai["summary"] and offered["summary"], offered
+            assert offered["ai_reason"] == "asked_for_person" and offered["agent"] == self.a
+            callers = [turn["text"].lower() for turn in ai["transcript"] if turn["who"] == "caller"]
+            assert any("saturday" in text for text in callers) and any("person" in text for text in callers), callers
+            assert len([turn for turn in ai["transcript"] if turn["who"] == "ai"]) >= 3, "greeting, answer, hold on"
+            await self.connected()
+            await call.hangup()
+            await self.w.event(m.CALL_ENDED, call=linkedid)
+            await self.w.all_clear()
+        finally:
+            self.customer.tone_hz = 440
+            self.customer.speech.clear()
+            self.w.stop_ai()
+        return (
+            f"AI spoke {greeted:.1f}s after answering, replied {answered:.1f}s after the question, "
+            f"handed off on request; agent A's offer carried the summary"
+        )
+
     async def t9(self):
         """Brain stopped, customer calls 899 -> the dialplan's Queue() answers."""
         self.w.kill_brain(signal.SIGTERM)
@@ -611,7 +781,9 @@ class Lab:
         if not call.answered.is_set():
             raise AssertionError(f"not answered ({call.end_reason}): is the fallback in? sudo deploy/asterisk/apply.sh m2")
         await asyncio.sleep(1)
-        apps = [c["dialplan"]["app_name"] for c in await self.w.ari("GET", "/channels") if c["name"].startswith("PJSIP/lab-customer")]
+        customers = [c for c in await self.w.ari("GET", "/channels") if c["name"].startswith("PJSIP/lab-customer")]
+        apps = [c["dialplan"]["app_name"] for c in customers]
+        self.w.dialled += [c["id"] for c in customers]  # recorded too (MixMonitor runs before Stasis)
         await call.hangup()
         assert apps == ["Queue"], f"customer's channel is in {apps}"
         await self.w.all_clear()
@@ -672,6 +844,8 @@ async def main(selected):
             world.kill_brain(signal.SIGTERM)
             for phone in (customer, phone_a, phone_b):
                 await phone.close()
+            for linkedid in world.dialled:  # no writer here keeps them (M7): clean Asterisk's copies
+                await asyncio.to_thread(asterisk.delete_recording, recordings.asterisk_name(linkedid))
         print()
         for number, (verdict, detail) in results.items():
             print(f"  {number}  {verdict}  {detail}")

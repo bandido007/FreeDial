@@ -192,3 +192,99 @@ def test_a_transfer_is_recorded_with_its_status():
     ) == ("consult", "agent", "7003", "b", "c")
     assert transfer.status == "conference" and transfer.answered_at and transfer.ended_at
     assert transfer.call.linkedid == CALL
+
+
+def test_an_ai_call_shows_both_parts_of_the_interaction():
+    """M8: the AI answered, handed off with a summary; an agent took it and wrapped it up."""
+    from apps.calls.models import InteractionPart, PartKind
+
+    call, ai_leg, agent_leg = "1791990100.1", "ai-1", "agent-7"
+    transcript = [
+        {"who": "ai", "text": "Habari", "at": 0.0},
+        {"who": "caller", "text": "Nataka mtu", "at": 3.2},
+    ]
+    events = [
+        (
+            m.CALL_STARTED,
+            {
+                "call": call,
+                "leg": call,
+                "entry": "800",
+                "queue": "General",
+                "caller": "0712",
+                "sip_call_id": "s",
+            },
+        ),
+        (m.AI_STARTED, {"call": call, "leg": ai_leg, "ai_agent": "ai-uid", "language": "swahili"}),
+        (m.AI_CONNECTED, {"call": call, "leg": ai_leg}),
+        (
+            m.AI_ENDED,
+            {
+                "call": call,
+                "outcome": "handoff",
+                "reason": "asked_for_person",
+                "summary": "Wants a person.",
+                "transcript": transcript,
+            },
+        ),
+        (m.LEG_ENDED, {"call": call, "leg": ai_leg, "role": "ai"}),
+        (
+            m.CALL_OFFERED,
+            {
+                "call": call,
+                "leg": agent_leg,
+                "agent": "b",
+                "endpoint": "PJSIP/1002",
+                "summary": "Wants a person.",
+            },
+        ),
+        (m.CALL_CONNECTED, {"call": call, "leg": agent_leg, "agent": "b"}),
+        (m.CALL_ENDED, {"call": call, "result": "answered", "reason": "customer hung up", "agent": "b"}),
+        (m.AGENT_WRAPPED_UP, {"agent": "b", "call": call, "code": "Information given", "by": "agent"}),
+    ]
+    for second, (kind, data) in enumerate(events):
+        writer.write(Message(kind, data, at=f"2026-10-14T05:00:{second:02d}+00:00"))
+
+    ai, agent = InteractionPart.objects.filter(call__linkedid=call)
+    assert (ai.kind, ai.outcome, ai.reason, ai.summary) == (
+        PartKind.AI,
+        "handoff",
+        "asked_for_person",
+        "Wants a person.",
+    )
+    assert ai.transcript == transcript and ai.ai_agent_uid == "ai-uid" and ai.ended_at.second == 3
+    assert (agent.kind, agent.agent_uid, agent.wrapup_code) == (PartKind.AGENT, "b", "Information given")
+    assert agent.started_at.second == 6 and agent.ended_at.second == 7
+    leg = Leg.objects.get(uniqueid=ai_leg)
+    assert (leg.role, leg.outcome, leg.answered_at.second, leg.ended_at.second) == ("ai", "answered", 2, 4)
+
+
+def test_a_call_the_ai_resolved():
+    from apps.calls.models import InteractionPart
+
+    call = "1791990100.2"
+    for second, (kind, data) in enumerate(
+        [
+            (
+                m.CALL_STARTED,
+                {
+                    "call": call,
+                    "leg": call,
+                    "entry": "802",
+                    "queue": "General",
+                    "caller": "0712",
+                    "sip_call_id": "s",
+                },
+            ),
+            (m.AI_STARTED, {"call": call, "leg": "ai-2", "ai_agent": "ai-uid"}),
+            (
+                m.AI_ENDED,
+                {"call": call, "outcome": "resolved", "reason": "answered the question", "summary": "Hours."},
+            ),
+            (m.CALL_ENDED, {"call": call, "result": "ai_handled", "reason": "answered the question"}),
+        ]
+    ):
+        writer.write(Message(kind, data, at=f"2026-10-14T05:01:{second:02d}+00:00"))
+    assert Call.objects.get(linkedid=call).result == "ai_handled"
+    [part] = InteractionPart.objects.filter(call__linkedid=call)
+    assert (part.outcome, part.summary, part.transcript) == ("resolved", "Hours.", [])

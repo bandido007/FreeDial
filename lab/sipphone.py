@@ -49,6 +49,19 @@ def ulaw_to_linear(byte):
 ULAW_TO_LINEAR = [ulaw_to_linear(byte) for byte in range(256)]
 
 
+def tone_share(samples, frequency, rate=8000):
+    """How much of ``samples`` (16-bit linear) is ``frequency``: 0 to 1, by Goertzel."""
+    if len(samples) < rate // 10:
+        return 0.0
+    energy = sum(x * x for x in samples) or 1.0
+    k = 2 * math.cos(2 * math.pi * frequency / rate)
+    s1 = s2 = 0.0
+    for x in samples:
+        s1, s2 = x + k * s1 - s2, s1
+    power = s1 * s1 + s2 * s2 - k * s1 * s2
+    return min(1.0, 2 * power / (len(samples) * energy))
+
+
 def log(phone, msg):
     print(f"{time.strftime('%H:%M:%S')}  [{phone}] {msg}", flush=True)
 
@@ -152,7 +165,8 @@ class Phone:
         self.reg_cseq = 0
         self.registered = False
         self.rtp_packets = 0
-        self.tone_hz = tone_hz  # the "voice" this phone sends: tell phones apart by frequency
+        self.tone_hz = tone_hz  # the "voice" this phone sends: tell phones apart by frequency (0: silence)
+        self.speech = collections.deque()  # mu-law bytes of words to say (say()); they replace the tone
         self.audio_in = collections.deque(maxlen=8000 * 4)  # the last 4 s of audio heard (PCMU, decoded)
 
     # ── transport ──────────────────────────────────────────────────────────
@@ -506,6 +520,7 @@ class Phone:
         # integer frequency, so the wave runs on across packets (repeating one 20 ms packet would
         # shift a 440 Hz tone to 400/450 Hz, which hears(440) cannot find).
         second = bytes(ulaw(int(6000 * math.sin(2 * math.pi * self.tone_hz * n / 8000))) for n in range(8000))
+        silence = bytes([ulaw(0)]) * 160
         ssrc, sequence, stamp = secrets.randbits(32), secrets.randbits(16), secrets.randbits(32)
         # Packet n goes out at start + n * 20 ms, like a real phone's clock. Sleeping 20 ms after each
         # send drifts late; a mixing bridge (snoop, 3-way) then fills the gaps with silence, which
@@ -515,9 +530,29 @@ class Phone:
         while not call.ended.is_set():
             header = struct.pack("!BBHII", 0x80, 0, sequence & 0xFFFF, stamp & 0xFFFFFFFF, ssrc)
             offset = (n * 160) % 8000
-            self.rtp.sendto(header + second[offset:offset + 160], target)
+            if self.speech:
+                payload = self.speech.popleft()
+            elif self.tone_hz:
+                payload = second[offset:offset + 160]
+            else:
+                payload = silence
+            self.rtp.sendto(header + payload, target)
             sequence, stamp, n = sequence + 1, stamp + 160, n + 1
             await asyncio.sleep(max(0.0, start + n * 0.02 - loop.time()))
+
+    def say(self, samples):
+        """Speak 8 kHz 16-bit samples (bytes) on the current call, in place of the tone or silence.
+        Returns how many seconds that takes."""
+        values = struct.unpack(f"<{len(samples) // 2}h", samples[: len(samples) - len(samples) % 2])
+        encoded = bytes(ulaw(v) for v in values)
+        encoded += bytes([ulaw(0)]) * (-len(encoded) % 160)
+        self.speech.extend(encoded[i:i + 160] for i in range(0, len(encoded), 160))
+        return len(encoded) / 8000
+
+    def loudness(self, seconds=1.0):
+        """RMS of what this phone heard in the last ``seconds`` (0 = silence)."""
+        samples = list(self.audio_in)[-int(8000 * seconds):]
+        return math.sqrt(sum(x * x for x in samples) / len(samples)) if samples else 0.0
 
     def heard(self, packet):
         """Keep the audio of an RTP packet (PCMU) to tell later which tones this phone hears."""
@@ -530,16 +565,7 @@ class Phone:
 
     def hears(self, frequency, seconds=1.0):
         """How much of what this phone heard in the last ``seconds`` is ``frequency`` (0 to 1, Goertzel)."""
-        samples = list(self.audio_in)[-int(8000 * seconds):]
-        if len(samples) < 800:
-            return 0.0
-        energy = sum(x * x for x in samples) or 1.0
-        k = 2 * math.cos(2 * math.pi * frequency / 8000)
-        s1 = s2 = 0.0
-        for x in samples:
-            s1, s2 = x + k * s1 - s2, s1
-        power = s1 * s1 + s2 * s2 - k * s1 * s2
-        return min(1.0, 2 * power / (len(samples) * energy))
+        return tone_share(list(self.audio_in)[-int(8000 * seconds):], frequency)
 
     async def ringing(self, timeout=15):
         return await asyncio.wait_for(self.incoming.get(), timeout)

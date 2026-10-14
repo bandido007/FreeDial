@@ -1,0 +1,13 @@
+--- a/extensions.conf
++++ b/extensions.conf
+@@ -28,6 +28,10 @@
+ ; AlgoDial: every 8xx number is an entry point the brain knows (800-802 demo, 899 lab tests);
+ ; the brain hangs up numbers it has no entry point for.
+ exten => _8XX,1,NoOp(Handing call to AlgoDial)
++ ; M7: stereo recording of the whole call from the customer's side: left = the customer,
++ ; right = everything they hear (agents, AI, music, supervisor in barge). 8 kHz 16-bit raw;
++ ; AlgoDial fetches it over ARI (stored recording calls/<uniqueid>) and keeps a WAV.
++ same => n,MixMonitor(${ASTSPOOLDIR}/recording/calls/${UNIQUEID}.raw,D)
+  same => n,Stasis(algodial,inbound,${EXTEN},${CHANNEL(endpoint)},${CHANNEL(linkedid)})
+  same => n,GotoIf($["${STASISSTATUS}" = "FAILED"]?fallback)
+  same => n,Hangup()

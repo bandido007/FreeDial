@@ -78,6 +78,21 @@ def test_seed_demo_gives_the_brain_the_demo_centre_and_is_safe_to_run_twice():
     )
     assert seeded == expected_by_name
 
+    # M8: Msaidizi answers 800 and 802 first, and may send callers to the five queues.
+    from apps.ai.models import AiAgent
+
+    [msaidizi] = AiAgent.objects.all()
+    config = load_config()
+    assert {n for n, e in config.entries.items() if e.ai_agent == str(msaidizi.uid)} == {"800", "802"}
+    assert [route.queue.name for route in msaidizi.routes.all()] == [
+        "Membership",
+        "Claims",
+        "Providers",
+        "Escalations",
+        "General",
+    ]
+    assert msaidizi.routes.get(queue__name="Claims").skill.name == "claims"
+
 
 @pytest.mark.django_db(transaction=True)
 def test_demo_agents_sign_in_with_the_demo_password(sign_in):

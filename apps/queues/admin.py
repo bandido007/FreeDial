@@ -89,7 +89,7 @@ class QueueAdmin(RbacAdminMixin, admin.ModelAdmin):
 class EntryPointForm(forms.ModelForm):
     class Meta:
         model = EntryPoint
-        fields = ("number", "name", "queue", "language", "priority", "fallback_queue", "active")
+        fields = ("number", "name", "queue", "ai_agent", "language", "priority", "fallback_queue", "active")
 
     def clean_number(self):
         try:
@@ -105,7 +105,7 @@ class EntryPointAdmin(RbacAdminMixin, admin.ModelAdmin):
     view_permission = VIEW_QUEUES
     manage_permission = EDIT_QUEUES
     form = EntryPointForm
-    list_display = ("number", "name", "queue", "language", "priority", "fallback_queue", "active")
+    list_display = ("number", "name", "ai_agent", "queue", "language", "priority", "fallback_queue", "active")
     search_fields = ("number", "name")
 
     def delete_queryset(self, request, queryset):

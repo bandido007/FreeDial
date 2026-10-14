@@ -25,6 +25,7 @@ from typing import Any
 from brain.core import actions as a
 from brain.core import routing, strategies
 from brain.core.agents import Activity, Agent, Availability
+from brain.core.ai import AI_COMMANDS, AiMixin
 from brain.core.calls import (  # noqa: F401 (re-exported: tests and the service import them from here)
     AGENT_LEG_PREFIX,
     BRIDGE_PREFIX,
@@ -39,6 +40,7 @@ from brain.core.calls import (  # noqa: F401 (re-exported: tests and the service
     Call,
     CallState,
     Transfer,
+    ai_start_timer,
     caller_id,
     max_wait_timer,
     parse_time,
@@ -57,7 +59,7 @@ from contracts import messages as m
 FORCEABLE = (m.AGENT_READY, m.AGENT_NOT_READY, m.AGENT_LOGOUT)  # with "by": a supervisor forced it
 
 
-class Brain(TransferMixin, SupervisionMixin):
+class Brain(TransferMixin, SupervisionMixin, AiMixin):
     def __init__(self, config: Config, *, app: str, new_id: Callable[[], str]):
         self.app = app
         self.new_id = new_id
@@ -111,6 +113,8 @@ class Brain(TransferMixin, SupervisionMixin):
                 return self._supervisor_answered(channel, args, now)
             if args[:1] == ["snoop"] and len(args) >= 3:
                 return self._snoop_started(channel, args)
+            if args[:1] == ["ai"] and len(args) >= 3:
+                return self._ai_answered(channel, args)
             return self._reject(channel, args, "unknown args")
         if kind in ("StasisEnd", "ChannelDestroyed"):
             return self._leg_gone(str(channel.get("id")), event.get("cause"), now)
@@ -130,6 +134,8 @@ class Brain(TransferMixin, SupervisionMixin):
         call = self.calls.get(call_id)
         if call is None:
             return []
+        if kind == "aistart":
+            return self._ai_timed_out(call, now)
         if kind == "maxwait" and call.state in (CallState.WAITING, CallState.OFFERING):
             return self._overflow(call, "max wait reached", now)
         if kind == "widen":
@@ -150,6 +156,12 @@ class Brain(TransferMixin, SupervisionMixin):
             if action.channel not in call.offers:
                 return []
             return self._offer_failed(call, action.channel, "offline", None, now)
+        if isinstance(action, a.ExternalMedia):
+            if call.state is not CallState.AI or action.channel != call.ai_leg:
+                return []
+            self.legs.pop(action.channel, None)
+            call.ai_leg = None
+            return self._ai_failed(call, f"could not open the AI's media: {error}", now)
         return self._end(call, "failed", f"{type(action).__name__} failed: {error}", now)
 
     def on_command(self, kind: str, data: dict[str, Any], command_id: str, now: float) -> list[a.Action]:
@@ -158,6 +170,8 @@ class Brain(TransferMixin, SupervisionMixin):
             return self._routing_update(data, command_id, now)
         if kind in SUPERVISOR_COMMANDS:
             return self._supervise_command(kind, data, command_id)
+        if kind in AI_COMMANDS:
+            return self._ai_command(kind, data, command_id, now)
         out = self._agent_command(kind, data, command_id, now)
         if (
             data.get("by")
@@ -266,6 +280,8 @@ class Brain(TransferMixin, SupervisionMixin):
                 out += self._end(call, "answered", "agent left while the brain was away", now)
             elif call.transfer is not None and call.transfer.leg and call.transfer.leg not in live:
                 out += self._transfer_leg_gone(call, None, now)
+            elif call.ai_leg and call.ai_leg not in live:
+                out += self._ai_leg_gone(call, now)
             else:
                 for leg in [leg for leg in call.offers if leg not in live]:
                     out += self._offer_failed(call, leg, "failed", None, now)
@@ -294,6 +310,18 @@ class Brain(TransferMixin, SupervisionMixin):
             present = [live[str(cid)] for cid in bridge.get("channels") or [] if str(cid) in live]
             callers = [ch for ch in present if (stasis_args(ch, self.app) or [""])[0] == "inbound"]
             agents = [ch for ch in present if (stasis_args(ch, self.app) or [""])[0] == "agent"]
+            ais = [ch for ch in present if (stasis_args(ch, self.app) or [""])[0] == "ai"]
+            if ais and len(callers) == 1 and not agents and len(present) == 1 + len(ais):
+                # The AI's conversation died with the old brain: hang up its leg, the caller waits for a person.
+                call_id = str(bridge.get("name") or "")[len(BRIDGE_PREFIX) :] or str(bridge["id"])
+                for ai_channel in ais:
+                    ai_leg = str(ai_channel["id"])
+                    out += [
+                        a.Hangup(call_id, ai_leg),
+                        a.Emit(m.LEG_ENDED, {"call": call_id, "leg": ai_leg, "role": "ai"}),
+                    ]
+                    hung_up.append(ai_leg)
+                present = callers
             if len(callers) == 1 and len(agents) <= 1 and len(present) == len(callers) + len(agents):
                 adoption = self._adopt(bridge, callers[0], agents[0] if agents else None, on_hold, now)
                 if adoption is not None:
@@ -398,6 +426,11 @@ class Brain(TransferMixin, SupervisionMixin):
             a.Answer(call.id, call.caller),
             a.CreateBridge(call.id, call.bridge, BRIDGE_PREFIX + call.id),
             a.AddToBridge(call.id, call.bridge, call.caller),
+        ]
+        ai = self._ai_for(entry_point)
+        if ai is not None:  # M8: the AI talks first; the queue comes at handoff
+            return out + self._start_ai(call, ai)
+        out += [
             a.StartMoh(call.id, call.bridge, queue.moh_class),
             a.SetTimer(max_wait_timer(call), queue.max_wait),
         ]
@@ -477,6 +510,8 @@ class Brain(TransferMixin, SupervisionMixin):
                         "caller": call.caller_number,
                         "caller_name": call.caller_name,
                         "queue": queue.name,
+                        "summary": call.summary,  # M8: what the AI learnt, for the agent
+                        "ai_reason": call.ai_reason,
                     },
                 ),
                 a.Originate(
@@ -568,6 +603,8 @@ class Brain(TransferMixin, SupervisionMixin):
             self.legs.pop(leg, None)
             return []
         if leg == call.caller:
+            if call.state is CallState.AI:
+                return self._ai_caller_left(call, now)
             if call.state is CallState.VOICEMAIL:
                 return self._end(call, "voicemail", "caller hung up during voicemail", now)
             return self._end(call, "answered" if call.agent else "abandoned", "customer hung up", now)
@@ -577,6 +614,8 @@ class Brain(TransferMixin, SupervisionMixin):
             return self._end(call, "answered", "agent hung up", now)
         if call.transfer is not None and leg == call.transfer.leg:
             return self._transfer_leg_gone(call, cause, now)
+        if leg == call.ai_leg:
+            return self._ai_leg_gone(call, now)
         supervised = self._supervision_leg_gone(call, leg)
         if supervised is not None:
             return supervised
@@ -630,6 +669,8 @@ class Brain(TransferMixin, SupervisionMixin):
         out: list[a.Action] = [a.CancelTimer(max_wait_timer(call)), a.CancelTimer(retry_timer(call))]
         if call.widen_at is not None:
             out.append(a.CancelTimer(widen_timer(call)))
+        if call.ai_agent:
+            out.append(a.CancelTimer(ai_start_timer(call)))
         offered = list(call.offers.values())
         transfer, third = call.transfer, call.third
         legs = [(leg, "agent") for leg in call.offers] + [(call.agent_leg, "agent")]
@@ -637,6 +678,8 @@ class Brain(TransferMixin, SupervisionMixin):
             legs.append((third[0], "agent" if third[1] else "external"))
         if transfer is not None and transfer.leg:
             legs.append((transfer.leg, "agent" if transfer.target_agent else "external"))
+        if call.ai_leg:
+            legs.append((call.ai_leg, "ai"))
         legs.append((call.caller, "customer"))
         for leg, role in legs:
             if leg:
@@ -697,6 +740,8 @@ class Brain(TransferMixin, SupervisionMixin):
                     "target": transfer.target,
                 },
                 "conference": call.third is not None,
+                "ai_agent": call.ai_agent,
+                "summary": call.summary,
                 "supervisors": [
                     {"supervisor": s.supervisor, "mode": s.mode}
                     for s in self.supervisions.values()

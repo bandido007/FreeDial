@@ -12,7 +12,11 @@ GROUPS = [
         description="Call records and the event log the brain writes.",
         permissions=[
             Perm(VIEW_CALLS, "View calls", "See every call, its legs and its events. Read-only."),
-            Perm(LISTEN_RECORDINGS, "Listen to recordings", "Play callers' voicemail messages."),
+            Perm(
+                LISTEN_RECORDINGS,
+                "Listen to recordings",
+                "Play call recordings and callers' voicemail messages.",
+            ),
             Perm(
                 HANDLE_CALLBACKS,
                 "Handle callbacks",

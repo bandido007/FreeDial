@@ -11,8 +11,9 @@ from django.conf import settings
 from django.db import close_old_connections, connections
 
 from apps.agents.models import Agent, AgentSkill, Skill
+from apps.ai.models import AiAgent
 from apps.queues.models import EntryPoint, Queue, QueueMember, RuleRequirement
-from brain.core.config import AgentConfig, Config, EntryConfig, QueueConfig, Requirement, Step
+from brain.core.config import AgentConfig, AiAgentConfig, Config, EntryConfig, QueueConfig, Requirement, Step
 
 
 @dataclass(frozen=True)
@@ -101,6 +102,12 @@ def load_config() -> Config:
             )
             for queue in live.values()
         }
+        live_ai = list(AiAgent.objects.filter(active=True, deleted=False))
+        ai_agents = {
+            str(ai.uid): AiAgentConfig(uid=str(ai.uid), name=ai.name, start_timeout=float(ai.start_timeout))
+            for ai in live_ai
+        }
+        ai_uids = {ai.pk: str(ai.uid) for ai in live_ai}
         entries = {
             entry.number: EntryConfig(
                 number=entry.number,
@@ -110,6 +117,7 @@ def load_config() -> Config:
                 fallback_queue=str(live[entry.fallback_queue_id].uid)
                 if entry.fallback_queue_id in live
                 else None,
+                ai_agent=ai_uids.get(entry.ai_agent_id) if entry.ai_agent_id else None,
             )
             for entry in EntryPoint.objects.filter(active=True).select_related("queue", "language")
             if str(entry.queue.uid) in queues
@@ -119,6 +127,7 @@ def load_config() -> Config:
             agents=agents,
             queues=queues,
             entries=entries,
+            ai_agents=ai_agents,
             skills=skills,
             dial_template=settings.TRANSFER_DIAL_TEMPLATE,
         )

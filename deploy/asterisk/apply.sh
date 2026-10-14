@@ -22,6 +22,9 @@ SHOW[m3]="pjsip show transports"
 MESSAGE[m4]="M4: every 8xx number goes to AlgoDial (800-802 demo entry points, 899 lab tests)"
 RELOAD[m4]="dialplan reload"
 SHOW[m4]="dialplan show 899@lab"
+MESSAGE[m7]="M7: stereo MixMonitor on every 8xx call (left = customer, right = what they hear), stored as recording calls/<uniqueid>"
+RELOAD[m7]="dialplan reload"
+SHOW[m7]="dialplan show 899@lab"
 
 [ "$(id -u)" = 0 ] || { echo "Run with sudo."; exit 1; }
 [ $# -gt 0 ] || { echo "usage: sudo $0 <step>...   (steps: ${!MESSAGE[*]})"; exit 1; }

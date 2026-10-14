@@ -14,7 +14,18 @@ from typing import Any
 from django.db import DatabaseError, close_old_connections, transaction
 
 from apps.calls.bus import StreamReader
-from apps.calls.models import Call, CallbackTask, Event, Leg, LegRole, Transfer, TransferStatus
+from apps.calls.models import (
+    Call,
+    CallbackTask,
+    Event,
+    InteractionPart,
+    Leg,
+    LegRole,
+    PartKind,
+    RecordingStatus,
+    Transfer,
+    TransferStatus,
+)
 from contracts import messages as m
 from contracts.envelope import ContractError, decode
 from contracts.envelope import Event as Message
@@ -99,6 +110,40 @@ def _project(kind: str, data: dict[str, Any], at: datetime) -> None:
         call.answered_at = call.answered_at or at
         call.agent_uid = data["agent"] or ""
         call.save()
+        InteractionPart.objects.create(
+            call=call, kind=PartKind.AGENT, started_at=at, agent_uid=data["agent"] or ""
+        )
+    elif kind == m.AI_STARTED:
+        call = _call(data["call"], at)
+        Leg.objects.get_or_create(
+            uniqueid=data["leg"],
+            defaults={"call": call, "role": LegRole.AI, "endpoint": "AI", "started_at": at},
+        )
+        InteractionPart.objects.create(
+            call=call, kind=PartKind.AI, started_at=at, ai_agent_uid=data["ai_agent"]
+        )
+    elif kind == m.AI_CONNECTED:
+        Leg.objects.filter(uniqueid=data["leg"]).update(answered_at=at, outcome="answered")
+    elif kind == m.AI_ENDED:
+        part = InteractionPart.objects.filter(
+            call__linkedid=data["call"], kind=PartKind.AI, ended_at=None
+        ).last()
+        if part is not None:
+            part.ended_at, part.outcome, part.reason = at, data["outcome"], str(data["reason"])[:200]
+            part.summary = str(data.get("summary") or "")
+            part.transcript = data.get("transcript") or []
+            part.save()
+    elif kind == m.AGENT_WRAPPED_UP:
+        part = (
+            InteractionPart.objects.filter(
+                call__linkedid=data["call"], kind=PartKind.AGENT, agent_uid=data["agent"]
+            )
+            .order_by("-started_at", "-id")
+            .first()
+        )
+        if part is not None and data.get("code"):
+            part.wrapup_code = str(data["code"])[:120]
+            part.save(update_fields=["wrapup_code"])
     elif kind == m.TRANSFER_STARTED:
         Transfer.objects.get_or_create(
             transfer_id=data["transfer"],
@@ -150,7 +195,12 @@ def _project(kind: str, data: dict[str, Any], at: datetime) -> None:
         call = _call(data["call"], at)
         call.ended_at, call.result, call.end_reason = at, data["result"], data["reason"][:200]
         call.agent_uid = data.get("agent") or call.agent_uid
+        if (
+            call.recording_status == RecordingStatus.NONE
+        ):  # every 8xx call is recorded (M7); kept after hangup
+            call.recording_status = RecordingStatus.PENDING
         call.save()
+        call.parts.filter(ended_at=None).update(ended_at=at)
 
 
 def handle(reader: StreamReader, entry_id: str, raw: str) -> None:

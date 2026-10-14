@@ -122,7 +122,7 @@ format: ## Format and auto-fix with ruff
 	$(BIN)/ruff check . --fix
 
 typecheck: ## mypy with django-stubs
-	$(BIN)/mypy apps config brain contracts  # project: + brain, contracts
+	$(BIN)/mypy apps config brain contracts aiworker  # project: + brain, contracts, aiworker
 
 check: ## Django system checks + production settings dry run + generated files current
 	$(MANAGE) check
@@ -176,10 +176,14 @@ writer: ## Run the writer: brain events into Event, Call and Leg
 live: ## Run the live relay: brain events to the agent pages' WebSockets
 	$(MANAGE) run_live
 
-dev: ## Web (with WebSockets), brain, writer and live relay together; Ctrl-C stops all
+dev: ## Web (with WebSockets), brain, writer, live relay, recordings keeper and AI worker together; Ctrl-C stops all
 	@trap 'kill 0' INT TERM EXIT; \
-	$(MANAGE) run_brain & $(MANAGE) run_writer --consumer writer-1 & $(MANAGE) run_live & \
+	$(MANAGE) run_brain & $(MANAGE) run_writer --consumer writer-1 & $(MANAGE) run_live & $(MANAGE) run_recordings & \
+	$(MANAGE) run_ai & \
 	$(MANAGE) runserver 0.0.0.0:$(PORT)
+
+ai-bakeoff: ## Rank OpenAI's speech, language and voice models for the AI agent (writes docs/AI_BAKEOFF.md)
+	$(MANAGE) ai_bakeoff
 
 seed-demo: ## The demo centre of docs/ROUTING_DESIGN.md (agents, skills, rule sets, queues, 800-802); safe to rerun
 	$(MANAGE) seed_demo

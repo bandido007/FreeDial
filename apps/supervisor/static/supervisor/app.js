@@ -182,7 +182,7 @@
       cell(row, `${call.caller_name || call.caller}${call.language ? ` (${call.language})` : ""}`);
       cell(row, call.queue);
       const extra = call.held ? " · on hold" : call.transfer ? ` · ${call.transfer.kind} transfer` : call.conference ? " · conference" : "";
-      cell(row, call.state + extra);
+      cell(row, (call.state === "ai" ? "with the AI" : call.state) + extra);
       cell(row, call.agent ? agentName(call.agent) : (call.ringing || []).map(agentName).join(", "));
       cell(row, clock(call.state === "connected" ? call.connected_at : call.waiting_since));
       const actions = document.createElement("div");

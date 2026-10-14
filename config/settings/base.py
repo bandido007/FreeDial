@@ -116,11 +116,13 @@ OPTIONAL_APPS: list[str] = []
 # Your business apps. `make app name=<name>` adds a line here.
 PROJECT_APPS: list[str] = [
     "brain",  # project: call control, lives in brain/ (not apps/)
+    "aiworker",  # project: the AI agent's voice worker (M8), lives in aiworker/
     "apps.telephony",
     "apps.teams",
     "apps.calls",
     "apps.agents",
     "apps.queues",
+    "apps.ai",
     "apps.realtime",
     "apps.agentdesk",
     "apps.supervisor",
@@ -697,6 +699,11 @@ BUS_LIVE_CHANNEL = env("BUS_LIVE_CHANNEL", default="algodial:live")
 BRAIN_CONSUMER = env("BRAIN_CONSUMER", default="brain-1")
 # The password every demo-centre user gets (manage.py seed_demo); generated into .env when empty.
 DEMO_PASSWORD = env("DEMO_PASSWORD", default="")
+
+# The AI agent (M8): OpenAI for speech-to-text, the language model and text-to-speech. The worker
+# (manage.py run_ai) reaches the call's audio over Asterisk's WebSocket media (ARI externalMedia).
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+AI_CONSUMER = env("AI_CONSUMER", default="ai-1")  # the worker's name in the events consumer group "ai"
 
 # PJSIP realtime: a SIP account saved here is rows Asterisk reads live (apps.telephony).
 # The tables come from Asterisk's own Alembic scripts in its source tree.

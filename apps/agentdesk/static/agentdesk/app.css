@@ -54,6 +54,8 @@ h2 { font-size: 1.05rem; margin: 0 0 8px; }
 .big { font-size: 1.3rem; font-weight: 600; }
 .error { color: var(--bad); min-height: 1.2em; }
 .call { border-color: var(--accent); }
+.ai-summary { border-left: 3px solid var(--accent); padding: 2px 12px; margin: 8px 0 12px; }
+.ai-summary p { margin: 4px 0; }
 form label { display: block; margin-bottom: 10px; }
 input, select {
   display: block;

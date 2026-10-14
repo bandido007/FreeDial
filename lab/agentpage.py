@@ -19,12 +19,15 @@ agent 7001 (LAB_AGENT_*, the transfer target) and the lab supervisor (LAB_SUPERV
 """
 import argparse
 import asyncio
+import io
 import os
 import signal
 import socket
+import struct
 import subprocess
 import sys
 import time
+import wave
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -44,12 +47,12 @@ from django.conf import settings  # noqa: E402
 from playwright.async_api import async_playwright  # noqa: E402
 
 from apps.calls import bus  # noqa: E402
-from apps.calls.models import Event, Transfer  # noqa: E402
+from apps.calls.models import Call, Event, RecordingStatus, Transfer  # noqa: E402
 from apps.core.crypto import decrypt_secret  # noqa: E402
 from apps.rbac import services as rbac  # noqa: E402
 from apps.telephony.models import SipAccount  # noqa: E402
 from contracts import messages as m  # noqa: E402
-from sipphone import Phone  # noqa: E402
+from sipphone import Phone, tone_share  # noqa: E402
 
 import agent_login  # noqa: E402
 
@@ -334,7 +337,7 @@ def port_free(port):
 
 
 class Stack:
-    """web (ASGI), brain, writer and live relay, as `make dev` runs them."""
+    """web (ASGI), brain, writer, live relay, recordings keeper and AI worker, as `make dev` runs them."""
 
     def __init__(self):
         self.processes = []
@@ -347,6 +350,8 @@ class Stack:
             ["run_brain"],
             ["run_writer", "--consumer", "writer-1"],
             ["run_live"],
+            ["run_recordings"],
+            ["run_ai"],
         ):
             self.processes.append(
                 subprocess.Popen([python, "manage.py", *args], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
@@ -546,6 +551,33 @@ async def main(show, transfers=True, supervision=True):
         check("the wrap-up code is in the Event table", wrapped and wrapped[-1]["code"] == "Sale", str(wrapped))
         kinds = {kind for kind, _ in rows}
         check("the call's events are there too", {"call.offered", "call.connected", "call.held", "call.resumed", "call.ended"} <= kinds)
+
+        say("── M7: the call's stereo recording")
+        linkedid = wrapped[-1]["call"] if wrapped else ""
+        deadline = time.monotonic() + 20
+        recorded = None
+        while time.monotonic() < deadline:
+            recorded = await asyncio.to_thread(Call.objects.filter(linkedid=linkedid).first)
+            if recorded and recorded.recording_status in (RecordingStatus.READY, RecordingStatus.MISSING):
+                break
+            await asyncio.sleep(0.5)
+        state = recorded.recording_status if recorded else "no Call row"
+        check("the recording was kept after the call", state == RecordingStatus.READY, f"{state} (needs apply.sh m7)")
+        if state == RecordingStatus.READY:
+            cookies = {"sessionid": admin_session}
+            async with aiohttp.ClientSession(cookies=cookies) as http:
+                async with http.get(f"http://127.0.0.1:{PORT}/calls/{recorded.pk}/recording") as response:
+                    audio = await response.read() if response.status == 200 else b""
+            with wave.open(io.BytesIO(audio)) as wav:
+                stereo = wav.getnchannels() == 2
+                frames = wav.readframes(wav.getnframes())
+            samples = struct.unpack(f"<{len(frames) // 2}h", frames)
+            left, right = tone_share(samples[0::2], 440), tone_share(samples[1::2], 440)
+            check(
+                "it plays from the admin, the customer's tone only on the left",
+                stereo and left > 0.5 and right < 0.05,
+                f"{recorded.recording_seconds} s, 440 Hz share: left {left:.3f}, right {right:.3f}",
+            )
 
         if supervision:
             async with async_playwright() as playwright:

@@ -1,0 +1,4 @@
+[
+  {"code": 10800, "status": false, "messageEn": "AI agent not found.", "messageSw": "Wakala wa AI hapatikani."},
+  {"code": 10801, "status": false, "messageEn": "The AI agent's settings are not valid.", "messageSw": "Mipangilio ya wakala wa AI si sahihi."}
+]

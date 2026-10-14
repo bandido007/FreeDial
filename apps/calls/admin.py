@@ -3,10 +3,20 @@
 from django.contrib import admin
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
 
-from apps.calls.models import Call, CallbackStatus, CallbackTask, Event, Leg, Transfer
-from apps.calls.permissions import HANDLE_CALLBACKS, VIEW_CALLS
+from apps.calls.models import (
+    Call,
+    CallbackStatus,
+    CallbackTask,
+    Event,
+    InteractionPart,
+    Leg,
+    RecordingStatus,
+    Transfer,
+)
+from apps.calls.permissions import HANDLE_CALLBACKS, LISTEN_RECORDINGS, VIEW_CALLS
+from apps.core.hooks import resolve_permissions
 from apps.rbac.admin_access import RbacAdminMixin
 
 
@@ -66,12 +76,100 @@ class TransferInline(admin.TabularInline):
         return False
 
 
+class InteractionPartInline(admin.StackedInline):
+    """Who served the caller, in order (M8): the AI agent with its summary and transcript, then a person."""
+
+    model = InteractionPart
+    extra = 0
+    can_delete = False
+    verbose_name_plural = "Interaction"
+    fields = (
+        "kind",
+        "started_at",
+        "ended_at",
+        "who",
+        "outcome",
+        "reason",
+        "summary",
+        "conversation",
+        "wrapup_code",
+    )
+    readonly_fields = fields
+
+    @admin.display(description="Who")
+    def who(self, obj):
+        return obj.agent_uid or obj.ai_agent_uid
+
+    @admin.display(description="Transcript")
+    def conversation(self, obj):
+        if not obj.transcript:
+            return "-"
+        rows = format_html_join(
+            "",
+            '<div><span style="color:#888">{} s</span> <b>{}</b>: {}</div>',
+            (
+                (turn.get("at", ""), "Caller" if turn.get("who") == "caller" else "AI", turn.get("text", ""))
+                for turn in obj.transcript
+            ),
+        )
+        return format_html("<div>{}</div>", rows)
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Call)
 class CallAdmin(ReadOnly, admin.ModelAdmin):
-    list_display = ("linkedid", "entry", "queue", "caller", "started_at", "answered_at", "ended_at", "result")
-    list_filter = ("result", "queue")
+    list_display = (
+        "linkedid",
+        "entry",
+        "queue",
+        "caller",
+        "started_at",
+        "answered_at",
+        "ended_at",
+        "result",
+        "recording_status",
+    )
+    list_filter = ("result", "queue", "recording_status")
     search_fields = ("linkedid", "caller", "agent_uid")
-    inlines = [LegInline, TransferInline]
+    inlines = [InteractionPartInline, LegInline, TransferInline]
+    fields = (
+        "linkedid",
+        "entry",
+        "queue",
+        "caller",
+        "caller_name",
+        "started_at",
+        "answered_at",
+        "ended_at",
+        "result",
+        "end_reason",
+        "agent_uid",
+        "recording_status",
+        "recording_seconds",
+        "recording_player",
+    )
+    readonly_fields = fields
+
+    def get_fields(self, request, obj=None):
+        """The player only for people allowed to listen (the file view checks it again)."""
+        fields = list(super().get_fields(request, obj))
+        user = request.user
+        if not (user.is_superuser or LISTEN_RECORDINGS in resolve_permissions(user, request)):
+            fields.remove("recording_player")
+        return fields
+
+    @admin.display(description="Recording")
+    def recording_player(self, obj):
+        if obj.recording_status != RecordingStatus.READY:
+            return obj.get_recording_status_display()
+        url = reverse("call_recording", args=[obj.pk])
+        return format_html(
+            '<audio controls preload="none" src="{}"></audio><br>'
+            "Stereo: left = the customer, right = everything they heard.",
+            url,
+        )
 
 
 @admin.register(Event)

@@ -43,5 +43,8 @@ db.sqlite3
 # AlgoDial lab
 ari.env
 lab/calltests-brain.log
+lab/calltests-ai.log
 lab/agentpage-stack.log
 lab/calltests-partial.jsonl
+lab/bakeoff/
+lab/voices/

@@ -67,6 +67,16 @@ class Originate(AriAction):
 
 
 @dataclass(frozen=True)
+class ExternalMedia(AriAction):
+    """Open a media leg for the AI worker (M8): WebSocket, Asterisk as the server. The worker connects
+    to it; the leg then enters the app with ``app_args``. No originator here: ARI's externalMedia has none."""
+
+    channel: str
+    app_args: str
+    format: str
+
+
+@dataclass(frozen=True)
 class Snoop(AriAction):
     """A channel listening to (spy) and/or talking into (whisper) ``channel``; it enters the app as ``snoop_id``."""
 

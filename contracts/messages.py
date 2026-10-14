@@ -37,6 +37,13 @@ CONFERENCE_DROP = "conference.drop"
 SUPERVISE_START = "supervise.start"
 SUPERVISE_MODE = "supervise.mode"
 SUPERVISE_STOP = "supervise.stop"
+# M8: the AI worker, talking to a caller, ends its part. Handoff: the call goes to a queue, the
+# summary shows on the agent's offer; optional queue (name), language and skills follow the
+# routing.update rules ("AI decides, rules check"). Hangup: the AI resolved the call.
+# reason for a handoff: asked_for_person, ai_decided, failed_turns, sensitive_topic.
+# transcript (optional): [{"who": "caller" | "ai", "text": ..., "at": seconds into the AI part}].
+AI_HANDOFF = "ai.handoff"
+AI_HANGUP = "ai.hangup"
 
 COMMANDS: dict[str, tuple[str, ...]] = {
     AGENT_LOGIN: ("agent", "endpoint"),
@@ -56,6 +63,8 @@ COMMANDS: dict[str, tuple[str, ...]] = {
     SUPERVISE_START: ("supervisor", "endpoint", "call", "mode"),
     SUPERVISE_MODE: ("supervisor", "mode"),
     SUPERVISE_STOP: ("supervisor",),
+    AI_HANDOFF: ("call", "reason", "summary"),
+    AI_HANGUP: ("call", "reason"),
 }
 
 # ── Events: what happened, in the order the brain decided it ──────────────
@@ -81,7 +90,13 @@ SUPERVISE_STARTED = "supervise.started"
 SUPERVISE_CHANGED = "supervise.changed"
 SUPERVISE_STOPPED = "supervise.stopped"
 AGENT_FORCED = "agent.forced"  # a supervisor changed an agent's availability
-CALL_ENDED = "call.ended"  # result: answered, abandoned, overflow, voicemail, failed
+# M8: the AI agent's part of a call. started: its media leg is being opened (the worker connects to
+# it); connected: the leg is up and bridged with the caller; ended: outcome handoff | resolved |
+# caller_left | failed, with the AI's summary and transcript.
+AI_STARTED = "ai.started"
+AI_CONNECTED = "ai.connected"
+AI_ENDED = "ai.ended"
+CALL_ENDED = "call.ended"  # result: answered, abandoned, overflow, voicemail, ai_handled, failed
 LEG_ENDED = "leg.ended"
 STASIS_REJECTED = "stasis.rejected"  # a channel with unknown args, hung up (rule 3)
 AGENT_STATE = "agent.state"  # the agent's whole state after a change
@@ -112,6 +127,9 @@ EVENTS: dict[str, tuple[str, ...]] = {
     SUPERVISE_CHANGED: ("call", "supervisor", "mode"),
     SUPERVISE_STOPPED: ("call", "supervisor", "reason"),
     AGENT_FORCED: ("agent", "by", "state"),
+    AI_STARTED: ("call", "leg", "ai_agent"),
+    AI_CONNECTED: ("call", "leg"),
+    AI_ENDED: ("call", "outcome", "reason"),
     CALL_ENDED: ("call", "result", "reason"),
     LEG_ENDED: ("call", "leg", "role"),
     STASIS_REJECTED: ("channel", "args", "reason"),

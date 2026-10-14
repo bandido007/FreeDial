@@ -106,6 +106,8 @@ class FakeAri:
                 return [dict(bridge, channels=list(bridge["channels"])) for bridge in self.bridges.values()]
             case "POST", ["channels"]:
                 return self._originate(params)
+            case "POST", ["channels", "externalMedia"]:
+                return self._external_media(params)
             case "POST", ["channels", cid, "answer"]:
                 self._channel(cid)["state"] = "Up"
                 return None
@@ -224,6 +226,12 @@ class FakeAri:
         channel["state"] = "Up"
         self._enter_stasis(cid, channel["_app_args"].split(","))
 
+    def ai_connect(self, cid: str) -> None:
+        """The AI worker connects to the media leg's WebSocket: Asterisk answers it into the app."""
+        channel = self._channel(cid)
+        channel["state"] = "Up"
+        self._enter_stasis(cid, channel["_app_args"].split(","))
+
     def reject(self, cid: str, cause: int = 17, cause_txt: str = "User busy") -> None:
         self._channel(cid)
         self._destroy(cid, cause=cause, cause_txt=cause_txt)
@@ -244,6 +252,13 @@ class FakeAri:
         """Live snoop channels: what each listens to (spy) and whom it talks to (whisper)."""
         return [
             dict(channel["_snoop"], id=cid) for cid, channel in self.channels.items() if "_snoop" in channel
+        ]
+
+    def external_media(self) -> list[dict[str, str]]:
+        return [
+            params
+            for method, path, params in self.requests
+            if (method, path) == ("POST", "/channels/externalMedia")
         ]
 
     def originates(self) -> list[dict[str, str]]:
@@ -290,6 +305,20 @@ class FakeAri:
             self._timers[cid] = asyncio.get_running_loop().call_later(timeout, self._rang_out, cid)
         self.ringing.put_nowait(cid)
         return self._public(channel)
+
+    def _external_media(self, params: dict[str, str]) -> dict[str, Any]:
+        """A WebSocket media leg waiting for its worker (connection_type=server): Down until ai_connect()."""
+        cid = params.get("channelId") or str(uuid.uuid4())
+        channel = self._new_channel(cid, "WebSocket/INCOMING", state="Down", caller=("", ""))
+        channel.update(_subscribed=True, _app_args=params.get("data", ""))
+        connection = str(uuid.uuid4())
+        return {
+            **self._public(channel),
+            "channelvars": {
+                "MEDIA_WEBSOCKET_CONNECTION_ID": connection,
+                "MEDIA_WEBSOCKET_OPTIMAL_FRAME_SIZE": "960",
+            },
+        }
 
     def _rang_out(self, cid: str) -> None:
         self._timers.pop(cid, None)

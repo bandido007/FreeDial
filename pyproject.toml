@@ -46,8 +46,8 @@ DJANGO_SETTINGS_MODULE = "config.settings.testing"
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-ra --strict-markers --strict-config -p no:cacheprovider --cov=apps --cov=config --cov=brain --cov=contracts"  # project: coverage on, or fail_under never runs
-testpaths = ["apps", "tests", "brain", "contracts"]  # project
+addopts = "-ra --strict-markers --strict-config -p no:cacheprovider --cov=apps --cov=config --cov=brain --cov=contracts --cov=aiworker"  # project: coverage on, or fail_under never runs
+testpaths = ["apps", "tests", "brain", "contracts", "aiworker"]  # project
 markers = [
     "slow: a test that takes noticeably longer than the rest",
 ]
@@ -60,7 +60,7 @@ filterwarnings = [
 
 # ── Coverage ────────────────────────────────────────────────────────────────
 [tool.coverage.run]
-source = ["apps", "config", "brain", "contracts"]  # project
+source = ["apps", "config", "brain", "contracts", "aiworker"]  # project
 branch = true
 omit = [
     "*/migrations/*",
@@ -100,7 +100,7 @@ django_settings_module = "config.settings.testing"
 # Higher layers may import lower ones, never the reverse. Apps on the same
 # line are independent of each other.
 [tool.importlinter]
-root_packages = ["apps", "config", "brain", "contracts"]  # project
+root_packages = ["apps", "config", "brain", "contracts", "aiworker"]  # project
 # project: on, so a contract can forbid an outside package (django, aiohttp, redis).
 include_external_packages = true
 
@@ -112,7 +112,7 @@ ignore_imports = ["apps.**.tests.** -> apps.**"]
 unmatched_ignore_imports_alerting = "none"
 layers = [
     "apps.supervisor",  # project: uses the agent page's phone types
-    "apps.realtime | apps.agentdesk",  # project
+    "apps.realtime | apps.agentdesk | apps.ai",  # project
     "apps.queues",  # project
     "apps.agents",  # project
     "apps.telephony | apps.teams | apps.calls",  # project: independent of each other
@@ -161,7 +161,24 @@ source_modules = ["contracts"]
 forbidden_modules = ["apps", "brain", "config", "django"]
 
 [[tool.importlinter.contracts]]
-name = "The web never imports the brain; it sends commands"
+name = "The web never imports the brain or the AI worker; it sends commands"
 type = "forbidden"
 source_modules = ["apps", "config"]
-forbidden_modules = ["brain"]
+forbidden_modules = ["brain", "aiworker"]
+
+[[tool.importlinter.contracts]]
+name = "The brain and the AI worker are separate processes: neither imports the other"
+type = "independence"
+modules = ["brain", "aiworker"]
+
+[[tool.importlinter.contracts]]
+name = "aiworker.core is pure: no Django, no apps, no I/O"
+type = "forbidden"
+source_modules = ["aiworker.core"]
+forbidden_modules = ["django", "apps", "config", "aiohttp", "redis", "asyncio", "socket", "brain"]
+
+[[tool.importlinter.contracts]]
+name = "AI worker layers: entry point -> service -> adapters -> core"
+type = "layers"
+containers = ["aiworker"]
+layers = ["management", "service", "adapters", "core"]

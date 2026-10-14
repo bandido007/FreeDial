@@ -5,6 +5,8 @@
 * :class:`Leg` — one row per channel of a call (customer, each agent rung).
 * :class:`CallbackTask` — a caller to ring back: the queue overflowed to voicemail.
 * :class:`Transfer` — an agent handed the call on (blind or consult) or made a conference.
+* :class:`InteractionPart` — who served the caller, in order: the AI agent (its summary and
+  transcript), then the agent who answered (and their wrap-up code).
 
 Machine-written records, so plain models: no soft delete and no audit entries
 (the Event log is the trail). Ids are strings: Asterisk's ids are not all numbers.
@@ -38,7 +40,15 @@ class CallResult(models.TextChoices):
     ABANDONED = "abandoned"
     OVERFLOW = "overflow"
     VOICEMAIL = "voicemail"
+    AI_HANDLED = "ai_handled", "Handled by the AI"
     FAILED = "failed"
+
+
+class RecordingStatus(models.TextChoices):
+    NONE = "", "No recording"
+    PENDING = "pending", "Waiting for Asterisk's file"
+    READY = "ready", "Ready to play"
+    MISSING = "missing", "Asterisk kept no file"
 
 
 class Call(models.Model):
@@ -53,6 +63,17 @@ class Call(models.Model):
     result = models.CharField(max_length=20, choices=CallResult.choices, blank=True)
     end_reason = models.CharField(max_length=200, blank=True)
     agent_uid = models.CharField(max_length=64, blank=True, help_text="The agent who answered it")
+    # M7: the stereo recording (left = the customer, right = what they heard), kept by
+    # apps.calls.recordings after the call; ``recording`` is its key in the default storage.
+    recording_status = models.CharField(
+        max_length=20,
+        choices=RecordingStatus.choices,
+        default=RecordingStatus.NONE,
+        blank=True,
+        db_index=True,
+    )
+    recording = models.CharField(max_length=200, blank=True, help_text="Storage key of the stereo WAV")
+    recording_seconds = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         db_table = "calls_calls"
@@ -65,6 +86,7 @@ class Call(models.Model):
 class LegRole(models.TextChoices):
     CUSTOMER = "customer"
     AGENT = "agent"
+    AI = "ai"
 
 
 class Leg(models.Model):
@@ -158,3 +180,35 @@ class Transfer(models.Model):
 
     def __str__(self):
         return f"{self.kind} transfer to {self.target_kind} {self.target}: {self.status}"
+
+
+class PartKind(models.TextChoices):
+    AI = "ai", "AI agent"
+    AGENT = "agent", "Agent"
+
+
+class InteractionPart(models.Model):
+    """One part of the caller's interaction (M8): the AI agent's, then a person's. Written by the writer."""
+
+    call = models.ForeignKey(Call, on_delete=models.CASCADE, related_name="parts")
+    kind = models.CharField(max_length=10, choices=PartKind.choices)
+    started_at = models.DateTimeField()
+    ended_at = models.DateTimeField(null=True, blank=True)
+    ai_agent_uid = models.CharField(max_length=64, blank=True)
+    agent_uid = models.CharField(max_length=64, blank=True)
+    outcome = models.CharField(
+        max_length=20, blank=True, help_text="AI: handoff, resolved, caller_left, failed"
+    )
+    reason = models.CharField(max_length=200, blank=True)
+    summary = models.TextField(blank=True, help_text="What the AI learnt, as the agent saw it")
+    transcript = models.JSONField(
+        default=list, blank=True, help_text='[{"who": "caller" | "ai", "text", "at"}]'
+    )
+    wrapup_code = models.CharField(max_length=120, blank=True)
+
+    class Meta:
+        db_table = "calls_interaction_parts"
+        ordering = ["started_at", "id"]
+
+    def __str__(self):
+        return f"{self.call} {self.kind}"

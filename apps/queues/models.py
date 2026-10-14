@@ -124,6 +124,15 @@ class EntryPoint(BaseModel):
         related_name="fallback_for",
         help_text="Where the call goes if the AI or a routing decision fails",
     )
+    ai_agent = models.ForeignKey(
+        "ai.AiAgent",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        limit_choices_to={"deleted": False},
+        related_name="entry_points",
+        help_text="An AI agent answers first and hands callers to the queue (M8); empty = straight to the queue",
+    )
 
     class Meta:
         db_table = "queues_entry_points"

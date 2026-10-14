@@ -29,6 +29,12 @@
   let liveRetry = 1000;
   let state = null;     // the agent's state as the brain last said
   let offer = null;     // the last call.offered event for this agent
+  const AI_REASONS = {
+    asked_for_person: "asked for a person",
+    ai_decided: "the AI handed over",
+    failed_turns: "the AI did not understand",
+    sensitive_topic: "sensitive topic",
+  };
   let transfer = null;  // { id, kind, state: ringing | consulting | conference } while this agent transfers
   let since = Date.now();
   let refreshTimer = null;
@@ -361,6 +367,10 @@
     $("call-title").textContent = ringing ? "Incoming call" : "On a call";
     $("caller").textContent = caller;
     $("caller-queue").textContent = offer && offer.queue ? `via ${offer.queue}` : "";
+    const summary = offer && offer.summary;  // M8: what the AI learnt before handing the caller over
+    $("ai-summary").hidden = !summary;
+    $("ai-summary-text").textContent = summary || "";
+    $("ai-reason").textContent = (offer && AI_REASONS[offer.ai_reason]) || (offer && offer.ai_reason) || "";
     const held = state && state.activity === "on_hold";
     $("answer").hidden = $("reject").hidden = !ringing;
     $("hangup").hidden = !talking;

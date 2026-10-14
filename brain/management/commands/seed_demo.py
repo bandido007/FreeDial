@@ -9,6 +9,8 @@ from django.db import transaction
 
 from apps.agents import services as agents
 from apps.agents.models import Agent, Skill
+from apps.ai import demo as ai_demo
+from apps.ai.models import AiAgent, AiRoute
 from apps.queues import services as queues
 from apps.queues.models import EntryPoint, Queue, SkillRuleSet
 from apps.rbac import selectors as rbac_selectors
@@ -41,7 +43,8 @@ class Command(BaseCommand):
             self._teams(users)
             self._rule_sets()
             self._queues()
-            self._entries()
+            ai = self._ai_agent()
+            self._entries(ai)
         self.stdout.write(self._summary())
 
     # ── each part ─────────────────────────────────────────────────────────
@@ -144,7 +147,28 @@ class Command(BaseCommand):
             queue.overflow_queue = saved[target] if target else None
             queue.save()
 
-    def _entries(self):
+    def _ai_agent(self) -> AiAgent:
+        """Msaidizi, the demo AI agent, with the queues it may send callers to."""
+        ai = AiAgent.objects.filter(name=ai_demo.NAME, deleted=False).first() or AiAgent(name=ai_demo.NAME)
+        ai.instructions = ai_demo.INSTRUCTIONS
+        ai.greeting_swahili, ai.greeting_english = ai_demo.GREETING_SWAHILI, ai_demo.GREETING_ENGLISH
+        ai.sensitive_topics = "\n".join(ai_demo.SENSITIVE_TOPICS)
+        ai.active = True
+        ai.save()
+        for position, (queue, when, skill, level) in enumerate(ai_demo.ROUTES):
+            AiRoute.objects.update_or_create(
+                ai_agent=ai,
+                queue=Queue.objects.get(name__iexact=queue, deleted=False),
+                defaults={
+                    "when": when,
+                    "skill": Skill.objects.filter(name=skill, deleted=False).first() if skill else None,
+                    "min_level": level,
+                    "position": position,
+                },
+            )
+        return ai
+
+    def _entries(self, ai: AiAgent):
         for number, queue, language, priority, fallback in demo.ENTRIES:
             values = {
                 "queue": Queue.objects.get(name__iexact=queue),
@@ -152,6 +176,7 @@ class Command(BaseCommand):
                 "priority": priority,
                 "fallback_queue": Queue.objects.get(name__iexact=fallback),
                 "name": f"Demo {queue}",
+                "ai_agent": ai if number in ai_demo.ENTRY_NUMBERS else None,
             }
             entry = EntryPoint.objects.filter(number=number).first()
             if entry is None:
@@ -187,6 +212,10 @@ class Command(BaseCommand):
         )
         lines.append(
             "  entry points: 800 General (swahili), 801 Providers (swahili, priority 10), 802 General (english)"
+        )
+        lines.append(
+            f"  AI agent {ai_demo.NAME} answers 800 and 802 first (needs `manage.py run_ai`; without it, "
+            "callers reach General after 10 s)"
         )
         lines.append("  every demo user's password is DEMO_PASSWORD in .env")
         return "\n".join(lines)
