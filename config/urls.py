@@ -9,6 +9,7 @@ Routes:
     /oauth2/revoke_token     OAuth2 token revocation (logout)
     /oauth2/external/<name>  external sign-in (OIDC ID-token exchange)
     /files/…                 file upload / download
+    /agent/                  the agent page (project; its live WebSocket is /ws/agent, see config/asgi.py)
 
 Every route is also served under ``/<API_MOUNT_PREFIX>/`` (``/backend/`` by
 default) for deployments that publish the API behind a path prefix on the
@@ -41,6 +42,7 @@ core_urlpatterns = [
     ),
     path("oauth2/", include("apps.authentication.urls")),
     path("files/", include("apps.attachments.urls")),
+    path("", include("apps.agentdesk.urls")),  # project: /agent/, the agent page
 ]
 
 

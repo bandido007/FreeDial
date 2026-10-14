@@ -42,6 +42,7 @@ OFFER_FAILURES = {
 # An agent who misses an offer this way is offered nothing until Ready again.
 NOT_RESPONDING = ("no_answer", "offline")
 BUSY = (Activity.OFFERED, Activity.TALKING, Activity.ON_HOLD)
+WRAPUP_AFTER_RESTART = 60  # seconds left for a wrap-up a restarted brain finds (its timer died)
 
 
 class CallState(StrEnum):
@@ -67,6 +68,9 @@ class Call:
     agent: str | None = None
     tried: set[str] = field(default_factory=set)  # agents who missed or refused it this round
     retry_pending: bool = False
+    held: bool = False  # the agent put the customer on hold: agent out of the bridge, music on
+    caller_number: str = ""
+    caller_name: str = ""
 
 
 def stasis_args(channel: dict[str, Any], app: str) -> list[str] | None:
@@ -99,6 +103,10 @@ def max_wait_timer(call: Call) -> str:
 
 def retry_timer(call: Call) -> str:
     return f"retry:{call.id}"
+
+
+def wrapup_timer(agent: Agent) -> str:
+    return f"wrapup:{agent.uid}"
 
 
 class Brain:
@@ -153,6 +161,9 @@ class Brain:
 
     def on_timer(self, key: str, now: float) -> list[a.Action]:
         kind, _, call_id = key.partition(":")
+        if kind == "wrapup":
+            agent = self.agents.get(call_id)
+            return self._wrapped_up(agent, "", "timeout", now) if agent else []
         call = self.calls.get(call_id)
         if call is None:
             return []
@@ -186,7 +197,7 @@ class Brain:
             if agent.availability is not Availability.LOGGED_OUT and agent.endpoint == endpoint:
                 return []
             if agent.call is not None:
-                return self._refuse(command_id, kind, "the agent is on a call")
+                return self._refuse(command_id, kind, "the agent is on a call", agent.uid)
             agent.endpoint = endpoint
             if agent.availability is Availability.LOGGED_OUT:
                 agent.availability, agent.reason, agent.activity = (
@@ -200,13 +211,14 @@ class Brain:
             if agent.availability is Availability.LOGGED_OUT:
                 return []
             if agent.call is not None:
-                return self._refuse(command_id, kind, "the agent is on a call")
+                return self._refuse(command_id, kind, "the agent is on a call", agent.uid)
+            out = [a.CancelTimer(wrapup_timer(agent))] if agent.activity is Activity.WRAPUP else []
             agent.availability, agent.reason, agent.activity = Availability.LOGGED_OUT, "", Activity.IDLE
-            agent.endpoint = None
-            return self._changed(agent)
+            agent.endpoint = agent.wrapup_call = None
+            return out + self._changed(agent)
 
         if agent.availability is Availability.LOGGED_OUT:
-            return self._refuse(command_id, kind, "the agent is not logged in")
+            return self._refuse(command_id, kind, "the agent is not logged in", agent.uid)
 
         if kind == m.AGENT_READY:
             if agent.availability is Availability.READY and agent.activity is not Activity.NOT_RESPONDING:
@@ -226,7 +238,18 @@ class Brain:
                 agent.activity = Activity.IDLE
             return self._changed(agent)
 
-        return self._refuse(command_id, kind, "unknown command")
+        if kind == m.AGENT_WRAPUP_DONE:
+            if agent.activity is not Activity.WRAPUP:
+                return []  # already finished (or a repeat)
+            return self._wrapped_up(agent, str(data.get("code") or ""), "agent", now)
+
+        if kind in (m.CALL_HOLD, m.CALL_RESUME):
+            call = self.calls.get(agent.call or "")
+            if call is None or call.state is not CallState.CONNECTED or call.agent != agent.uid:
+                return self._refuse(command_id, kind, "the agent has no connected call", agent.uid)
+            return self._hold(call, agent, kind == m.CALL_HOLD)
+
+        return self._refuse(command_id, kind, "unknown command", agent.uid)
 
     def reconcile(
         self, channels: list[dict[str, Any]], bridges: list[dict[str, Any]], connected_at: float, now: float
@@ -252,16 +275,22 @@ class Brain:
 
         # Our bridges that no call owns: the brain restarted. Adopt what makes sense, clean the rest.
         owned = {call.bridge for call in self.calls.values()}
-        in_a_bridge: set[str] = set()
+        in_a_bridge = {str(channel) for bridge in bridges for channel in bridge.get("channels") or []}
+        on_hold = {  # agent legs in the app but out of any bridge: their customer is on hold
+            leg_args[1]: channel
+            for channel in live.values()
+            if (leg_args := stasis_args(channel, self.app) or [])[:1] == ["agent"]
+            and len(leg_args) > 2
+            and str(channel["id"]) not in in_a_bridge
+        }
         for bridge in bridges:
-            in_a_bridge.update(str(channel) for channel in bridge.get("channels") or [])
             if not str(bridge.get("name") or "").startswith(BRIDGE_PREFIX) or bridge["id"] in owned:
                 continue
             present = [live[str(cid)] for cid in bridge.get("channels") or [] if str(cid) in live]
             callers = [ch for ch in present if (stasis_args(ch, self.app) or [""])[0] == "inbound"]
             agents = [ch for ch in present if (stasis_args(ch, self.app) or [""])[0] == "agent"]
             if len(callers) == 1 and len(agents) <= 1 and len(present) == len(callers) + len(agents):
-                adoption = self._adopt(bridge, callers[0], agents[0] if agents else None, now)
+                adoption = self._adopt(bridge, callers[0], agents[0] if agents else None, on_hold, now)
                 if adoption is not None:
                     call, more = adoption
                     adopted.append(call.id)
@@ -297,6 +326,9 @@ class Brain:
 
         # Agents whose saved state points at a call that no longer exists.
         for agent in list(self.agents.values()):
+            if agent.activity is Activity.WRAPUP:  # the timer died with the old brain
+                out.append(a.SetTimer(wrapup_timer(agent), WRAPUP_AFTER_RESTART))
+                continue
             if agent.call is not None and agent.call in self.calls:
                 continue
             if agent.call is not None or agent.activity in BUSY:
@@ -335,6 +367,8 @@ class Brain:
         self.calls[call.id] = call
         self.legs[call.caller] = call.id
         caller = channel.get("caller") or {}
+        call.caller_number = endpoint or str(caller.get("number") or "")
+        call.caller_name = str(caller.get("name") or "")
         out: list[a.Action] = [
             a.Emit(
                 m.CALL_STARTED,
@@ -383,7 +417,16 @@ class Brain:
         agent.activity, agent.call = Activity.OFFERED, call.id
         return [
             a.Emit(
-                m.CALL_OFFERED, {"call": call.id, "leg": leg, "agent": agent.uid, "endpoint": agent.endpoint}
+                m.CALL_OFFERED,
+                {
+                    "call": call.id,
+                    "leg": leg,
+                    "agent": agent.uid,
+                    "endpoint": agent.endpoint,
+                    "caller": call.caller_number,
+                    "caller_name": call.caller_name,
+                    "queue": queue.name,
+                },
             ),
             a.Originate(
                 call.id,
@@ -498,6 +541,8 @@ class Brain:
         ]
         del self.calls[call.id]
 
+        queue = self.config.queues.get(call.queue)
+        wrapup = queue.wrapup_seconds if queue else 0
         for uid, talked in ((call.agent, True), (call.offer_agent, False)):
             agent = self.agents.get(uid or "")
             if agent is None or agent.call != call.id:
@@ -507,24 +552,36 @@ class Brain:
                 agent.activity = Activity.IDLE
                 if talked:
                     agent.idle_since = now
+                    if wrapup > 0 and agent.availability is not Availability.LOGGED_OUT:
+                        agent.activity, agent.wrapup_call = Activity.WRAPUP, call.id
+                        out.append(a.SetTimer(wrapup_timer(agent), wrapup))
             out += self._changed(agent)
             if agent.removed:
                 out += self._drop(agent)
         return out + self._offer_waiting(now)
 
     def _adopt(
-        self, bridge: dict[str, Any], caller: dict[str, Any], agent_leg: dict[str, Any] | None, now: float
+        self,
+        bridge: dict[str, Any],
+        caller: dict[str, Any],
+        agent_leg: dict[str, Any] | None,
+        on_hold: dict[str, dict[str, Any]],
+        now: float,
     ) -> tuple[Call, list[a.Action]] | None:
         """Take over a call a previous brain left in Asterisk."""
         args = stasis_args(caller, self.app) or []
         entry = args[1] if len(args) > 1 else ""
         queue_uid = self.config.entries.get(entry, "")
         queue = self.config.queues.get(queue_uid)
+        call_id = args[3] if len(args) > 3 and args[3] else str(caller["id"])
+        held = agent_leg is None and call_id in on_hold
+        if held:
+            agent_leg = on_hold[call_id]
         if agent_leg is None and queue is None:
             return None  # waiting, but nowhere to send it: clean it
 
         call = Call(
-            id=args[3] if len(args) > 3 and args[3] else str(caller["id"]),
+            id=call_id,
             caller=str(caller["id"]),
             entry=entry,
             queue=queue_uid,
@@ -537,12 +594,13 @@ class Brain:
         out: list[a.Action] = []
         if agent_leg is not None:
             agent_args = stasis_args(agent_leg, self.app) or []
-            call.state, call.agent_leg = CallState.CONNECTED, str(agent_leg["id"])
+            call.state, call.agent_leg, call.held = CallState.CONNECTED, str(agent_leg["id"]), held
             self.legs[call.agent_leg] = call.id
             agent = self.agents.get(agent_args[2] if len(agent_args) > 2 else "")
             if agent is not None:
                 call.agent = agent.uid
-                agent.activity, agent.call = Activity.TALKING, call.id
+                agent.activity = Activity.ON_HOLD if held else Activity.TALKING
+                agent.call = call.id
                 out += self._changed(agent)
         elif queue is not None:
             out += [
@@ -607,5 +665,35 @@ class Brain:
         agent.availability, agent.activity, agent.endpoint = Availability.LOGGED_OUT, Activity.IDLE, None
         return [a.Emit(m.AGENT_STATE, agent.snapshot()), a.SaveAgent(agent.uid, None)]
 
-    def _refuse(self, command_id: str, kind: str, reason: str) -> list[a.Action]:
-        return [a.Emit(m.COMMAND_REJECTED, {"command_id": command_id, "type": kind, "reason": reason})]
+    def _hold(self, call: Call, agent: Agent, hold: bool) -> list[a.Action]:
+        """Hold: the agent leaves the bridge and the customer hears music. Resume: the reverse."""
+        if call.held == hold:
+            return []
+        call.held = hold
+        agent.activity = Activity.ON_HOLD if hold else Activity.TALKING
+        queue = self.config.queues.get(call.queue)
+        moh = queue.moh_class if queue else "default"
+        leg = str(call.agent_leg)
+        ari: list[a.Action] = (
+            [a.RemoveFromBridge(call.id, call.bridge, leg), a.StartMoh(call.id, call.bridge, moh)]
+            if hold
+            else [a.StopMoh(call.id, call.bridge), a.AddToBridge(call.id, call.bridge, leg)]
+        )
+        event = a.Emit(m.CALL_HELD if hold else m.CALL_RESUMED, {"call": call.id, "agent": agent.uid})
+        return [event, *ari, *self._changed(agent)]
+
+    def _wrapped_up(self, agent: Agent, code: str, by: str, now: float) -> list[a.Action]:
+        if agent.activity is not Activity.WRAPUP:
+            return []
+        call, agent.wrapup_call = agent.wrapup_call, None
+        agent.activity, agent.idle_since = Activity.IDLE, now
+        return [
+            a.CancelTimer(wrapup_timer(agent)),
+            a.Emit(m.AGENT_WRAPPED_UP, {"agent": agent.uid, "call": call, "code": code, "by": by}),
+            *self._changed(agent),
+            *self._offer_waiting(now),
+        ]
+
+    def _refuse(self, command_id: str, kind: str, reason: str, agent: str | None = None) -> list[a.Action]:
+        data = {"command_id": command_id, "type": kind, "reason": reason, "agent": agent}
+        return [a.Emit(m.COMMAND_REJECTED, data)]

@@ -161,7 +161,7 @@ deploy-check: ## Prove the production settings load and pass Django's deployment
 	DJANGO_SETTINGS_MODULE=config.settings.production $(MANAGE) check --deploy --fail-level ERROR
 
 # ── project ── AlgoDial ─────────────────────────────────────────────────────
-.PHONY: brain brain-check writer calltests pjsip-schema
+.PHONY: brain brain-check writer live dev calltests agentcheck pjsip-schema
 
 ## AlgoDial
 brain: ## Run the brain (call control): manage.py run_brain
@@ -172,6 +172,17 @@ brain-check: ## Check the brain can reach ARI and Redis, then exit
 
 writer: ## Run the writer: brain events into Event, Call and Leg
 	$(MANAGE) run_writer --consumer writer-1
+
+live: ## Run the live relay: brain events to the agent pages' WebSockets
+	$(MANAGE) run_live
+
+dev: ## Web (with WebSockets), brain, writer and live relay together; Ctrl-C stops all
+	@trap 'kill 0' INT TERM EXIT; \
+	$(MANAGE) run_brain & $(MANAGE) run_writer --consumer writer-1 & $(MANAGE) run_live & \
+	$(MANAGE) runserver 0.0.0.0:$(PORT)
+
+agentcheck: ## M3 in a real browser: sign in, Ready, a call from 800, hold, wrap-up, Event table (stop your brain first)
+	$(PY) lab/agentpage.py
 
 calltests: ## The 9 call tests on the real lab with scripted phones (stop your brain first; make calltests t="1 4")
 	$(PY) lab/calltests.py $(t)

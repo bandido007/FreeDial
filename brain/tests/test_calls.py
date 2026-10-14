@@ -425,3 +425,124 @@ async def test_with_no_brain_the_dialplan_fallback_takes_the_call():
     customer = sim.call_in("800")
     assert sim.fallbacks == [customer]
     assert sim.channels[customer]["dialplan"]["app_name"] == "Queue"
+
+
+# ── M3: hold, resume and wrap-up ───────────────────────────────────────────
+@scenario
+async def test_hold_takes_the_agent_out_and_plays_music_resume_brings_them_back():
+    async with brain() as lab:
+        await lab.ready(A, PHONE_A)
+        customer, leg = await lab.connected_call()
+        bridge = lab.sim.bridge_of(customer)["id"]
+
+        await lab.command(m.CALL_HOLD, agent=A)
+        await eventually(lambda: lab.agent(A).get("activity") == "on_hold")
+        await eventually(lambda: lab.sim.bridges[bridge]["channels"] == [customer])
+        assert bridge in lab.sim.moh and leg in lab.sim.channels, (
+            "the agent waits in the app, outside the bridge"
+        )
+
+        await lab.command(m.CALL_HOLD, agent=A)  # again: nothing changes
+        await lab.command(m.CALL_RESUME, agent=A)
+        await eventually(lambda: lab.agent(A).get("activity") == "talking")
+        await eventually(lambda: set(lab.sim.bridges[bridge]["channels"]) == {customer, leg})
+        assert bridge not in lab.sim.moh
+        assert [e.type for e in lab.bus.events if e.type in (m.CALL_HELD, m.CALL_RESUMED)] == [
+            m.CALL_HELD,
+            m.CALL_RESUMED,
+        ]
+
+        lab.sim.hangup(customer)
+        await lab.all_clear()
+
+
+@scenario
+async def test_holding_without_a_call_is_refused():
+    async with brain() as lab:
+        await lab.ready(A, PHONE_A)
+        await lab.command(m.CALL_HOLD, agent=A)
+        await eventually(lambda: lab.bus.of_type(m.COMMAND_REJECTED))
+        refused = lab.bus.of_type(m.COMMAND_REJECTED)[0]
+        assert (refused["reason"], refused["agent"]) == ("the agent has no connected call", A)
+
+
+@scenario
+async def test_a_customer_on_hold_who_hangs_up_ends_the_call_cleanly():
+    async with brain() as lab:
+        await lab.ready(A, PHONE_A)
+        customer, _leg = await lab.connected_call()
+        await lab.command(m.CALL_HOLD, agent=A)
+        await eventually(lambda: lab.agent(A).get("activity") == "on_hold")
+        lab.sim.hangup(customer)
+        await lab.all_clear()
+        assert lab.agent(A)["activity"] == "idle"
+
+
+@scenario
+async def test_a_restarted_brain_adopts_a_call_on_hold():
+    sim, bus = FakeAri(), FakeBus()
+    async with brain(sim, bus) as lab:
+        await lab.ready(A, PHONE_A)
+        customer, leg = await lab.connected_call()
+        await lab.command(m.CALL_HOLD, agent=A)
+        await eventually(lambda: lab.agent(A).get("activity") == "on_hold")
+    sim.disconnect()
+
+    async with brain(sim, bus) as lab:
+        assert lab.bus.of_type(m.BRAIN_RECONCILED)[-1]["hung_up"] == []
+        assert lab.agent(A)["activity"] == "on_hold"
+        await lab.command(m.CALL_RESUME, agent=A)
+        await eventually(lambda: lab.sim.bridge_of(leg) is not None, what="agent back in the bridge")
+        lab.sim.hangup(leg)
+        await lab.all_clear()
+
+
+@scenario
+async def test_after_a_call_the_agent_wraps_up_with_a_code_then_gets_the_next_call():
+    async with brain(config=make_config(wrapup_seconds=30)) as lab:
+        await lab.ready(A, PHONE_A)
+        customer, _leg = await lab.connected_call()
+        lab.sim.hangup(customer)
+        await eventually(lambda: lab.agent(A).get("activity") == "wrapup")
+        call = lab.ended()[-1]["call"]
+        assert lab.agent(A)["wrapup_call"] == call
+
+        waiting = lab.sim.call_in("800")
+        await eventually(lambda: lab.sim.bridge_of(waiting) is not None)
+        assert not lab.sim.originates()[1:], "no offer during wrap-up"
+
+        await lab.command(m.AGENT_WRAPUP_DONE, agent=A, code="Sale")
+        leg = await lab.sim.next_ringing()
+        wrapped = lab.bus.of_type(m.AGENT_WRAPPED_UP)[-1]
+        assert wrapped == {"agent": A, "call": call, "code": "Sale", "by": "agent"}
+        lab.sim.answer(leg)
+        await eventually(lambda: lab.agent(A).get("activity") == "talking")
+        lab.sim.hangup(waiting)
+        await lab.all_clear()
+
+
+@scenario
+async def test_wrap_up_ends_by_itself_when_its_time_is_up():
+    async with brain(config=make_config(wrapup_seconds=0.2)) as lab:
+        await lab.ready(A, PHONE_A)
+        customer, _leg = await lab.connected_call()
+        lab.sim.hangup(customer)
+        await eventually(lambda: lab.bus.of_type(m.AGENT_WRAPPED_UP), what="wrap-up timed out")
+        assert lab.bus.of_type(m.AGENT_WRAPPED_UP)[-1]["by"] == "timeout"
+        assert lab.agent(A)["activity"] == "idle"
+
+
+@scenario
+async def test_an_offer_tells_the_agent_who_is_calling():
+    async with brain() as lab:
+        await lab.ready(A, PHONE_A)
+        customer = lab.sim.call_in("800", caller="lab-customer")
+        await lab.sim.next_ringing()
+        offered = lab.bus.of_type(m.CALL_OFFERED)[-1]
+        assert (offered["caller"], offered["caller_name"], offered["queue"]) == (
+            "lab-customer",
+            "lab-customer",
+            "Support",
+        )
+        lab.sim.hangup(customer)
+        await lab.all_clear()

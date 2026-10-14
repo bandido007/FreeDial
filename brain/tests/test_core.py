@@ -91,6 +91,7 @@ def test_logging_out_or_moving_phone_during_a_call_is_refused():
         "command_id": "c-out",
         "type": m.AGENT_LOGOUT,
         "reason": "the agent is on a call",
+        "agent": A,
     }
     moved = brain.on_command(m.AGENT_LOGIN, {"agent": A, "endpoint": PHONE_B}, "c-move", now=3.0)
     assert of(a.Emit, moved)[0].type == m.COMMAND_REJECTED

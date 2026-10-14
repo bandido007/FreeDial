@@ -20,6 +20,9 @@ class Queue(BaseModel):
         default=5, help_text="Seconds before agents who refused a call are offered it again"
     )
     moh_class = models.CharField(max_length=80, default="default", help_text="Asterisk music-on-hold class")
+    wrapup_seconds = models.PositiveSmallIntegerField(
+        default=60, help_text="After a call the agent has this long to wrap up (0 = no wrap-up)"
+    )
     agents = models.ManyToManyField(Agent, through="QueueMember", related_name="queues", blank=True)
 
     class Meta:

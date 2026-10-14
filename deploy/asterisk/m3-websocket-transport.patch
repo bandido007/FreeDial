@@ -1,0 +1,16 @@
+--- a/pjsip.conf
++++ b/pjsip.conf
+@@ -4,6 +4,13 @@
+ protocol=udp
+ bind=0.0.0.0:5062
+ 
++; AlgoDial M3: browser phones (WebRTC) register over SIP-over-WebSocket. The socket is the
++; HTTP server's /ws (http.conf: 127.0.0.1:8091), so it is reachable from this machine only.
++[transport-ws]
++type=transport
++protocol=ws
++bind=0.0.0.0
++
+ ; ===== 1001: Zoiper on the laptop =====
+ [1001]
+ type=endpoint

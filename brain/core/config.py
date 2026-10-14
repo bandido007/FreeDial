@@ -22,6 +22,7 @@ class QueueConfig:
     max_wait: int = 300  # seconds a caller waits before overflow
     retry_delay: int = 5  # seconds before agents who rejected this call are tried again
     moh_class: str = "default"
+    wrapup_seconds: int = 0  # after-call work before the next offer; 0 = none
     members: tuple[str, ...] = ()  # agent uids
 
 

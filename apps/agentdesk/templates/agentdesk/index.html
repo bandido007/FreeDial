@@ -1,0 +1,81 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AlgoDial agent</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="{% static 'agentdesk/app.css' %}">
+  {{ config|json_script:"desk-config" }}
+  <script src="{% static 'agentdesk/vendor/jssip-3.12.0.min.js' %}" defer></script>
+  <script src="{% static 'agentdesk/app.js' %}" defer></script>
+</head>
+<body>
+  <main>
+    <section id="signin" class="card" hidden>
+      <h1>AlgoDial agent</h1>
+      <form id="signin-form" autocomplete="on">
+        <label>Email <input id="email" type="email" autocomplete="username" required></label>
+        <label>Password <input id="password" type="password" autocomplete="current-password" required></label>
+        <label id="otp-row" hidden>Two-factor code <input id="otp" inputmode="numeric" autocomplete="one-time-code"></label>
+        <button type="submit">Sign in</button>
+        <p id="signin-error" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="desk" hidden>
+      <header class="card bar">
+        <div>
+          <strong id="agent-name"></strong> <span id="agent-number" class="muted"></span>
+        </div>
+        <div class="chips">
+          <span id="phone-chip" class="chip">Phone: off</span>
+          <span id="live-chip" class="chip">Live: off</span>
+          <button id="signout" class="quiet">Sign out</button>
+        </div>
+      </header>
+
+      <section class="card">
+        <div class="status">
+          <span id="availability" class="badge">Logged out</span>
+          <span id="activity" class="muted"></span>
+          <span id="since" class="muted"></span>
+        </div>
+        <div class="row">
+          <button id="ready">Ready</button>
+          <select id="reason" aria-label="Not Ready reason"></select>
+          <button id="not-ready" class="secondary">Not Ready</button>
+        </div>
+      </section>
+
+      <section id="call" class="card call" hidden>
+        <h2 id="call-title">Incoming call</h2>
+        <p><span id="caller" class="big"></span> <span id="caller-queue" class="muted"></span></p>
+        <div class="row">
+          <button id="answer">Answer</button>
+          <button id="reject" class="danger">Reject</button>
+          <button id="hold" class="secondary" hidden>Hold</button>
+          <button id="resume" class="secondary" hidden>Resume</button>
+          <button id="hangup" class="danger" hidden>Hang up</button>
+        </div>
+      </section>
+
+      <section id="wrapup" class="card" hidden>
+        <h2>Wrap-up</h2>
+        <div class="row">
+          <select id="wrapup-code" aria-label="Wrap-up code"></select>
+          <button id="wrapup-done">Done</button>
+        </div>
+      </section>
+
+      <p id="notice" class="error" role="alert"></p>
+
+      <section class="card">
+        <h2>What happened</h2>
+        <ol id="log" class="log"></ol>
+      </section>
+    </section>
+  </main>
+  <audio id="remote-audio" autoplay></audio>
+</body>
+</html>

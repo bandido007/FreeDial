@@ -176,6 +176,7 @@ class Lab:
 
     async def ready(self, uid, phone):
         self.w.command(m.AGENT_LOGIN, agent=uid, endpoint=f"PJSIP/{phone}")
+        self.w.command(m.AGENT_WRAPUP_DONE, agent=uid, code="")  # after the last call, if the queue wraps up
         self.w.command(m.AGENT_READY, agent=uid)
         await self.w.agent_is(uid, availability="ready", activity="idle")
 
@@ -183,6 +184,7 @@ class Lab:
         """Both Ready and idle, A idle the longest, so A rings first."""
         await self.ready(self.a, "lab-agent-a")
         self.w.command(m.AGENT_LOGIN, agent=self.b, endpoint="PJSIP/lab-agent-b")
+        self.w.command(m.AGENT_WRAPUP_DONE, agent=self.b, code="")
         self.w.command(m.AGENT_NOT_READY, agent=self.b, reason="reorder")
         await self.w.agent_is(self.b, availability="not_ready")
         await self.ready(self.b, "lab-agent-b")

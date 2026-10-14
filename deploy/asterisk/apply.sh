@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Apply one AlgoDial patch to /etc/asterisk: show it, ask, commit, reload.
+# Apply AlgoDial patches to /etc/asterisk, one step at a time: show it, ask, commit, reload.
 #
-#   cd ~/AlgoDial && sudo deploy/asterisk/apply.sh m2
+#   cd ~/AlgoDial && sudo deploy/asterisk/apply.sh m2 m3
 #
-# Each step is a NAME.patch here plus a line in STEPS below (commit message and the
-# CLI command that loads the change). Saying no, or any failure, puts every file back.
+# Each step is a <step>-*.patch here plus its lines below (commit message, how Asterisk
+# takes the change, what to show after). Saying no, or any failure, puts every file back.
+# A step already applied is skipped.
 set -euo pipefail
 
 ETC=/etc/asterisk
@@ -15,34 +16,51 @@ declare -A MESSAGE RELOAD SHOW
 MESSAGE[m2]="M2: 800 passes the linkedid to AlgoDial, and falls back to Queue(support) when the brain is down"
 RELOAD[m2]="dialplan reload"
 SHOW[m2]="dialplan show 800@lab"
+MESSAGE[m3]="M3: transport-ws, so browser phones (WebRTC) register over the HTTP server's /ws"
+RELOAD[m3]="restart"  # PJSIP does not reliably add a transport on reload
+SHOW[m3]="pjsip show transports"
 
-step=${1:-}
-[ -n "$step" ] && [ -n "${MESSAGE[$step]:-}" ] || { echo "usage: sudo $0 <step>   (steps: ${!MESSAGE[*]})"; exit 1; }
 [ "$(id -u)" = 0 ] || { echo "Run with sudo."; exit 1; }
-PATCH=$(find "$HERE" -maxdepth 1 -name "$step-*.patch" | head -n1)
-[ -n "$PATCH" ] || { echo "No $step-*.patch in $HERE"; exit 1; }
+[ $# -gt 0 ] || { echo "usage: sudo $0 <step>...   (steps: ${!MESSAGE[*]})"; exit 1; }
 
-if [ -n "$("${GIT[@]}" status --porcelain)" ]; then
-  echo "/etc/asterisk has uncommitted changes. Commit or stash them first:"
-  "${GIT[@]}" status --short
-  exit 1
-fi
-if "${GIT[@]}" apply --reverse --check "$PATCH" 2>/dev/null; then
-  echo "Already applied: $(basename "$PATCH")"; exit 0
-fi
+apply_step() {
+  local step=$1 patch answer
+  [ -n "${MESSAGE[$step]:-}" ] || { echo "Unknown step $step (steps: ${!MESSAGE[*]})"; exit 1; }
+  patch=$(find "$HERE" -maxdepth 1 -name "$step-*.patch" | head -n1)
+  [ -n "$patch" ] || { echo "No $step-*.patch in $HERE"; exit 1; }
+  echo "── $step: $(basename "$patch")"
 
-trap 'echo "Failed: putting /etc/asterisk back."; "${GIT[@]}" checkout -- .' ERR
-"${GIT[@]}" apply "$PATCH"
-"${GIT[@]}" --no-pager diff
-echo
-read -r -p "Commit this and run '${RELOAD[$step]}'? [y/N] " answer
-if [ "$answer" != "y" ]; then
-  "${GIT[@]}" checkout -- .
-  echo "Nothing changed."; exit 1
-fi
-"${GIT[@]}" commit -q -am "${MESSAGE[$step]}"
-trap - ERR
-"${GIT[@]}" log --oneline -1
+  if [ -n "$("${GIT[@]}" status --porcelain)" ]; then
+    echo "/etc/asterisk has uncommitted changes. Commit or stash them first:"
+    "${GIT[@]}" status --short
+    exit 1
+  fi
+  if "${GIT[@]}" apply --reverse --check "$patch" 2>/dev/null; then
+    echo "Already applied."; return
+  fi
 
-asterisk -rx "${RELOAD[$step]}"
-asterisk -rx "${SHOW[$step]}"
+  trap 'echo "Failed: putting /etc/asterisk back."; "${GIT[@]}" checkout -- .' ERR
+  "${GIT[@]}" apply "$patch"
+  "${GIT[@]}" --no-pager diff
+  echo
+  read -r -p "Commit this and $( [ "${RELOAD[$step]}" = restart ] && echo "restart Asterisk" || echo "run '${RELOAD[$step]}'")? [y/N] " answer
+  if [ "$answer" != "y" ]; then
+    "${GIT[@]}" checkout -- .
+    echo "Nothing changed."; exit 1
+  fi
+  "${GIT[@]}" commit -q -am "${MESSAGE[$step]}"
+  trap - ERR
+  "${GIT[@]}" log --oneline -1
+
+  if [ "${RELOAD[$step]}" = restart ]; then
+    systemctl restart asterisk
+    sleep 4
+  else
+    asterisk -rx "${RELOAD[$step]}"
+  fi
+  asterisk -rx "${SHOW[$step]}"
+}
+
+for step in "$@"; do
+  apply_step "$step"
+done

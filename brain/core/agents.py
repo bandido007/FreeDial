@@ -34,6 +34,7 @@ class Agent:
     reason: str = ""  # Not Ready reason, or why the agent is not responding
     endpoint: str | None = None  # where the agent takes calls, e.g. PJSIP/1001
     call: str | None = None
+    wrapup_call: str | None = None  # the call the agent is wrapping up
     idle_since: float = 0.0  # longest idle is offered first
     removed: bool = False  # gone from the configuration; dropped once its call ends
 
@@ -54,6 +55,7 @@ class Agent:
             "activity": str(self.activity),
             "reason": self.reason,
             "call": self.call,
+            "wrapup_call": self.wrapup_call,
             "endpoint": self.endpoint,
             "idle_since": self.idle_since,
         }
@@ -65,4 +67,5 @@ class Agent:
         self.reason = saved.get("reason") or ""
         self.endpoint = saved.get("endpoint")
         self.call = saved.get("call")
+        self.wrapup_call = saved.get("wrapup_call")
         self.idle_since = float(saved.get("idle_since") or 0.0)

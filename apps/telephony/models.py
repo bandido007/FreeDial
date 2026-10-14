@@ -55,6 +55,8 @@ class PsEndpoint(models.Model):
     direct_media = models.CharField(max_length=10, null=True)  # ast_bool_values
     callerid = models.CharField(max_length=40, null=True)
     webrtc = models.CharField(max_length=10, null=True)  # ast_bool_values
+    rewrite_contact = models.CharField(max_length=10, null=True)  # ast_bool_values
+    force_rport = models.CharField(max_length=10, null=True)  # ast_bool_values
 
     class Meta:
         managed = False

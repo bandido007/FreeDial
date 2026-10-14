@@ -2,7 +2,7 @@ from django import forms
 from django.contrib import admin
 
 from apps.agents import services
-from apps.agents.models import Agent
+from apps.agents.models import Agent, AgentSession, NotReadyReason, WrapupCode
 from apps.agents.permissions import MANAGE_AGENTS, VIEW_AGENTS
 from apps.core.exceptions import ApplicationError
 from apps.rbac.admin_access import RbacAdminMixin
@@ -62,3 +62,35 @@ class AgentAdmin(RbacAdminMixin, admin.ModelAdmin):
     def delete_queryset(self, request, queryset):
         for agent in queryset:
             services.delete_agent(uid=agent.uid)
+
+
+@admin.register(NotReadyReason, WrapupCode)
+class PickListAdmin(RbacAdminMixin, admin.ModelAdmin):
+    """Not Ready reasons and wrap-up codes: names the agent page offers."""
+
+    view_permission = VIEW_AGENTS
+    manage_permission = MANAGE_AGENTS
+    fields = ("name", "active")
+    list_display = ("name", "active")
+    search_fields = ("name",)
+
+    def delete_queryset(self, request, queryset):
+        for row in queryset:
+            row.delete()  # soft delete, one by one
+
+
+@admin.register(AgentSession)
+class AgentSessionAdmin(RbacAdminMixin, admin.ModelAdmin):
+    view_permission = VIEW_AGENTS
+    manage_permission = "-"  # written by the agent page only
+    list_display = ("agent", "endpoint", "login_at", "logout_at")
+    list_filter = ("agent",)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

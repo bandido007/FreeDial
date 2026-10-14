@@ -1,5 +1,10 @@
 """The unified root query, composed from every app's Query."""
 type Query {
+  """
+  The signed-in agent, their live state, Not Ready reasons and wrap-up codes. permissions=['can_take_calls']
+  """
+  myAgentDesk: AgentDeskResponse
+
   """One team with its members. permissions=['can_view_teams']"""
   getTeam(uid: UUID!): TeamResponse
 
@@ -205,6 +210,40 @@ type Query {
   Whether people may create their own account, and the policy versions. Public.
   """
   getRegistrationStatus: RegistrationStatusResponse
+}
+
+type AgentDeskResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: AgentDeskType
+  dataList: [AgentDeskType]
+}
+
+type AgentDeskType {
+  uid: String
+  number: String
+  name: String
+  state: AgentLiveStateType
+  notReadyReasons: [String]
+  wrapupCodes: [String]
+}
+
+"""The agent's state as the brain last saved it."""
+type AgentLiveStateType {
+  """logged_out, ready or not_ready"""
+  availability: String
+
+  """idle, offered, talking, on_hold, wrapup or not_responding"""
+  activity: String
+  reason: String
+
+  """The call the agent is on (its linkedid)"""
+  call: String
+
+  """The call the agent is wrapping up"""
+  wrapupCall: String
+  endpoint: String
 }
 
 type TeamResponse {
@@ -1557,6 +1596,36 @@ type RegistrationStatusType {
 
 """The unified root mutation, composed from every app's Mutation."""
 type Mutation {
+  """
+  Start the browser phone for this session. permissions=['can_take_calls']
+  """
+  startAgentSession: AgentPhoneResponse
+
+  """
+  Log out and switch the browser phone off. permissions=['can_take_calls']
+  """
+  endAgentSession: CommandSentResponse
+
+  """Ready, or Not Ready with a reason. permissions=['can_take_calls']"""
+  setMyAvailability(
+    ready: Boolean!
+
+    """One of myAgentDesk.notReadyReasons when ready is false"""
+    reason: String
+  ): CommandSentResponse
+
+  """Hold or resume the current call. permissions=['can_take_calls']"""
+  holdMyCall(
+    """true: hold (customer hears music); false: resume"""
+    hold: Boolean!
+  ): CommandSentResponse
+
+  """End wrap-up with a code. permissions=['can_take_calls']"""
+  finishMyWrapup(
+    """One of myAgentDesk.wrapupCodes"""
+    code: String!
+  ): CommandSentResponse
+
   """Create or update a team. permissions=['can_manage_teams']"""
   saveTeam(input: TeamInput!): TeamResponse
 
@@ -1778,6 +1847,43 @@ type Mutation {
 
   """permissions=['can_assign_user_roles']"""
   assignRolesToUser(input: AssignRolesInput!): UserResponse
+}
+
+type AgentPhoneResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: AgentPhoneType
+  dataList: [AgentPhoneType]
+}
+
+"""
+The browser phone's account for this session. The password works until the next sign-in.
+"""
+type AgentPhoneType {
+  sipId: String
+  password: String
+
+  """Asterisk's SIP WebSocket"""
+  wsUrl: String
+  domain: String
+  endpoint: String
+  commandId: String
+}
+
+type CommandSentResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: CommandSentType
+  dataList: [CommandSentType]
+}
+
+"""
+The command the brain was sent; its answer arrives on the live WebSocket.
+"""
+type CommandSentType {
+  commandId: String
 }
 
 input TeamInput {

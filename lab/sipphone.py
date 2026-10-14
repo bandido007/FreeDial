@@ -16,8 +16,10 @@ Run on its own as a fake agent:  python lab/sipphone.py t-agent1 'secret' --mode
 import argparse
 import asyncio
 import hashlib
+import math
 import re
 import secrets
+import struct
 import time
 
 COMPACT = {"v": "via", "f": "from", "t": "to", "i": "call-id", "m": "contact", "l": "content-length", "c": "content-type"}
@@ -25,6 +27,15 @@ COMPACT = {"v": "via", "f": "from", "t": "to", "i": "call-id", "m": "contact", "
 
 def md5(text):
     return hashlib.md5(text.encode()).hexdigest()  # noqa: S324 (SIP digest is MD5)
+
+
+def ulaw(sample):
+    """One 16-bit linear sample as G.711 mu-law (PCMU)."""
+    sign = 0x80 if sample < 0 else 0
+    magnitude = min(abs(sample), 32635) + 132
+    exponent = max(0, magnitude.bit_length() - 8)
+    mantissa = (magnitude >> (exponent + 3)) & 0x0F
+    return ~(sign | (exponent << 4) | mantissa) & 0xFF
 
 
 def log(phone, msg):
@@ -129,6 +140,7 @@ class Phone:
         self.reg_tag = secrets.token_hex(4)
         self.reg_cseq = 0
         self.registered = False
+        self.rtp_packets = 0
 
     # ── transport ──────────────────────────────────────────────────────────
     async def start(self):
@@ -140,7 +152,8 @@ class Phone:
                 phone.received(data.decode(errors="replace"))
 
         class Sink(asyncio.DatagramProtocol):
-            pass
+            def datagram_received(self, data, addr):
+                phone.rtp_packets += 1  # proof that audio reaches this phone
 
         self.transport, _ = await loop.create_datagram_endpoint(Proto, local_addr=("127.0.0.1", 0))
         self.rtp, _ = await loop.create_datagram_endpoint(Sink, local_addr=("127.0.0.1", 0))
@@ -319,6 +332,7 @@ class Phone:
         call.remote_target = uri_of(response.get("contact")) or call.remote_uri
         self.ack_success(call)
         call.answered.set()
+        self.talk(call, response.body)
         log(self.user, f"call {call.call_id[:8]} answered: {response.status} {response.reason}")
 
     def ack_failure(self, call, response, via):
@@ -458,7 +472,29 @@ class Phone:
             return
         self.respond(call.invite, 200, "OK", to_tag=call.local_tag, body=self.sdp(), contact=True)
         call.answered.set()
+        self.talk(call, call.invite.body)
         log(self.user, f"answered {call.call_id[:8]}")
+
+    def talk(self, call, sdp):
+        """Send a 440 Hz tone (PCMU, 20 ms packets) to the far end's SDP until the call ends.
+
+        A customer who never speaks gives Asterisk nothing to mix; the tone is the voice.
+        """
+        host = re.search(r"^c=IN IP4 (\S+)", sdp or "", re.MULTILINE)
+        port = re.search(r"^m=audio (\d+)", sdp or "", re.MULTILINE)
+        if not host or not port:
+            return
+        target = (host.group(1), int(port.group(1)))
+        asyncio.ensure_future(self._send_tone(call, target))
+
+    async def _send_tone(self, call, target):
+        payload = bytes(ulaw(int(6000 * math.sin(2 * math.pi * 440 * n / 8000))) for n in range(160))
+        ssrc, sequence, stamp = secrets.randbits(32), secrets.randbits(16), secrets.randbits(32)
+        while not call.ended.is_set():
+            header = struct.pack("!BBHII", 0x80, 0, sequence & 0xFFFF, stamp & 0xFFFFFFFF, ssrc)
+            self.rtp.sendto(header + payload, target)
+            sequence, stamp = sequence + 1, stamp + 160
+            await asyncio.sleep(0.02)
 
     async def ringing(self, timeout=15):
         return await asyncio.wait_for(self.incoming.get(), timeout)

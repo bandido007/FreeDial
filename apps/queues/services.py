@@ -12,7 +12,12 @@ NAME_TAKEN = 10301
 NUMBER_TAKEN = 10302
 OUT_OF_RANGE = 10303
 
-LIMITS = {"ring_timeout": (5, 120), "max_wait": (10, 7200), "retry_delay": (0, 120)}
+LIMITS = {
+    "ring_timeout": (5, 120),
+    "max_wait": (10, 7200),
+    "retry_delay": (0, 120),
+    "wrapup_seconds": (0, 3600),
+}
 ENTRY_PATTERN = re.compile(r"^[0-9*#+]{2,40}$")
 
 

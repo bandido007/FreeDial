@@ -11,7 +11,7 @@ from apps.rbac.admin_access import RbacAdminMixin
 class QueueForm(forms.ModelForm):
     class Meta:
         model = Queue
-        fields = ("name", "ring_timeout", "max_wait", "retry_delay", "moh_class", "active")
+        fields = ("name", "ring_timeout", "max_wait", "retry_delay", "wrapup_seconds", "moh_class", "active")
 
     def clean(self):
         data = super().clean()
@@ -43,7 +43,7 @@ class QueueAdmin(RbacAdminMixin, admin.ModelAdmin):
     manage_permission = EDIT_QUEUES
     form = QueueForm
     inlines = [MemberInline]
-    list_display = ("name", "ring_timeout", "max_wait", "retry_delay", "active")
+    list_display = ("name", "ring_timeout", "max_wait", "retry_delay", "wrapup_seconds", "active")
     search_fields = ("name",)
 
     def delete_model(self, request, obj):

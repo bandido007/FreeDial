@@ -13,7 +13,7 @@ to humans by rule.
 | --- | --- | --- |
 | Management | `config/`, `apps/` | The team Django starter: users, roles, audit, settings, GraphQL API, admin |
 | Control | `brain/` | The call-control service (`manage.py run_brain`); `brain/core` is pure Python |
-| Live | `apps/realtime/` (M3) | WebSocket push to agent and supervisor pages |
+| Live | `apps/realtime/`, `apps/agentdesk/` | The agent page and its WebSocket, fed by brain events |
 
 `contracts/` holds the command and event envelopes that travel between them on Redis
 Streams. `lab/` keeps the first prototypes for reference.
@@ -33,8 +33,13 @@ make run           # web on http://127.0.0.1:8000 (/admin, /graphql)
 make brain-check   # can the brain reach ARI and Redis?
 make brain         # run the brain
 make writer        # run the writer: brain events into the Event, Call and Leg tables
+make dev           # web (with WebSockets), brain, writer and live relay together
 make calltests     # the 9 call tests against the real Asterisk (with the brain stopped)
+make agentcheck    # the agent page in headless Chrome: sign in, take a call, wrap up
 ```
+
+The agent page is at http://127.0.0.1:8000/agent/ (an agent needs the "Agent" role and an
+Agent record linked to their user).
 
 `make help` lists every target.
 

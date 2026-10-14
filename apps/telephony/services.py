@@ -32,7 +32,8 @@ SIP_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{1,39}$")
 CODECS_PATTERN = re.compile(r"^[a-z0-9_]+(,[a-z0-9_]+)*$")
 DEFAULT_CODECS = {
     SipAccountKindChoices.SOFTPHONE.value: "ulaw,alaw",
-    SipAccountKindChoices.BROWSER.value: "opus,ulaw",
+    # Not opus: this Asterisk has no codec_opus, so it could not translate opus to a ulaw customer.
+    SipAccountKindChoices.BROWSER.value: "ulaw,alaw",
 }
 
 

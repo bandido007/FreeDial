@@ -75,3 +75,4 @@ OAUTH2_PROVIDER = {
 
 # ── project ── AlgoDial: tests use their own Redis database, never the lab's streams.
 BUS_REDIS_URL = env("TEST_BUS_REDIS_URL", default="redis://127.0.0.1:6392/5")
+CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}

@@ -16,3 +16,5 @@ pre-commit>=4.3
 # Dependency audit + lock compilation
 pip-audit>=2.9
 uv>=0.8
+# project: lab/agentpage.py drives the agent page in the installed Chrome (M3's browser check)
+playwright>=1.63,<1.64

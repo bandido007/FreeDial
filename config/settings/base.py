@@ -79,6 +79,7 @@ API_MOUNT_PREFIX = env("API_MOUNT_PREFIX", default="backend").strip("/")
 
 # ── Applications ─────────────────────────────────────────────────────────
 DJANGO_APPS = [
+    "daphne",  # project: first, so `runserver` serves HTTP and WebSockets (ASGI)
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -94,6 +95,7 @@ THIRD_PARTY_APPS = [
     "oauth2_provider",
     "axes",
     "django_celery_beat",
+    "channels",  # project: the live WebSocket (apps.realtime)
 ]
 
 # Foundation apps live under the apps/ package. Each AppConfig sets an explicit
@@ -119,6 +121,8 @@ PROJECT_APPS: list[str] = [
     "apps.calls",
     "apps.agents",
     "apps.queues",
+    "apps.realtime",
+    "apps.agentdesk",
     # <scaffold:project-apps>
 ]
 
@@ -694,7 +698,19 @@ ASTERISK_SRC_DIR = env("ASTERISK_SRC_DIR", default=str(Path.home() / "asterisk-2
 PJSIP_REALM = env("PJSIP_REALM", default="asterisk")
 PJSIP_DEFAULT_CONTEXT = env("PJSIP_DEFAULT_CONTEXT", default="lab")
 PJSIP_TRANSPORT_SOFTPHONE = env("PJSIP_TRANSPORT_SOFTPHONE", default="transport-udp")
-PJSIP_TRANSPORT_BROWSER = env("PJSIP_TRANSPORT_BROWSER", default="transport-wss")
+PJSIP_TRANSPORT_BROWSER = env("PJSIP_TRANSPORT_BROWSER", default="transport-ws")
+# Where the agent page's browser phone reaches Asterisk (SIP over WebSocket, the HTTP server's /ws).
+# ws:// is enough on 127.0.0.1 (a secure context); another machine needs wss:// and HTTPS.
+PJSIP_WS_URL = env("PJSIP_WS_URL", default="ws://127.0.0.1:8091/ws")
+PJSIP_DOMAIN = env("PJSIP_DOMAIN", default="127.0.0.1")  # the domain in the browser phone's SIP URI
 # The read-only database role Asterisk logs in with (res_pgsql.conf); `manage.py pjsip_schema` creates it.
 ASTERISK_DB_USER = env("ASTERISK_DB_USER", default="asterisk")
 ASTERISK_DB_PASSWORD = env("ASTERISK_DB_PASSWORD", default="")
+
+# Live: the agent page's WebSocket (apps.realtime) goes through the Channels layer on Redis.
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {"hosts": [BUS_REDIS_URL], "prefix": "algodial:live"},
+    }
+}

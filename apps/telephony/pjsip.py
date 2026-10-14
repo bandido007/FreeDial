@@ -40,6 +40,9 @@ def write(account: SipAccount) -> None:
             "direct_media": "no",
             "callerid": callerid,
             "webrtc": "yes" if browser else None,
+            # A browser registers with a made-up contact (JsSIP: *.invalid): answer it on its own socket.
+            "rewrite_contact": "yes" if browser else None,
+            "force_rport": "yes" if browser else None,
         },
     )
     PsAuth.objects.update_or_create(

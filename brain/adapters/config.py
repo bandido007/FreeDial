@@ -62,6 +62,7 @@ def load_config() -> Config:
                 max_wait=queue.max_wait,
                 retry_delay=queue.retry_delay,
                 moh_class=queue.moh_class,
+                wrapup_seconds=queue.wrapup_seconds,
                 members=tuple(members.get(queue.pk, ())),
             )
             for queue in Queue.objects.filter(active=True)

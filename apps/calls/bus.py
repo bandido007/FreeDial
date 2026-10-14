@@ -35,6 +35,14 @@ def send_command(kind: str, data: dict[str, Any] | None = None) -> str:
     return command.command_id
 
 
+def send_command_on_commit(kind: str, data: dict[str, Any] | None = None) -> str:
+    """Send a command once the current transaction commits (at once outside one); returns its id."""
+    command = Command(type=kind, data=dict(data or {}))
+    messages.check(command)
+    transaction.on_commit(lambda: client().xadd(settings.BUS_COMMANDS_STREAM, {FIELD: encode(command)}))
+    return command.command_id
+
+
 def _send_config_changed() -> None:
     try:
         send_command(messages.CONFIG_CHANGED)

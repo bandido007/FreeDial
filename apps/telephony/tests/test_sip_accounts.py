@@ -78,8 +78,9 @@ def test_a_browser_account_is_a_webrtc_endpoint(manager, settings):
     services.create_sip_account(actor=manager, sip_id="web-01", kind="BROWSER", password=PASSWORD)
     endpoint, _, _ = pjsip_rows("web-01")
     assert endpoint.webrtc == "yes"
+    assert (endpoint.rewrite_contact, endpoint.force_rport) == ("yes", "yes")
     assert endpoint.transport == settings.PJSIP_TRANSPORT_BROWSER
-    assert endpoint.allow == "opus,ulaw"
+    assert endpoint.allow == "ulaw,alaw"
 
 
 def test_changing_the_password_changes_the_digest(manager, settings):

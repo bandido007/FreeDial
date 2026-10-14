@@ -230,3 +230,18 @@ def mailbox():
     """The e-mails sent during the test (``mailbox[0].subject``, …)."""
     mail.outbox.clear()
     return mail.outbox
+
+
+# ── project ── AlgoDial ─────────────────────────────────────────────────────
+@pytest.fixture(scope="session")
+def django_db_setup(django_db_setup, django_db_blocker):
+    """The test database also gets Asterisk's PJSIP realtime tables, made by Asterisk's own Alembic.
+
+    Any test that saves a SIP account needs them (telephony, and the agent page's browser phone).
+    """
+    from django.db import connection
+
+    from apps.telephony import asterisk_schema
+
+    with django_db_blocker.unblock():
+        asterisk_schema.upgrade(connection.settings_dict)

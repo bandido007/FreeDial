@@ -1,0 +1,40 @@
+"""GraphQL types of the agents app: what the agent page reads."""
+
+import graphene
+
+
+class AgentLiveStateType(graphene.ObjectType):
+    """The agent's state as the brain last saved it."""
+
+    availability = graphene.String(description="logged_out, ready or not_ready")
+    activity = graphene.String(description="idle, offered, talking, on_hold, wrapup or not_responding")
+    reason = graphene.String()
+    call = graphene.String(description="The call the agent is on (its linkedid)")
+    wrapup_call = graphene.String(description="The call the agent is wrapping up")
+    endpoint = graphene.String()
+
+
+class AgentDeskType(graphene.ObjectType):
+    uid = graphene.String()
+    number = graphene.String()
+    name = graphene.String()
+    state = graphene.Field(AgentLiveStateType)
+    not_ready_reasons = graphene.List(graphene.String)
+    wrapup_codes = graphene.List(graphene.String)
+
+
+class AgentPhoneType(graphene.ObjectType):
+    """The browser phone's account for this session. The password works until the next sign-in."""
+
+    sip_id = graphene.String()
+    password = graphene.String()
+    ws_url = graphene.String(description="Asterisk's SIP WebSocket")
+    domain = graphene.String()
+    endpoint = graphene.String()
+    command_id = graphene.String()
+
+
+class CommandSentType(graphene.ObjectType):
+    """The command the brain was sent; its answer arrives on the live WebSocket."""
+
+    command_id = graphene.String()

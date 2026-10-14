@@ -17,6 +17,9 @@ AGENT_LOGOUT = "agent.logout"
 AGENT_READY = "agent.ready"
 AGENT_NOT_READY = "agent.not_ready"
 CONFIG_CHANGED = "config.changed"  # reload agents, queues and entry points
+CALL_HOLD = "call.hold"  # the agent puts the customer on hold (music); the agent leaves the bridge
+CALL_RESUME = "call.resume"
+AGENT_WRAPUP_DONE = "agent.wrapup_done"  # the agent finished the after-call work, with a wrap-up code
 
 COMMANDS: dict[str, tuple[str, ...]] = {
     AGENT_LOGIN: ("agent", "endpoint"),
@@ -24,6 +27,9 @@ COMMANDS: dict[str, tuple[str, ...]] = {
     AGENT_READY: ("agent",),
     AGENT_NOT_READY: ("agent", "reason"),
     CONFIG_CHANGED: (),
+    CALL_HOLD: ("agent",),
+    CALL_RESUME: ("agent",),
+    AGENT_WRAPUP_DONE: ("agent", "code"),
 }
 
 # ── Events: what happened, in the order the brain decided it ──────────────
@@ -31,10 +37,13 @@ CALL_STARTED = "call.started"  # a customer entered an entry point
 CALL_OFFERED = "call.offered"  # an agent's phone is ringing for it
 CALL_OFFER_FAILED = "call.offer_failed"  # reason: rejected, no_answer, offline, failed
 CALL_CONNECTED = "call.connected"  # the agent answered and is in the bridge
+CALL_HELD = "call.held"
+CALL_RESUMED = "call.resumed"
 CALL_ENDED = "call.ended"  # result: answered, abandoned, overflow, failed
 LEG_ENDED = "leg.ended"
 STASIS_REJECTED = "stasis.rejected"  # a channel with unknown args, hung up (rule 3)
 AGENT_STATE = "agent.state"  # the agent's whole state after a change
+AGENT_WRAPPED_UP = "agent.wrapped_up"  # by: agent (with a code) or timeout
 COMMAND_REJECTED = "command.rejected"  # a command the brain could not carry out, and why
 BRAIN_RECONCILED = "brain.reconciled"  # after (re)connecting to ARI: what it adopted and cleaned
 
@@ -43,10 +52,13 @@ EVENTS: dict[str, tuple[str, ...]] = {
     CALL_OFFERED: ("call", "leg", "agent", "endpoint"),
     CALL_OFFER_FAILED: ("call", "leg", "agent", "reason"),
     CALL_CONNECTED: ("call", "leg", "agent"),
+    CALL_HELD: ("call", "agent"),
+    CALL_RESUMED: ("call", "agent"),
     CALL_ENDED: ("call", "result", "reason"),
     LEG_ENDED: ("call", "leg", "role"),
     STASIS_REJECTED: ("channel", "args", "reason"),
     AGENT_STATE: ("agent", "number", "availability", "activity", "reason", "call", "endpoint"),
+    AGENT_WRAPPED_UP: ("agent", "call", "code", "by"),
     COMMAND_REJECTED: ("command_id", "type", "reason"),
     BRAIN_RECONCILED: ("adopted", "hung_up", "bridges_deleted"),
 }
