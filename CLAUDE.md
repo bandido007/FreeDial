@@ -19,20 +19,61 @@ recommendation with evidence (docs, source code, who does it this way), then wai
 | Dialplan entry | Extension `800` in context `[lab]`: `Stasis(algodial,inbound,${EXTEN},${CHANNEL(endpoint)})` |
 | CEL | `/var/log/asterisk/cel-custom/cel_trace.csv` (advanced `cel_custom` mapping; `apps=` must list apps by name, `all` does not work in 22.11) |
 | Test phones | Account `1001` = Zoiper on the laptop (127.0.0.1:5062), `1002` = Zoiper on a phone on the LAN |
-| Existing prototype | `~/AlgoDial/brain.py` (aiohttp ARI client), `.venv`, `ari.env` (not in git) |
+| Repo | `~/AlgoDial`, built from the team starter `~/Django Starter/django-5` (commit `263e849`) |
+| Local services | `make up` (Docker): PostgreSQL **5442**, Redis **6392**, Mailpit **8025** (UI) / **1025** (SMTP), all on 127.0.0.1. Web on 8000 |
+| Lab prototype | `~/AlgoDial/lab/` (`brain.py`, `events.py`, `celtail.py`); `ari.env` (not in git) |
 | Network | Laptop IP changes between networks. Anything on 127.0.0.1 is unaffected |
 
 Before using any new port, check it is free: `sudo ss -ltnp | grep ':PORT'`.
 
-## Target stack
+## Architecture: three parts with different rules
 
-- **web**: Django (admin, REST API, auth, agent and supervisor pages) plus a WebSocket layer for live events.
-- **brain**: a separate asyncio Python service. It holds the ARI WebSocket and REST client and owns all call and agent-state decisions.
-- **Redis**: live state (agent states, calls in progress) and pub/sub from brain to web.
-- **PostgreSQL**: configuration, PJSIP realtime tables, call records, event log.
-- Later: **media/AI worker** for the AI agent (ARI externalMedia over WebSocket, STT, LLM, TTS).
+- **Management** (`config/`, `apps/`): the Django starter, used as it is. Admin, configuration,
+  users, roles (`rbac`), audit, reports, and the **API (GraphQL)** with the starter's envelope.
+  Sign-in is OAuth2 (`POST /oauth2/access_token`, bearer tokens, TOTP, lockout). Agent and
+  supervisor pages are plain JS pages served by Django that sign in the same way.
+- **Control** (`brain/`): its own design, not Django-shaped.
+  - `brain/core/`: pure Python. Call and agent state machines and every decision. No I/O,
+    no `asyncio` sockets, no Django, no `apps`. An import-linter contract enforces this.
+  - `brain/adapters/`: the outside world. `ari` (aiohttp REST + WebSocket), `bus` (Redis Streams),
+    `config` (loads configuration through the ORM).
+  - `brain/service.py`: wires core to adapters. Started by `manage.py run_brain`.
+  - The ORM is used **only when loading config** (at start and on a `config.changed` command),
+    never while handling call events.
+  - `brain/sim/`: a fake ARI and scenarios with many virtual agents and calls.
+- **Live** (`apps/realtime/`): a Channels WebSocket that checks the same OAuth token, fed by
+  brain events, pushing to browsers.
+- **Storage**: PostgreSQL for configuration, PJSIP realtime tables, call records and the Event
+  log. Redis for streams, live state and the Channels layer.
+- Later: a **media/AI worker** for the AI agent (ARI externalMedia over WebSocket, STT, LLM, TTS).
 
-If the boilerplate in `~/scc` uses a different stack, say exactly where it differs and recommend before changing anything.
+## Messaging
+
+- **Commands web → brain** and **events brain → writer** travel on **Redis Streams**
+  (`algodial:commands`, `algodial:events`), read through consumer groups. Delivery is
+  at-least-once, so every handler is idempotent.
+- **Pub/Sub or the Channels layer only for browser push.** A browser that misses a message
+  re-reads the state when it reconnects; nothing that must not be lost goes this way.
+- `contracts/` holds the **versioned** command and event schemas shared by web and brain. Every
+  command has a `command_id`, every event an `event_id`. Within a version, changes are additive
+  only; a breaking change is a new version.
+- `apps/calls` has the **writer**: it reads the event stream and writes `Event`, `Call` and `Leg`.
+- PJSIP realtime tables are created by Asterisk's Alembic scripts (`contrib/ast-db-manage`) and
+  mapped in Django with `managed = False`. Django never migrates them.
+
+## Management conventions (from the starter)
+
+- API → services (writes, rules) / selectors (reads) → models. Resolvers stay thin; services
+  raise `ApplicationError` subclasses with a status code. Details: `docs/ARCHITECTURE.md`,
+  `docs/ADDING_AN_APP.md`.
+- Models subclass `apps.core.models.BaseModel` (UUIDv7 `uid`, timestamps, soft delete, audited).
+- Users sign in with their **email**. A user can hold several roles; access is the union of
+  their permissions. An agent's number lives on `Agent`, not on `User`.
+- Permissions are declared in each app's `permissions.py` and named `can_*`, for example
+  `can_monitor_calls`, `can_whisper_calls`, `can_barge_calls`, `can_force_agent_state`,
+  `can_listen_recordings`, `can_edit_queues`.
+- `requirements/*.txt` are compiled with hashes from `*.in` (`make deps`); never edit them by hand.
+  `docs/schema.graphql` is generated (`make schema`).
 
 ## Rules that must never be broken
 
@@ -45,11 +86,14 @@ If the boilerplate in `~/scc` uses a different stack, say exactly where it diffe
 7. **Events per call are handled in order; different calls run in parallel** (one asyncio queue and task per call). Nothing slow (HTTP to an LLM, database writes) may block other calls.
 8. **Cleanup is total.** When a call ends, every leg is hung up and every bridge AlgoDial created is deleted, even if one step fails.
 9. **No secrets in git.** Passwords and API keys live in env files that are git-ignored.
-10. **Config lives in the database**, is edited in admin pages, and the brain picks it up without a restart.
+10. **Config lives in the database**, is edited in admin pages, and the brain picks it up without a restart (the web sends a `config.changed` command).
+11. **`brain/core` stays pure**: no I/O, and it imports neither `django` nor `apps`.
+12. **Every command carries a `command_id`**, and handling the same command or event twice changes nothing the second time.
 
 ## How to work
 
 - One milestone at a time from `docs/POC_PLAN.md`. Write the tests for its "Done when" first, then the code.
 - For anything touching `/etc/asterisk`: show the diff, explain it, apply it, reload the right module, and commit in `/etc/asterisk`.
 - After each milestone: run all tests, give a short summary, and list the commands Tostao should run to see it working.
+- Commands: `make up` (services) · `make run` (web) · `make brain` · `make test` · `make lint` · `make ci` (everything).
 - Reference documents: AlgoDial PoC Benchmark (the decisions behind every feature) and the Asterisk Lab Guide.
