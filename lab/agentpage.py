@@ -15,7 +15,6 @@ Ready reason Break.
 import argparse
 import asyncio
 import os
-import secrets
 import signal
 import socket
 import subprocess
@@ -37,23 +36,22 @@ import django  # noqa: E402
 django.setup()
 
 from django.conf import settings  # noqa: E402
-from django.contrib.auth import get_user_model  # noqa: E402
 from playwright.async_api import async_playwright  # noqa: E402
 
-from apps.agents.models import Agent, NotReadyReason, WrapupCode  # noqa: E402
 from apps.calls import bus  # noqa: E402
 from apps.calls.models import Event  # noqa: E402
 from apps.core.crypto import decrypt_secret  # noqa: E402
-from apps.queues import services as queues  # noqa: E402
-from apps.queues.models import Queue  # noqa: E402
-from apps.rbac import selectors as rbac_selectors  # noqa: E402
 from apps.rbac import services as rbac  # noqa: E402
 from apps.telephony.models import SipAccount  # noqa: E402
 from contracts import messages as m  # noqa: E402
 from sipphone import Phone  # noqa: E402
 
+import agent_login  # noqa: E402
+
+CHECK_AGENT = next(spec for spec in agent_login.AGENTS if spec[0] == "LAB_CHECK_AGENT")
+
 PORT = 8017
-EMAIL = "lab.agent@example.org"
+EMAIL = agent_login.env_value("LAB_CHECK_AGENT_EMAIL") or CHECK_AGENT[1]
 LOG = ROOT / "lab" / "agentpage-stack.log"
 
 
@@ -62,31 +60,13 @@ def say(text):
 
 
 def setup():
-    """The lab agent, its role and queue, and the pick lists. Returns (password, agent uid, customer password)."""
+    """The lab agent (password from .env, see lab/agent_login.py), its queue and the pick lists.
+
+    Returns (password, agent uid, customer password).
+    """
     rbac.sync_catalogue()
-    User = get_user_model()
-    password = "Lab-" + secrets.token_urlsafe(12)
-    user = User.objects.filter(email=EMAIL).first()
-    if user is None:
-        user = User.objects.create_user(
-            email=EMAIL, password=password, first_name="Lab", last_name="Agent",
-            is_verified=True, account_type="Internal", phone="+255700000903",
-        )
-    else:
-        user.set_password(password)
-        user.save()
-    rbac.grant_role(user, rbac_selectors.get_role_by_name("Agent"))  # idempotent
-    agent = Agent.objects.filter(number="9003").first() or Agent.objects.create(number="9003", name="Lab browser agent")
-    if agent.user_id != user.pk:
-        agent.user = user
-        agent.save()
-    support = Queue.objects.get(name__iexact="Support")
-    members = list(support.agents.all())
-    if agent not in members:
-        queues.save_queue(actor=None, uid=support.uid, name=support.name, agents=[*members, agent])
-    for name in ("Sale", "Complaint"):
-        WrapupCode.objects.get_or_create(name=name)
-    NotReadyReason.objects.get_or_create(name="Break")
+    agent_login.ensure_pick_lists()
+    _email, password, agent = agent_login.ensure_agent(*CHECK_AGENT)
     customer = decrypt_secret(SipAccount.objects.get(sip_id="lab-customer").password_encrypted)
     return password, str(agent.uid), customer
 

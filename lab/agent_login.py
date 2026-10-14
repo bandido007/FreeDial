@@ -1,11 +1,14 @@
-"""Make (or refresh) a lab agent you can sign in with on the agent page.
+"""Make (or refresh) the lab agents you can sign in with on the agent page, and their pick lists.
 
     cd ~/AlgoDial && .venv/bin/python lab/agent_login.py       (or: make agent-login)
 
-The email and password live in .env (git-ignored): LAB_AGENT_EMAIL and LAB_AGENT_PASSWORD.
-A missing password is generated and written there. The user gets the Agent role, is linked
-to agent 7001 "Agent One" in queue Support, and Sale / Complaint / Break exist to pick from.
-Running it again resets the password to the one in .env.
+Emails and passwords live in .env (git-ignored); a missing password is generated and
+written there, and running this again resets each user to the password in .env.
+
+  agent 7001 "Agent One"          LAB_AGENT_EMAIL / LAB_AGENT_PASSWORD               for you
+  agent 9003 "Lab browser agent"  LAB_CHECK_AGENT_EMAIL / LAB_CHECK_AGENT_PASSWORD   make agentcheck uses it
+
+Both have the Agent role and sit in queue Support (entry point 800).
 """
 import os
 import re
@@ -30,7 +33,26 @@ from apps.queues.models import EntryPoint, Queue  # noqa: E402
 from apps.rbac import selectors as rbac_selectors  # noqa: E402
 from apps.rbac import services as rbac  # noqa: E402
 
-NUMBER, NAME = "7001", "Agent One"
+# (env prefix, default email, agent number, agent name, first name, last name, phone)
+AGENTS = [
+    ("LAB_AGENT", "agent1@example.org", "7001", "Agent One", "Agent", "One", "+255700007001"),
+    ("LAB_CHECK_AGENT", "lab.agent@example.org", "9003", "Lab browser agent", "Lab", "Agent", "+255700000903"),
+]
+
+WRAPUP_CODES = [
+    "Sale",
+    "Complaint",
+    "Information given",
+    "Callback requested",
+    "Payment issue",
+    "Technical support",
+    "Escalated to supervisor",
+    "Transferred",
+    "Wrong number",
+    "Silent call",
+    "Customer hung up",
+]
+NOT_READY_REASONS = ["Break", "Lunch", "Meeting", "Training", "After-call paperwork", "Technical problem"]
 
 
 def env_value(name):
@@ -41,55 +63,70 @@ def env_value(name):
 def set_env(name, value):
     text = ENV.read_text()
     if re.search(rf"^{name}=", text, re.MULTILINE):
-        text = re.sub(rf"^{name}=.*$", f"{name}={value}", text, flags=re.MULTILINE)
+        text = re.sub(rf"^{name}=.*$", lambda _: f"{name}={value}", text, flags=re.MULTILINE)
     else:
+        if "# Lab agents for the agent page" not in text:
+            text = text.rstrip("\n") + "\n\n# Lab agents for the agent page (lab/agent_login.py)"
         text = text.rstrip("\n") + f"\n{name}={value}\n"
     ENV.write_text(text)
 
 
-def main():
-    if "# Lab agent for the agent page" not in ENV.read_text():
-        ENV.write_text(ENV.read_text().rstrip("\n") + "\n\n# Lab agent for the agent page (lab/agent_login.py)\n")
-    email = env_value("LAB_AGENT_EMAIL") or "agent1@example.org"
-    password = env_value("LAB_AGENT_PASSWORD") or "Agent-" + secrets.token_urlsafe(9)
-    set_env("LAB_AGENT_EMAIL", email)
-    set_env("LAB_AGENT_PASSWORD", password)
+def support_queue():
+    support = Queue.objects.filter(name__iexact="Support").first()
+    if support is None:
+        support = queues.save_queue(actor=None, name="Support")
+    if not EntryPoint.objects.filter(number="800").exists():
+        queues.save_entry_point(actor=None, number="800", queue=support, name="Lab entry")
+    return support
 
-    rbac.sync_catalogue()
+
+def ensure_agent(prefix, default_email, number, name, first, last, phone):
+    """The user and agent behind one lab login. Returns (email, password, agent)."""
+    email = env_value(f"{prefix}_EMAIL") or default_email
+    password = env_value(f"{prefix}_PASSWORD") or "Agent-" + secrets.token_urlsafe(9)
+    set_env(f"{prefix}_EMAIL", email)
+    set_env(f"{prefix}_PASSWORD", password)
+
     User = get_user_model()
     user = User.objects.filter(email=email).first()
     if user is None:
         user = User.objects.create_user(
-            email=email, password=password, first_name="Agent", last_name="One",
-            is_verified=True, account_type="Internal", phone="+255700007001",
+            email=email, password=password, first_name=first, last_name=last,
+            is_verified=True, account_type="Internal", phone=phone,
         )
     else:
         user.set_password(password)
         user.is_active = True
         user.save()
-    rbac.grant_role(user, rbac_selectors.get_role_by_name("Agent"))
+    rbac.grant_role(user, rbac_selectors.get_role_by_name("Agent"))  # idempotent
 
-    agent = Agent.objects.filter(number=NUMBER).first() or Agent.objects.create(number=NUMBER, name=NAME)
+    agent = Agent.objects.filter(number=number).first() or Agent.objects.create(number=number, name=name)
     if agent.user_id != user.pk:
         agent.user = user
         agent.save()
-
-    support = Queue.objects.filter(name__iexact="Support").first()
-    if support is None:
-        support = queues.save_queue(actor=None, name="Support")
+    support = support_queue()
     members = list(support.agents.all())
     if agent not in members:
         queues.save_queue(actor=None, uid=support.uid, name=support.name, agents=[*members, agent])
-    if not EntryPoint.objects.filter(number="800").exists():
-        queues.save_entry_point(actor=None, number="800", queue=support, name="Lab entry")
-    for name in ("Sale", "Complaint"):
-        WrapupCode.objects.get_or_create(name=name)
-    NotReadyReason.objects.get_or_create(name="Break")
+    return email, password, agent
 
-    print(f"Agent page: http://127.0.0.1:8000/agent/")
-    print(f"  email:    {email}")
-    print(f"  password: {password}   (also in .env as LAB_AGENT_PASSWORD)")
-    print(f"  agent {NUMBER} '{NAME}', queue {support.name}, entry point 800")
+
+def ensure_pick_lists():
+    for name in WRAPUP_CODES:
+        WrapupCode.objects.get_or_create(name=name)
+    for name in NOT_READY_REASONS:
+        NotReadyReason.objects.get_or_create(name=name)
+
+
+def main():
+    rbac.sync_catalogue()
+    ensure_pick_lists()
+    print("Agent page: http://127.0.0.1:8000/agent/  (queue Support, entry point 800)")
+    for spec in AGENTS:
+        email, password, agent = ensure_agent(*spec)
+        print(f"  agent {agent.number} {agent.name!r:22} {email:26} password {password}")
+    print(f"Wrap-up codes: {', '.join(WRAPUP_CODES)}")
+    print(f"Not Ready reasons: {', '.join(NOT_READY_REASONS)}")
 
 
 if __name__ == "__main__":
