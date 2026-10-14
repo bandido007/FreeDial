@@ -27,26 +27,32 @@ def test_load_config_reads_active_agents_queues_and_entry_points():
     assert queue.members == (str(a.uid), str(b.uid)), (
         "members in priority, then number order; deleted agents left out"
     )
-    assert config.entries == {"800": str(support.uid)}, "an entry point to an inactive queue leads nowhere"
+    assert list(config.entries) == ["800"], "an entry point to an inactive queue leads nowhere"
+    assert config.entries["800"].queue == str(support.uid)
 
 
 @pytest.mark.django_db(transaction=True)
 def test_load_config_carries_skills_strategy_limits_overflow_and_rules():
-    from apps.agents.models import AgentSkill
+    from apps.agents.models import AgentSkill, Skill
+    from brain.core.config import EntryConfig, Requirement, Step
 
-    for name in ("swahili", "billing"):
-        agents.create_skill(actor=None, name=name)
+    agents.create_skill(actor=None, name="swahili", kind="language")
+    agents.create_skill(actor=None, name="billing", kind="topic")
     asha = agents.create_agent(actor=None, number="7001", name="Asha")
     agents.set_agent_skills(agent=asha, levels={"swahili": 9, "billing": 3})
     rules = queues.save_skill_rule_set(
-        actor=None, name="Swahili", rules=[(30, "swahili >= 5"), (0, "swahili >= 8")]
+        actor=None, name="Swahili", steps=[(30, {"$language": 6, "billing": 3}), (None, {"$language": 4})]
     )
     backup = queues.save_queue(actor=None, name="Backup")
     support = queues.save_queue(
         actor=None, name="Support", agents=[asha], strategy="round_robin", max_callers=5, priority=3
     )
-    support.overflow_queue, support.skill_rule_set = backup, rules
+    support.overflow_action, support.overflow_queue, support.skill_rule_set = "queue", backup, rules
     support.save()
+    queues.save_entry_point(actor=None, number="800", queue=support)
+    entry = support.entry_points.get()
+    entry.language, entry.priority, entry.fallback_queue = Skill.objects.get(name="swahili"), 7, backup
+    entry.save()
     assert AgentSkill.objects.count() == 2
 
     config = load_config()
@@ -54,11 +60,13 @@ def test_load_config_carries_skills_strategy_limits_overflow_and_rules():
     assert config.agents[str(asha.uid)].skills == {"swahili": 9, "billing": 3}
     queue = config.queues[str(support.uid)]
     assert (queue.strategy, queue.max_callers, queue.priority) == ("round_robin", 5, 3)
-    assert queue.overflow_queue == str(backup.uid)
-    assert [(rule.after_seconds, rule.condition) for rule in queue.skill_rules] == [
-        (0, "swahili >= 8"),
-        (30, "swahili >= 5"),
-    ], "sorted by seconds"
+    assert (queue.overflow_action, queue.overflow_queue) == ("queue", str(backup.uid))
+    assert queue.steps == (
+        Step(30, (Requirement("$language", 6), Requirement("billing", 3))),
+        Step(None, (Requirement("$language", 4),)),
+    ), "in time order, forever last"
+    assert config.entries["800"] == EntryConfig("800", str(support.uid), "swahili", 7, str(backup.uid))
+    assert config.skills == {"swahili": "language", "billing": "topic"}
 
 
 def test_the_admins_strategy_choices_are_the_brains_strategies():

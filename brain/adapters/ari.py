@@ -107,6 +107,20 @@ async def perform(ari: AriLike, action: a.AriAction) -> None:
                 callerId=action.caller_id,
                 timeout=str(action.timeout),
             )
+        case a.Play(channel=channel, media=media, playback_id=playback_id):
+            await ari.request("POST", f"/channels/{channel}/play", media=media, playbackId=playback_id)
+        case a.Record():
+            await ari.request(
+                "POST",
+                f"/channels/{action.channel}/record",
+                name=action.name,
+                format="wav",
+                maxDurationSeconds=str(action.max_seconds),
+                maxSilenceSeconds=str(action.max_silence_seconds),
+                ifExists="overwrite",
+                beep="true" if action.beep else "false",
+                terminateOn="#",
+            )
         case a.Hangup(channel=channel, reason=reason):
             await ari.request("DELETE", f"/channels/{channel}", missing_ok=True, reason=reason)
         case a.DeleteBridge(bridge=bridge):

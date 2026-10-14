@@ -5,8 +5,7 @@ import re
 from django.db import transaction
 
 from apps.core.exceptions import DuplicateError, NotFoundError, ValidationError
-from apps.queues.models import EntryPoint, Queue, QueueMember, SkillRule, SkillRuleSet
-from contracts import skills as skill_language
+from apps.queues.models import LANGUAGE, EntryPoint, Queue, QueueMember, RuleRequirement, SkillRuleSet
 
 NOT_FOUND = 10300
 NAME_TAKEN = 10301
@@ -101,40 +100,73 @@ def validate_overflow(queue, overflow_queue) -> None:
         raise ValidationError("A queue cannot overflow into itself.", code=BAD_OVERFLOW)
 
 
-def validate_condition(text) -> str:
-    """A skill condition the brain can evaluate, naming only skills that exist."""
+LANGUAGE_FLOOR = 4  # every step asks for the call's language at this level or more
+
+
+def validate_steps(steps) -> list[tuple[int | None, dict[str, int]]]:
+    """Steps as [(until_seconds or None, {skill or $language: min level})], checked against ROUTING_DESIGN.md.
+
+    - every step asks for $language at 4 or more (the language floor: language is never dropped);
+    - steps run in time order and the last one, only the last, lasts forever;
+    - skills exist and levels are 1 to 10.
+    """
     from apps.agents.models import Skill
 
-    text = " ".join((text or "").split())
-    try:
-        parsed = skill_language.parse(text)
-    except skill_language.SkillConditionError as exc:
-        raise ValidationError(f"The condition is not valid: {exc}.", code=BAD_CONDITION) from exc
-    unknown = skill_language.skill_names(parsed) - set(Skill.objects.values_list("name", flat=True))
-    if unknown:
-        raise ValidationError(
-            f"Unknown skill(s) in the condition: {', '.join(sorted(unknown))}.", code=BAD_CONDITION
-        )
-    return text
+    if not steps:
+        raise ValidationError("A rule set needs at least one step.", code=BAD_CONDITION)
+    known = set(Skill.objects.values_list("name", flat=True))
+    clean: list[tuple[int | None, dict[str, int]]] = []
+    for position, (until, needs) in enumerate(steps):
+        last = position == len(steps) - 1
+        if (until is None) != last:
+            raise ValidationError(
+                "Only the last step lasts forever (empty seconds), and it must.", code=BAD_CONDITION
+            )
+        if until is not None and (
+            int(until) <= 0 or (clean and clean[-1][0] is not None and int(until) <= clean[-1][0])
+        ):
+            raise ValidationError("Steps end at increasing numbers of seconds.", code=BAD_CONDITION)
+        needs = {str(skill).strip().lower(): int(level) for skill, level in needs.items()}
+        if needs.get(LANGUAGE, 0) < LANGUAGE_FLOOR:
+            raise ValidationError(
+                f"Every step must ask for the call's language ($language) at {LANGUAGE_FLOOR} or more.",
+                code=BAD_CONDITION,
+            )
+        unknown = sorted(skill for skill in needs if skill != LANGUAGE and skill not in known)
+        if unknown:
+            raise ValidationError(f"Unknown skill(s): {', '.join(unknown)}.", code=BAD_CONDITION)
+        if any(not 1 <= level <= 10 for level in needs.values()):
+            raise ValidationError("A minimum level is 1 to 10.", code=BAD_CONDITION)
+        clean.append((None if until is None else int(until), needs))
+    return clean
+
+
+def rule_steps(rule_set) -> list[tuple[int | None, dict[str, int]]]:
+    """A rule set's steps in time order, forever last."""
+    steps: dict[int | None, dict[str, int]] = {}
+    for row in rule_set.requirements.all():
+        steps.setdefault(row.until_seconds, {})[row.skill] = row.min_level
+    return sorted(steps.items(), key=lambda step: (step[0] is None, step[0] or 0))
 
 
 @transaction.atomic
-def save_skill_rule_set(*, actor, name, rules, uid=None) -> SkillRuleSet:
-    """Create or change a rule set. ``rules`` = [(after_seconds, condition)], replacing the current rules."""
+def save_skill_rule_set(*, actor, name, steps, uid=None) -> SkillRuleSet:
+    """Create or change a rule set; ``steps`` replace its current ones (see :func:`validate_steps`)."""
     rule_set = SkillRuleSet.objects.filter(uid=uid).first() if uid else SkillRuleSet(created_by=actor)
     if rule_set is None:
         raise NotFoundError("Skill rule set not found.", code=NOT_FOUND)
     rule_set.name = " ".join((name or "").split())
     if not rule_set.name:
         raise ValidationError("A skill rule set needs a name.", code=9005)
-    seconds = [int(after) for after, _ in rules]
-    if len(set(seconds)) != len(seconds) or any(after < 0 for after in seconds):
-        raise ValidationError("Each rule needs its own, non-negative number of seconds.", code=BAD_CONDITION)
-    checked = [(int(after), validate_condition(condition)) for after, condition in rules]
+    clean = validate_steps(steps)
     rule_set.updated_by = actor
     rule_set.save()
-    rule_set.rules.all().delete()
-    SkillRule.objects.bulk_create(
-        [SkillRule(rule_set=rule_set, after_seconds=a, condition=c) for a, c in checked]
+    rule_set.requirements.all().delete()
+    RuleRequirement.objects.bulk_create(
+        [
+            RuleRequirement(rule_set=rule_set, until_seconds=until, skill=skill, min_level=level)
+            for until, needs in clean
+            for skill, level in needs.items()
+        ]
     )
     return rule_set

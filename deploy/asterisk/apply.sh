@@ -19,6 +19,9 @@ SHOW[m2]="dialplan show 800@lab"
 MESSAGE[m3]="M3: transport-ws, so browser phones (WebRTC) register over the HTTP server's /ws"
 RELOAD[m3]="restart"  # PJSIP does not reliably add a transport on reload
 SHOW[m3]="pjsip show transports"
+MESSAGE[m4]="M4: every 8xx number goes to AlgoDial (800-802 demo entry points, 899 lab tests)"
+RELOAD[m4]="dialplan reload"
+SHOW[m4]="dialplan show 899@lab"
 
 [ "$(id -u)" = 0 ] || { echo "Run with sudo."; exit 1; }
 [ $# -gt 0 ] || { echo "usage: sudo $0 <step>...   (steps: ${!MESSAGE[*]})"; exit 1; }

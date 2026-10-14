@@ -12,6 +12,9 @@ Its events copy what Asterisk 22.11 really sends, as recorded on the lab:
   no longer the app's, so no ``ChannelDestroyed`` reaches it.
 * With no app connected, ``Stasis()`` fails and the dialplan falls back (rule 5): the
   customer's channel goes to ``Queue``.
+* Play: ``PlaybackStarted`` then ``PlaybackFinished`` (playback id, ``target_uri channel:<id>``).
+  Record: ``RecordingStarted``; ``RecordingFinished`` with the duration when stopped, and also
+  when the caller hangs up mid-message, *before* ``StasisEnd``.
 """
 
 import asyncio
@@ -48,6 +51,8 @@ class FakeAri:
         self._streams: list[asyncio.Queue[dict[str, Any] | None]] = []
         self._numbers = itertools.count(1)
         self._timers: dict[str, asyncio.TimerHandle] = {}
+        self.prompt_seconds = 0.05  # how long a played sound lasts
+        self.stored: set[str] = set()  # stored recording names
 
     # ── the brain's side: REST and the event stream ───────────────────────
     @property
@@ -108,6 +113,29 @@ class FakeAri:
                 self._channel(cid)
                 self._destroy(cid, cause=16, cause_txt="Normal Clearing")
                 return None
+            case "POST", ["channels", cid, "play"]:
+                channel = self._channel(cid)
+                playback = {
+                    "id": params["playbackId"],
+                    "media_uri": params["media"],
+                    "target_uri": f"channel:{cid}",
+                    "state": "playing",
+                }
+                self._emit("PlaybackStarted", channel, playback=playback)
+                asyncio.get_running_loop().call_later(
+                    self.prompt_seconds, self._prompt_finished, cid, playback
+                )
+                return {**playback, "state": "queued"}
+            case "POST", ["channels", cid, "record"]:
+                channel = self._channel(cid)
+                recording = {
+                    "name": params["name"],
+                    "format": params.get("format", "wav"),
+                    "target_uri": f"channel:{cid}",
+                }
+                channel["_recording"] = (recording, self.clock())
+                self._emit("RecordingStarted", channel, recording={**recording, "state": "recording"})
+                return {**recording, "state": "queued"}
             case "POST", ["bridges"]:
                 bid = params.get("bridgeId") or str(uuid.uuid4())
                 self.bridges[bid] = {
@@ -256,10 +284,27 @@ class FakeAri:
         channel["_subscribed"] = channel["_in_stasis"] = True
         self._emit("StasisStart", channel, args=list(args))
 
+    def _prompt_finished(self, cid: str, playback: dict[str, Any]) -> None:
+        if cid in self.channels:
+            self._emit("PlaybackFinished", self.channels[cid], playback={**playback, "state": "done"})
+
+    def stop_recording(self, cid: str) -> None:
+        """The caller presses # (or the maximum length is reached): the message is stored."""
+        channel = self._channel(cid)
+        self._finish_recording(channel)
+
+    def _finish_recording(self, channel: dict[str, Any]) -> None:
+        recording, started = channel.pop("_recording", (None, 0.0))
+        if recording is not None:
+            self.stored.add(recording["name"])
+            done = {**recording, "state": "done", "duration": round(self.clock() - started)}
+            self._emit("RecordingFinished", channel, recording=done)
+
     def _destroy(self, cid: str, *, cause: int, cause_txt: str) -> None:
         channel = self.channels[cid]
         self._cancel_timer(cid)
         self._emit("ChannelHangupRequest", channel, cause=cause)
+        self._finish_recording(channel)
         self._leave_bridges(cid)
         if channel["_in_stasis"]:
             channel["_in_stasis"] = False

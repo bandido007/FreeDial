@@ -691,6 +691,8 @@ BUS_EVENTS_STREAM = env("BUS_EVENTS_STREAM", default="algodial:events")
 BUS_AGENTS_KEY = env("BUS_AGENTS_KEY", default="algodial:agents")
 # The brain's name in the commands consumer group; keep it stable so a restart re-reads its own pending.
 BRAIN_CONSUMER = env("BRAIN_CONSUMER", default="brain-1")
+# The password every demo-centre user gets (manage.py seed_demo); generated into .env when empty.
+DEMO_PASSWORD = env("DEMO_PASSWORD", default="")
 
 # PJSIP realtime: a SIP account saved here is rows Asterisk reads live (apps.telephony).
 # The tables come from Asterisk's own Alembic scripts in its source tree.

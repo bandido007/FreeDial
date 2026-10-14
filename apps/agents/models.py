@@ -93,12 +93,24 @@ class AgentSession(models.Model):
         return f"{self.agent} on {self.endpoint}"
 
 
+class SkillKind(models.TextChoices):
+    LANGUAGE = "language", "Language"
+    TOPIC = "topic", "Topic"
+    TIER = "tier", "Tier"
+
+
+LEVEL_GUIDE = (
+    "1-3 trainee (simple cases, with help) · 4-6 competent · 7-8 experienced (hard cases) · 9-10 expert"
+)
+
+
 class Skill(BaseModel):
-    """Something an agent can do, at a level from 1 to 10 (a language, a product, a team)."""
+    """Something an agent can do, at a level from 1 to 10: a language, a topic or a tier."""
 
     name = models.CharField(
-        max_length=40, help_text="Lower-case, used in skill rules: e.g. swahili, billing, vip_support"
+        max_length=40, help_text="Lower-case, used in skill rules: e.g. swahili, claims, tier2"
     )
+    kind = models.CharField(max_length=20, choices=SkillKind.choices, default=SkillKind.TOPIC)
     description = models.CharField(max_length=200, blank=True)
 
     class Meta:
@@ -115,7 +127,7 @@ class Skill(BaseModel):
 class AgentSkill(models.Model):
     agent = models.ForeignKey(Agent, on_delete=models.CASCADE, related_name="skills")
     skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name="agents")
-    level = models.PositiveSmallIntegerField(default=5, help_text="1 (beginner) to 10 (expert)")
+    level = models.PositiveSmallIntegerField(default=5, help_text=LEVEL_GUIDE)
 
     class Meta:
         db_table = "agents_agent_skills"

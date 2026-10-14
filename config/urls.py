@@ -43,6 +43,7 @@ core_urlpatterns = [
     path("oauth2/", include("apps.authentication.urls")),
     path("files/", include("apps.attachments.urls")),
     path("", include("apps.agentdesk.urls")),  # project: /agent/, the agent page
+    path("", include("apps.calls.urls")),  # project: voicemail messages for callback tasks
 ]
 
 

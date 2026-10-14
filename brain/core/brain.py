@@ -13,7 +13,8 @@ A call to an entry point:
   the agent's phone rejects, rings out or is offline
     -> the next agent; the one who rang out becomes Not responding
   nobody matches yet -> a timer for the second the next, wider skill rule starts
-  max wait or max callers -> the overflow queue, or hang up
+  max wait or max callers -> the queue's overflow: another queue, voicemail (then a callback
+       task), or hang up
   an agent answers -> music off, agent into the bridge, any other ringing phone stops
   either side leaves -> every leg hung up and the bridge deleted (rule 8)
 """
@@ -25,11 +26,10 @@ from enum import StrEnum
 from typing import Any
 
 from brain.core import actions as a
-from brain.core import strategies
+from brain.core import routing, strategies
 from brain.core.agents import Activity, Agent, Availability
-from brain.core.config import Config, QueueConfig, Strategy
+from brain.core.config import Config, EntryConfig, OverflowAction, QueueConfig, Requirement, Strategy
 from contracts import messages as m
-from contracts import skills as skill_language
 
 BRIDGE_PREFIX = "algodial-call-"
 AGENT_LEG_PREFIX = "agent-"
@@ -54,6 +54,7 @@ class CallState(StrEnum):
     WAITING = "waiting"  # in the bridge with music, no agent ringing
     OFFERING = "offering"  # an agent's phone is ringing
     CONNECTED = "connected"
+    VOICEMAIL = "voicemail"  # out of the queue: the caller hears the prompt, then is recorded
     ENDED = "ended"
 
 
@@ -81,6 +82,14 @@ class Call:
     queue_entered_at: float = 0.0  # skill rules count from here (reset by an overflow)
     visited: set[str] = field(default_factory=set)  # queues it overflowed out of
     widen_at: float | None = None  # waiting for a wider skill rule from this many seconds
+    # The routing ticket (ROUTING_DESIGN.md): language, priority and extra skills, and who set them last.
+    language: str | None = None
+    priority: int | None = None  # None: the queue's priority
+    extra: tuple[Requirement, ...] = ()
+    ticket_source: str = "entry_point"
+    callback_number: str = ""  # the caller-ID number to ring back (not the endpoint: a trunk has no number)
+    recording: str | None = None  # voicemail: the stored recording, once recording starts
+    recorded_seconds: int | None = None
 
     def __post_init__(self) -> None:
         self.queue_entered_at = self.queue_entered_at or self.queued_at
@@ -126,6 +135,17 @@ def widen_timer(call: Call) -> str:
     return f"widen:{call.id}"
 
 
+def voicemail_prompt(call: Call) -> str:
+    return f"vm-{call.id}"
+
+
+def voicemail_recording(call: Call) -> str:
+    return f"callback-{call.id}"
+
+
+VOICEMAIL_MEDIA = "sound:vm-intro"  # "Please leave your message after the tone…"
+
+
 class Brain:
     def __init__(self, config: Config, *, app: str, new_id: Callable[[], str]):
         self.app = app
@@ -136,7 +156,6 @@ class Brain:
         self.legs: dict[str, str] = {}  # channel id -> call id
         self.last_rung: dict[str, str] = {}  # queue uid -> agent uid (round robin)
         self.answered: dict[str, dict[str, int]] = {}  # queue uid -> agent uid -> calls answered
-        self._conditions: dict[str, skill_language.Condition | None] = {}
         self.load_config(config, now=0.0)
 
     # ── configuration and restart ─────────────────────────────────────────
@@ -177,6 +196,12 @@ class Brain:
             return self._reject(channel, args, "unknown args")
         if kind in ("StasisEnd", "ChannelDestroyed"):
             return self._leg_gone(str(channel.get("id")), event.get("cause"), now)
+        if kind == "PlaybackFinished":
+            playback = event.get("playback") or {}
+            return self._prompt_done(str(playback.get("id")), now)
+        if kind in ("RecordingFinished", "RecordingFailed"):
+            recording = event.get("recording") or {}
+            return self._message_left(str(recording.get("name")), recording.get("duration"), now)
         return []
 
     def on_timer(self, key: str, now: float) -> list[a.Action]:
@@ -211,6 +236,8 @@ class Brain:
 
     def on_command(self, kind: str, data: dict[str, Any], command_id: str, now: float) -> list[a.Action]:
         """Agent requests. Each is idempotent: asking twice changes nothing the second time (rule 12)."""
+        if kind == m.ROUTING_UPDATE:
+            return self._routing_update(data, command_id, now)
         agent = self.agents.get(str(data.get("agent")))
         if agent is None or agent.removed:
             return self._refuse(command_id, kind, "unknown agent")
@@ -373,8 +400,9 @@ class Brain:
         entry = args[1]
         endpoint = args[2] if len(args) > 2 else ""
         call_id = args[3] if len(args) > 3 and args[3] else str(channel["id"])
-        queue = self.config.queues.get(self.config.entries.get(entry, ""))
-        if queue is None:
+        entry_point = self.config.entries.get(entry)
+        queue = self.config.queues.get(entry_point.queue) if entry_point else None
+        if entry_point is None or queue is None:
             return self._reject(channel, args, f"no entry point {entry}")
         if call_id in self.calls:
             return []
@@ -389,12 +417,15 @@ class Brain:
             bridge=self.new_id(),
             caller_id=caller_id(channel),
             queued_at=now,
+            language=entry_point.language,
+            priority=entry_point.priority,
         )
         self.calls[call.id] = call
         self.legs[call.caller] = call.id
         caller = channel.get("caller") or {}
         call.caller_number = endpoint or str(caller.get("number") or "")
         call.caller_name = str(caller.get("name") or "")
+        call.callback_number = str(caller.get("number") or "") or endpoint
         out: list[a.Action] = [
             a.Emit(
                 m.CALL_STARTED,
@@ -406,6 +437,8 @@ class Brain:
                     "caller": endpoint or str(caller.get("number") or ""),
                     "caller_name": str(caller.get("name") or ""),
                     "sip_call_id": str(channel.get("protocol_id") or ""),
+                    "language": call.language,
+                    "priority": self._priority(call),
                 },
             ),
             a.Answer(call.id, call.caller),
@@ -425,14 +458,13 @@ class Brain:
         queue = self.config.queues.get(call.queue)
         if queue is None:
             return []
-        condition, wider_at = self._skill_rule(queue, now - call.queue_entered_at)
-        free = [
-            self.agents[uid]
-            for uid in queue.members
-            if uid in self.agents and self.agents[uid].can_take_a_call and self._qualifies(uid, condition)
-        ]
-        fresh = [agent for agent in free if agent.uid not in call.tried]
+        free = [uid for uid in queue.members if uid in self.agents and self.agents[uid].can_take_a_call]
+        found = routing.match(queue, self._ticket(call), now - call.queue_entered_at, self._skills(), free)
+        matching = [self.agents[uid] for uid in found.agents]
+        fresh = [agent for agent in matching if agent.uid not in call.tried]
         if fresh:
+            ticket = self._ticket(call)
+            levels = self._skills()
             chosen = strategies.choose(
                 queue.strategy,
                 fresh,
@@ -440,41 +472,37 @@ class Brain:
                 last_rung=self.last_rung.get(queue.uid),
                 answered=self.answered.get(queue.uid, {}),
                 new_id=self.new_id,
+                scores={
+                    agent.uid: routing.skill_score(levels.get(agent.uid, {}), found.step, ticket)
+                    for agent in fresh
+                }
+                if queue.strategy == Strategy.BEST_SKILLED
+                else None,
             )
             return self._offer(call, chosen, queue)
         out: list[a.Action] = []
-        if free and not call.retry_pending:  # every free agent refused it: ask them again after a pause
+        if (
+            matching and not call.retry_pending
+        ):  # every matching agent refused it: ask them again after a pause
             call.retry_pending = True
             out.append(a.SetTimer(retry_timer(call), queue.retry_delay))
-        if wider_at is not None and call.widen_at != wider_at:  # a wider rule starts at that second
+        wider_at = found.next_change
+        if wider_at is not None and call.widen_at != wider_at:  # the next step starts at that second
             call.widen_at = wider_at
             out.append(a.SetTimer(widen_timer(call), call.queue_entered_at + wider_at - now))
         return out
 
-    def _skill_rule(
-        self, queue: QueueConfig, waited: float
-    ) -> tuple[skill_language.Condition | None, float | None]:
-        """The condition in force after ``waited`` seconds, and when the next one starts (None: never)."""
-        current: skill_language.Condition | None = None
-        for rule in queue.skill_rules:
-            if rule.after_seconds > waited:
-                return current, float(rule.after_seconds)
-            current = self._condition(rule.condition)
-        return current, None
+    def _ticket(self, call: Call) -> routing.Ticket:
+        return routing.Ticket(call.queue, call.language, call.priority, call.extra, call.ticket_source)
 
-    def _condition(self, text: str) -> skill_language.Condition | None:
-        if text not in self._conditions:
-            try:
-                self._conditions[text] = skill_language.parse(text)
-            except skill_language.SkillConditionError:
-                self._conditions[text] = ("const", False)  # the admin refuses these; never match by mistake
-        return self._conditions[text]
+    def _skills(self) -> dict[str, dict[str, int]]:
+        return {uid: agent.skills for uid, agent in self.config.agents.items()}
 
-    def _qualifies(self, uid: str, condition: skill_language.Condition | None) -> bool:
-        if condition is None:
-            return True
-        settings = self.config.agents.get(uid)
-        return skill_language.evaluate(condition, settings.skills if settings else {})
+    def _priority(self, call: Call) -> int:
+        if call.priority is not None:
+            return call.priority
+        queue = self.config.queues.get(call.queue)
+        return queue.priority if queue else 0
 
     def _offer(self, call: Call, agents: list[Agent], queue: QueueConfig) -> list[a.Action]:
         out: list[a.Action] = []
@@ -514,8 +542,7 @@ class Brain:
         """Free agents take waiting callers: higher-priority queues first, then who waited longest."""
 
         def order(call: Call) -> tuple[int, float]:
-            queue = self.config.queues.get(call.queue)
-            return (-(queue.priority if queue else 0), call.queued_at)
+            return (-self._priority(call), call.queued_at)
 
         out: list[a.Action] = []
         for call in sorted(self.calls.values(), key=order):
@@ -586,6 +613,8 @@ class Brain:
             self.legs.pop(leg, None)
             return []
         if leg == call.caller:
+            if call.state is CallState.VOICEMAIL:
+                return self._end(call, "voicemail", "caller hung up during voicemail", now)
             return self._end(call, "answered" if call.agent else "abandoned", "customer hung up", now)
         if leg == call.agent_leg:
             return self._end(call, "answered", "agent hung up", now)
@@ -650,6 +679,8 @@ class Brain:
                     a.Emit(m.LEG_ENDED, {"call": call.id, "leg": leg, "role": role}),
                 ]
         call.offers.clear()
+        if result == "voicemail":
+            out.append(self._callback(call))
         out += [
             a.DeleteBridge(call.id, call.bridge),
             a.Close(call.id),
@@ -677,14 +708,22 @@ class Brain:
         return out + self._offer_waiting(now)
 
     def _overflow(self, call: Call, reason: str, now: float) -> list[a.Action]:
-        """Max wait or a full queue: on to the queue's overflow queue, or hang up if there is none.
+        """Max wait or a full queue: the queue's overflow action (another queue, voicemail, hang up).
 
         A queue the call already left is never entered again, so overflow chains cannot loop.
         """
         queue = self.config.queues.get(call.queue)
+        if queue is not None and queue.overflow_action == OverflowAction.VOICEMAIL:
+            return self._to_voicemail(call, queue, reason, now)
         target = self.config.queues.get(queue.overflow_queue or "") if queue else None
         if queue is None or target is None or target.uid in call.visited or target.uid == queue.uid:
             return self._end(call, "overflow", reason, now)
+        return self._move(call, queue, target, reason, now)
+
+    def _move(
+        self, call: Call, queue: QueueConfig, target: QueueConfig, reason: str, now: float
+    ) -> list[a.Action]:
+        """The call leaves ``queue`` for ``target``: offers stop, waiting and skill rules start again."""
         out = self._cancel_offers(call, "overflowed")
         call.visited.add(queue.uid)
         call.queue, call.queue_entered_at = target.uid, now
@@ -694,15 +733,119 @@ class Brain:
         if call.widen_at is not None:
             call.widen_at = None
             out.append(a.CancelTimer(widen_timer(call)))
-        out.append(
-            a.Emit(
-                m.CALL_OVERFLOWED,
-                {"call": call.id, "from_queue": queue.name, "to_queue": target.name, "reason": reason},
+        if reason != "routing":
+            out.append(
+                a.Emit(
+                    m.CALL_OVERFLOWED,
+                    {"call": call.id, "from_queue": queue.name, "to_queue": target.name, "reason": reason},
+                )
             )
-        )
         if target.moh_class != queue.moh_class:
             out.append(a.StartMoh(call.id, call.bridge, target.moh_class))
         return out + self._offer_waiting(now)
+
+    # ── voicemail and callback ────────────────────────────────────────────
+    def _to_voicemail(self, call: Call, queue: QueueConfig, reason: str, now: float) -> list[a.Action]:
+        """Out of the queue: the caller leaves the bridge, hears the prompt, then is recorded."""
+        out = self._cancel_offers(call, "overflowed")
+        call.state = CallState.VOICEMAIL
+        out += [
+            a.CancelTimer(max_wait_timer(call)),
+            a.CancelTimer(retry_timer(call)),
+            a.Emit(m.CALL_VOICEMAIL, {"call": call.id, "queue": queue.name, "reason": reason}),
+            a.StopMoh(call.id, call.bridge),
+            a.RemoveFromBridge(call.id, call.bridge, call.caller),
+            a.Play(call.id, call.caller, VOICEMAIL_MEDIA, voicemail_prompt(call)),
+        ]
+        if call.widen_at is not None:
+            call.widen_at = None
+            out.append(a.CancelTimer(widen_timer(call)))
+        return out + self._offer_waiting(now)
+
+    def _prompt_done(self, playback: str, now: float) -> list[a.Action]:
+        call = next((c for c in self.calls.values() if voicemail_prompt(c) == playback), None)
+        if call is None or call.state is not CallState.VOICEMAIL or call.recording:
+            return []
+        call.recording = voicemail_recording(call)
+        return [a.Record(call.id, call.caller, call.recording)]
+
+    def _message_left(self, name: str, duration: Any, now: float) -> list[a.Action]:
+        call = next((c for c in self.calls.values() if c.recording == name), None)
+        if call is None or call.state is not CallState.VOICEMAIL:
+            return []
+        call.recorded_seconds = int(duration) if isinstance(duration, int | float) else None
+        return self._end(call, "voicemail", "message left", now)
+
+    def _callback(self, call: Call) -> a.Emit:
+        queue = self.config.queues.get(call.queue)
+        return a.Emit(
+            m.CALLBACK_REQUESTED,
+            {
+                "call": call.id,
+                "queue": queue.name if queue else "",
+                "caller": call.callback_number,
+                "caller_name": call.caller_name,
+                "language": call.language,
+                "recording": call.recording,
+                "duration": call.recorded_seconds,
+            },
+        )
+
+    # ── routing tickets from the AI or a transfer ─────────────────────────
+    def _routing_update(self, data: dict[str, Any], command_id: str, now: float) -> list[a.Action]:
+        """Change a waiting call's ticket. Only configured queues and skills pass ("AI decides, rules check");
+        anything else sends the call to its entry point's fallback queue and is logged."""
+        call = self.calls.get(str(data.get("call")))
+        if call is None or call.state not in OPEN:
+            return self._refuse(command_id, m.ROUTING_UPDATE, "no waiting call with that id")
+        source = str(data.get("source") or "")
+        by_name = {queue.name.lower(): queue for queue in self.config.queues.values()}
+        rejected: dict[str, list[str]] = {}
+        target = self.config.queues.get(call.queue)
+        if data.get("queue"):
+            target = by_name.get(str(data["queue"]).lower())
+            if target is None:
+                rejected["queue"] = [str(data["queue"])]
+        language = data.get("language") or call.language
+        if language and self.config.skills.get(str(language)) != "language":
+            rejected["language"] = [str(language)]
+        skills = {str(name): int(level) for name, level in (data.get("skills") or {}).items()}
+        unknown = sorted(name for name in skills if name not in self.config.skills)
+        if unknown:
+            rejected["skills"] = unknown
+
+        current = self.config.queues.get(call.queue)
+        if rejected or target is None or current is None:
+            entry = self.config.entries.get(call.entry) or EntryConfig("", call.queue)
+            fallback = self.config.queues.get(entry.fallback_queue or "") or current
+            out: list[a.Action] = [
+                a.Emit(m.ROUTING_AI_TAG_REJECTED, {"call": call.id, "source": source, "rejected": rejected})
+            ]
+            if fallback is not None and current is not None and fallback.uid != call.queue:
+                call.ticket_source = source
+                out += self._move(call, current, fallback, "routing", now)
+            return out
+
+        call.language = str(language) if language else None
+        call.extra = tuple(Requirement(name, level) for name, level in skills.items())
+        call.ticket_source = source
+        out = [
+            a.Emit(
+                m.ROUTING_TICKET,
+                {
+                    "call": call.id,
+                    "queue": target.name,
+                    "language": call.language,
+                    "priority": self._priority(call),
+                    "skills": skills,
+                    "source": source,
+                },
+            )
+        ]
+        if target.uid != call.queue:
+            return out + self._move(call, current, target, "routing", now)
+        call.tried.clear()
+        return out + self._hunt(call, now)
 
     def _adopt(
         self,
@@ -715,7 +858,8 @@ class Brain:
         """Take over a call a previous brain left in Asterisk."""
         args = stasis_args(caller, self.app) or []
         entry = args[1] if len(args) > 1 else ""
-        queue_uid = self.config.entries.get(entry, "")
+        entry_point = self.config.entries.get(entry)
+        queue_uid = entry_point.queue if entry_point else ""
         queue = self.config.queues.get(queue_uid)
         call_id = args[3] if len(args) > 3 and args[3] else str(caller["id"])
         held = agent_leg is None and call_id in on_hold
@@ -732,6 +876,8 @@ class Brain:
             bridge=str(bridge["id"]),
             caller_id=caller_id(caller),
             queued_at=now,
+            language=entry_point.language if entry_point else None,
+            priority=entry_point.priority if entry_point else None,
         )
         self.calls[call.id] = call
         self.legs[call.caller] = call.id

@@ -4,7 +4,7 @@ import random
 
 import pytest
 
-from brain.core.config import QueueConfig, SkillRule, Strategy
+from brain.core.config import QueueConfig, Requirement, Step, Strategy
 from brain.sim.simulator import Simulation, VirtualAgent, VirtualCall
 
 
@@ -59,12 +59,12 @@ def test_round_robin_moves_past_an_agent_who_rejects():
 
 def test_a_skill_rule_widens_at_the_right_second_in_simulated_time():
     agents = [VirtualAgent("7001", skills={"swahili": 6}), VirtualAgent("7002", skills={"english": 9})]
-    rules = (SkillRule(0, "swahili >= 8"), SkillRule(30, "swahili >= 5"), SkillRule(60, "true"))
+    rules = (Step(30, (Requirement("swahili", 8),)), Step(60, (Requirement("swahili", 5),)), Step(None, ()))
     report = run(
         Strategy.LONGEST_IDLE,
         [VirtualCall(at=7, talk=200), VirtualCall(at=8, talk=200)],
         agents=agents,
-        skill_rules=rules,
+        steps=rules,
     )
     first, second = report.calls
     assert (first.agent, first.answered_at) == ("7001", 7 + 30 + 2.0), (

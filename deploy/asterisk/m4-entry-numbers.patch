@@ -1,0 +1,13 @@
+--- a/extensions.conf
++++ b/extensions.conf
+@@ -25,7 +25,9 @@
+  same => n,Hangup()
+ 
+ 
+-exten => 800,1,NoOp(Handing call to AlgoDial)
++; AlgoDial: every 8xx number is an entry point the brain knows (800-802 demo, 899 lab tests);
++; the brain hangs up numbers it has no entry point for.
++exten => _8XX,1,NoOp(Handing call to AlgoDial)
+  same => n,Stasis(algodial,inbound,${EXTEN},${CHANNEL(endpoint)},${CHANNEL(linkedid)})
+  same => n,GotoIf($["${STASISSTATUS}" = "FAILED"]?fallback)
+  same => n,Hangup()

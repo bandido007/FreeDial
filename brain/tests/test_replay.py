@@ -12,20 +12,35 @@ from pathlib import Path
 import pytest
 
 from brain.core.brain import Brain
-from brain.core.config import AgentConfig, Config, QueueConfig
+from brain.core.config import AgentConfig, Config, EntryConfig, QueueConfig, Requirement, Step
 from brain.service.runtime import deserialize, serialize
 
 RECORDINGS = Path(__file__).resolve().parent.parent / "sim" / "recordings"
 
 
 def config_from(data: dict) -> Config:
+    """A recorded configuration, in whichever shape the recording's brain wrote it."""
+    known = set(QueueConfig.__dataclass_fields__)
+
+    def queue(fields: dict) -> QueueConfig:
+        fields = {key: value for key, value in fields.items() if key in known}
+        fields["members"] = tuple(fields.get("members", ()))
+        fields["steps"] = tuple(
+            Step(step["until_seconds"], tuple(Requirement(**need) for need in step["requirements"]))
+            for step in fields.get("steps", ())
+        )
+        return QueueConfig(**fields)
+
+    def entry(number: str, value) -> EntryConfig:
+        return (
+            EntryConfig(number, value) if isinstance(value, str) else EntryConfig(**value)
+        )  # before M4.1: a queue uid
+
     return Config(
         agents={uid: AgentConfig(**agent) for uid, agent in data["agents"].items()},
-        queues={
-            uid: QueueConfig(**{**queue, "members": tuple(queue["members"])})
-            for uid, queue in data["queues"].items()
-        },
-        entries=dict(data["entries"]),
+        queues={uid: queue(fields) for uid, fields in data["queues"].items()},
+        entries={number: entry(number, value) for number, value in data["entries"].items()},
+        skills=dict(data.get("skills", {})),
     )
 
 

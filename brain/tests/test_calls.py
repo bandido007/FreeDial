@@ -562,3 +562,30 @@ async def test_ring_all_stops_the_other_phones_when_one_answers():
         assert {lab.agent(A)["activity"], lab.agent(B)["activity"]} == {"idle", "talking"}
         lab.sim.hangup(customer)
         await lab.all_clear()
+
+
+# ── voicemail and callback (ROUTING_DESIGN.md T6), through the real service ──
+@scenario
+async def test_overflow_to_voicemail_records_a_message_and_asks_for_a_callback():
+    async with brain(config=make_config(max_wait=0.2, overflow_action="voicemail")) as lab:
+        customer = lab.sim.call_in("800")
+        await eventually(
+            lambda: "_recording" in lab.sim.channels.get(customer, {}), what="recording the caller"
+        )
+        assert lab.sim.bridge_of(customer) is None, "out of the queue's bridge, no more music"
+        lab.sim.stop_recording(customer)  # the caller presses #
+        await lab.all_clear()
+        [callback] = lab.bus.of_type(m.CALLBACK_REQUESTED)
+        assert callback["recording"] in lab.sim.stored and callback["queue"] == "Support"
+        assert lab.ended()[-1]["result"] == "voicemail"
+
+
+@scenario
+async def test_hanging_up_mid_message_keeps_the_message():
+    async with brain(config=make_config(max_wait=0.2, overflow_action="voicemail")) as lab:
+        customer = lab.sim.call_in("800")
+        await eventually(lambda: "_recording" in lab.sim.channels.get(customer, {}))
+        lab.sim.hangup(customer)
+        await lab.all_clear()
+        [callback] = lab.bus.of_type(m.CALLBACK_REQUESTED)
+        assert callback["recording"] in lab.sim.stored

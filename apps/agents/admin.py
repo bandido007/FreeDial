@@ -117,7 +117,7 @@ class AgentSessionAdmin(RbacAdminMixin, admin.ModelAdmin):
 class SkillForm(forms.ModelForm):
     class Meta:
         model = Skill
-        fields = ("name", "description", "active")
+        fields = ("name", "kind", "description", "active")
 
     def clean_name(self):
         try:
@@ -131,7 +131,8 @@ class SkillAdmin(RbacAdminMixin, admin.ModelAdmin):
     view_permission = VIEW_AGENTS
     manage_permission = MANAGE_AGENTS
     form = SkillForm
-    list_display = ("name", "description", "active")
+    list_display = ("name", "kind", "description", "active")
+    list_filter = ("kind",)
     search_fields = ("name", "description")
 
     def delete_queryset(self, request, queryset):

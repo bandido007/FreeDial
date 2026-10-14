@@ -16,11 +16,18 @@ class StrategyChoices(models.TextChoices):
     """Whom a queue rings (the brain's brain.core.config.Strategy; a test keeps them equal)."""
 
     LONGEST_IDLE = "longest_idle", "Longest idle agent"
+    BEST_SKILLED = "best_skilled", "Best skilled (highest average level of the required skills)"
     RING_ALL = "ring_all", "Ring all free agents, first to answer"
     ROUND_ROBIN = "round_robin", "Round robin (next after the last one rung)"
     LINEAR = "linear", "Linear (always from the first member)"
     FEWEST_CALLS = "fewest_calls", "Fewest calls answered"
     RANDOM = "random", "Random"
+
+
+class OverflowChoices(models.TextChoices):
+    QUEUE = "queue", "Another queue"
+    VOICEMAIL = "voicemail", "Voicemail, then a callback task"
+    HANGUP = "hangup", "Hang up"
 
 
 class Queue(BaseModel):
@@ -41,13 +48,19 @@ class Queue(BaseModel):
     priority = models.SmallIntegerField(
         default=0, help_text="A free agent in several queues takes the highest priority queue's caller first"
     )
+    overflow_action = models.CharField(
+        max_length=20,
+        choices=OverflowChoices.choices,
+        default=OverflowChoices.HANGUP,
+        help_text="What happens at max wait or max callers",
+    )
     overflow_queue = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="overflow_from",
-        help_text="Where a caller goes at max wait or max callers (empty = hang up)",
+        help_text="For 'Another queue': which one",
     )
     skill_rule_set = models.ForeignKey(
         "SkillRuleSet",
@@ -55,7 +68,7 @@ class Queue(BaseModel):
         null=True,
         blank=True,
         related_name="queues",
-        help_text="Which agents may take a call, widening as the caller waits (empty = every member)",
+        help_text="Which members may take a call, loosening as the caller waits (empty = every member)",
     )
     service_level_seconds = models.PositiveSmallIntegerField(
         default=20, help_text="Target: answered within this many seconds…"
@@ -93,6 +106,24 @@ class EntryPoint(BaseModel):
     number = models.CharField(max_length=40, help_text="The number dialled, e.g. 800")
     name = models.CharField(max_length=120, blank=True)
     queue = models.ForeignKey(Queue, on_delete=models.PROTECT, related_name="entry_points")
+    language = models.ForeignKey(
+        "agents.Skill",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        limit_choices_to={"kind": "language", "deleted": False},
+        related_name="entry_points",
+        help_text="The callers' language until something better is known (e.g. swahili)",
+    )
+    priority = models.SmallIntegerField(null=True, blank=True, help_text="Empty = the queue's priority")
+    fallback_queue = models.ForeignKey(
+        Queue,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="fallback_for",
+        help_text="Where the call goes if the AI or a routing decision fails",
+    )
 
     class Meta:
         db_table = "queues_entry_points"
@@ -125,21 +156,36 @@ class SkillRuleSet(BaseModel):
         return self.name
 
 
-class SkillRule(models.Model):
-    """From ``after_seconds`` of waiting on, agents must match ``condition`` (e.g. ``swahili >= 7``)."""
+LANGUAGE = "$language"  # in a requirement: the call's language skill
 
-    rule_set = models.ForeignKey(SkillRuleSet, on_delete=models.CASCADE, related_name="rules")
-    after_seconds = models.PositiveIntegerField(default=0, help_text="Seconds of waiting in the queue")
-    condition = models.CharField(
-        max_length=300, help_text="e.g. swahili >= 7 & billing >= 5, or (english | swahili), or true"
+
+class RuleRequirement(models.Model):
+    """One minimum level in one step of a rule set (docs/ROUTING_DESIGN.md).
+
+    Rows with the same ``until_seconds`` form a step: until that many seconds of waiting (empty:
+    forever), an agent needs every row's skill at ``min_level`` or more. ``$language`` means the
+    call's language, and every step must ask for it at 4 or more (the language floor).
+    """
+
+    rule_set = models.ForeignKey(SkillRuleSet, on_delete=models.CASCADE, related_name="requirements")
+    until_seconds = models.PositiveIntegerField(
+        null=True, blank=True, help_text="This step lasts until this many seconds of waiting; empty = forever"
     )
+    skill = models.CharField(max_length=40, help_text="A skill name, or $language for the call's language")
+    min_level = models.PositiveSmallIntegerField(help_text="1 to 10")
 
     class Meta:
-        db_table = "queues_skill_rules"
-        ordering = ["after_seconds"]
+        db_table = "queues_rule_requirements"
+        ordering = [models.F("until_seconds").asc(nulls_last=True), "skill"]
         constraints = [
-            models.UniqueConstraint(fields=["rule_set", "after_seconds"], name="uniq_rule_second"),
+            models.UniqueConstraint(
+                fields=["rule_set", "until_seconds", "skill"], nulls_distinct=False, name="uniq_step_skill"
+            ),
+            models.CheckConstraint(
+                condition=Q(min_level__gte=1, min_level__lte=10), name="requirement_level_1_10"
+            ),
         ]
 
     def __str__(self):
-        return f"after {self.after_seconds}s: {self.condition}"
+        until = f"< {self.until_seconds}s" if self.until_seconds is not None else "forever"
+        return f"{until}: {self.skill} >= {self.min_level}"

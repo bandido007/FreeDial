@@ -3,7 +3,7 @@ from django.contrib import admin
 
 from apps.core.exceptions import ApplicationError
 from apps.queues import services
-from apps.queues.models import EntryPoint, Queue, QueueMember, SkillRule, SkillRuleSet
+from apps.queues.models import LANGUAGE, EntryPoint, Queue, QueueMember, RuleRequirement, SkillRuleSet
 from apps.queues.permissions import EDIT_QUEUES, VIEW_QUEUES
 from apps.rbac.admin_access import RbacAdminMixin
 
@@ -19,6 +19,7 @@ class QueueForm(forms.ModelForm):
             "retry_delay",
             "max_wait",
             "max_callers",
+            "overflow_action",
             "overflow_queue",
             "priority",
             "wrapup_seconds",
@@ -88,7 +89,7 @@ class QueueAdmin(RbacAdminMixin, admin.ModelAdmin):
 class EntryPointForm(forms.ModelForm):
     class Meta:
         model = EntryPoint
-        fields = ("number", "name", "queue", "active")
+        fields = ("number", "name", "queue", "language", "priority", "fallback_queue", "active")
 
     def clean_number(self):
         try:
@@ -104,7 +105,7 @@ class EntryPointAdmin(RbacAdminMixin, admin.ModelAdmin):
     view_permission = VIEW_QUEUES
     manage_permission = EDIT_QUEUES
     form = EntryPointForm
-    list_display = ("number", "name", "queue", "active")
+    list_display = ("number", "name", "queue", "language", "priority", "fallback_queue", "active")
     search_fields = ("number", "name")
 
     def delete_queryset(self, request, queryset):
@@ -112,26 +113,48 @@ class EntryPointAdmin(RbacAdminMixin, admin.ModelAdmin):
             entry.delete()  # soft delete, one by one (a queryset delete would be a hard delete)
 
 
-class SkillRuleForm(forms.ModelForm):
+class RequirementForm(forms.ModelForm):
     class Meta:
-        model = SkillRule
-        fields = ("after_seconds", "condition")
+        model = RuleRequirement
+        fields = ("until_seconds", "skill", "min_level")
 
-    def clean_condition(self):
+    def __init__(self, *args, **kwargs):
+        from apps.agents.models import Skill
+
+        super().__init__(*args, **kwargs)
+        names = list(Skill.objects.order_by("kind", "name").values_list("name", flat=True))
+        self.fields["skill"] = forms.ChoiceField(
+            choices=[(LANGUAGE, "$language (the call's language)"), *((name, name) for name in names)]
+        )
+
+
+class StepsFormSet(forms.BaseInlineFormSet):
+    """The rows together make the steps; the whole set is checked (language floor, order, forever last)."""
+
+    def clean(self):
+        super().clean()
+        steps: dict[int | None, dict[str, int]] = {}
+        for form in self.forms:
+            data = getattr(form, "cleaned_data", None)
+            if not data or data.get("DELETE"):
+                continue
+            steps.setdefault(data.get("until_seconds"), {})[data["skill"]] = data["min_level"]
+        ordered = sorted(steps.items(), key=lambda step: (step[0] is None, step[0] or 0))
         try:
-            return services.validate_condition(self.cleaned_data.get("condition"))
+            services.validate_steps(ordered)
         except ApplicationError as exc:
             raise forms.ValidationError(exc.message) from exc
 
 
-class SkillRuleInline(RbacAdminMixin, admin.TabularInline):
-    """From this many seconds of waiting on, agents must match the condition (the last rule reached applies)."""
+class RequirementInline(RbacAdminMixin, admin.TabularInline):
+    """Each row is one minimum level. Rows with the same seconds are one step; empty seconds = forever."""
 
     view_permission = VIEW_QUEUES
     manage_permission = EDIT_QUEUES
-    model = SkillRule
-    form = SkillRuleForm
-    extra = 1
+    model = RuleRequirement
+    form = RequirementForm
+    formset = StepsFormSet
+    extra = 2
 
     def has_add_permission(self, request, obj=None):
         return self._holds(request, self.manage_permission)
@@ -142,13 +165,17 @@ class SkillRuleSetAdmin(RbacAdminMixin, admin.ModelAdmin):
     view_permission = VIEW_QUEUES
     manage_permission = EDIT_QUEUES
     fields = ("name", "active")
-    inlines = [SkillRuleInline]
+    inlines = [RequirementInline]
     list_display = ("name", "rules_summary", "active")
     search_fields = ("name",)
 
-    @admin.display(description="Rules")
+    @admin.display(description="Steps")
     def rules_summary(self, obj):
-        return " → ".join(f"{rule.after_seconds}s: {rule.condition}" for rule in obj.rules.all())
+        parts = []
+        for until, needs in services.rule_steps(obj):
+            when = f"< {until}s" if until is not None else "forever"
+            parts.append(f"{when}: " + ", ".join(f"{skill} >= {level}" for skill, level in needs.items()))
+        return " → ".join(parts)
 
     def delete_queryset(self, request, queryset):
         for row in queryset:

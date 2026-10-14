@@ -1,4 +1,4 @@
-"""How a queue chooses among the agents who may take a call.
+"""How a queue chooses among the agents who may take a call (brain.core.routing decides who may).
 
 Every function gets the candidates in member order (free, matching the skill rule,
 not yet tried for this call) and returns whom to ring. Pure: memory a strategy
@@ -24,8 +24,12 @@ def choose(
     last_rung: str | None,
     answered: Mapping[str, int],
     new_id: Callable[[], str],
+    scores: Mapping[str, float] | None = None,
 ) -> list[Agent]:
-    """The agent(s) to ring now. ``candidates`` is never empty."""
+    """The agent(s) to ring now. ``candidates`` is never empty. ``scores``: for best_skilled."""
+    if strategy == Strategy.BEST_SKILLED:
+        best = max((scores or {}).get(agent.uid, 0.0) for agent in candidates)
+        return [longest_idle([agent for agent in candidates if (scores or {}).get(agent.uid, 0.0) == best])]
     if strategy == Strategy.RING_ALL:
         return list(candidates)
     if strategy == Strategy.LINEAR:

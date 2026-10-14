@@ -14,7 +14,7 @@ from typing import Any
 from django.db import DatabaseError, close_old_connections, transaction
 
 from apps.calls.bus import StreamReader
-from apps.calls.models import Call, Event, Leg, LegRole
+from apps.calls.models import Call, CallbackTask, Event, Leg, LegRole
 from contracts import messages as m
 from contracts.envelope import ContractError, decode
 from contracts.envelope import Event as Message
@@ -92,6 +92,22 @@ def _project(kind: str, data: dict[str, Any], at: datetime) -> None:
         call.answered_at = call.answered_at or at
         call.agent_uid = data["agent"] or ""
         call.save()
+    elif kind == m.CALLBACK_REQUESTED:
+        CallbackTask.objects.get_or_create(
+            linkedid=data["call"],
+            defaults={
+                "call": _call(data["call"], at),
+                "queue": data["queue"],
+                "caller": data["caller"] or "",
+                "caller_name": data.get("caller_name") or "",
+                "language": data.get("language") or "",
+                "recording": data["recording"] or "",
+                "duration": data["duration"],
+                "created_at": at,
+            },
+        )
+    elif kind == m.ROUTING_TICKET:
+        Call.objects.filter(linkedid=data["call"]).update(queue=data["queue"])
     elif kind == m.CALL_OVERFLOWED:
         Call.objects.filter(linkedid=data["call"]).update(queue=data["to_queue"])  # the queue it ends in
     elif kind == m.LEG_ENDED:

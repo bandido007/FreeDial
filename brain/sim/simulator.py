@@ -23,7 +23,7 @@ from typing import Any
 
 from brain.core import actions as a
 from brain.core.brain import Brain
-from brain.core.config import AgentConfig, Config, QueueConfig
+from brain.core.config import AgentConfig, Config, EntryConfig, QueueConfig
 from contracts import messages as m
 
 ENDPOINT = "SIM/{number}"
@@ -122,7 +122,7 @@ class Simulation:
         queues: list[QueueConfig],
         agents: list[VirtualAgent],
         calls: list[VirtualCall],
-        entries: dict[str, str] | None = None,
+        entries: dict[str, tuple[str, str | None]] | None = None,  # number -> (queue uid, language)
     ):
         self.people = {agent.uid: agent for agent in agents}
         by_endpoint = {ENDPOINT.format(number=agent.number): agent for agent in agents}
@@ -138,7 +138,10 @@ class Simulation:
                 )
                 for queue in queues
             },
-            entries=entries or {"800": queues[0].uid},
+            entries={
+                number: EntryConfig(number, queue, language)
+                for number, (queue, language) in (entries or {"800": (queues[0].uid, None)}).items()
+            },
         )
         self.queue_names = {queue.uid: queue.name for queue in queues}
         ids = itertools.count(1)

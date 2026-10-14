@@ -10,10 +10,9 @@ from dataclasses import dataclass
 from django.conf import settings
 from django.db import close_old_connections, connections
 
-from apps.agents.models import Agent, AgentSkill
-from apps.queues.models import EntryPoint, Queue, QueueMember
-from apps.queues.models import SkillRule as SkillRuleRow
-from brain.core.config import AgentConfig, Config, QueueConfig, SkillRule
+from apps.agents.models import Agent, AgentSkill, Skill
+from apps.queues.models import EntryPoint, Queue, QueueMember, RuleRequirement
+from brain.core.config import AgentConfig, Config, EntryConfig, QueueConfig, Requirement, Step
 
 
 @dataclass(frozen=True)
@@ -62,14 +61,20 @@ def load_config() -> Config:
         for member in QueueMember.objects.select_related("agent").order_by("priority", "agent__number"):
             if str(member.agent.uid) in agents:
                 members.setdefault(member.queue_id, []).append(str(member.agent.uid))
-        rules: dict[int, tuple[SkillRule, ...]] = {}
-        for rule in SkillRuleRow.objects.filter(rule_set__active=True, rule_set__deleted=False).order_by(
-            "after_seconds"
-        ):
-            rules[rule.rule_set_id] = (
-                *rules.get(rule.rule_set_id, ()),
-                SkillRule(rule.after_seconds, rule.condition),
+        grouped: dict[int, dict[int | None, list[Requirement]]] = {}
+        rows = RuleRequirement.objects.filter(rule_set__active=True, rule_set__deleted=False).order_by(
+            "skill"
+        )
+        for need in rows:
+            step = grouped.setdefault(need.rule_set_id, {}).setdefault(need.until_seconds, [])
+            step.append(Requirement(need.skill, need.min_level))
+        rules = {
+            rule_set: tuple(
+                Step(until, tuple(needs))
+                for until, needs in sorted(steps.items(), key=lambda step: (step[0] is None, step[0] or 0))
             )
+            for rule_set, steps in grouped.items()
+        }
         live = {queue.pk: queue for queue in Queue.objects.filter(active=True)}
         queues = {
             str(queue.uid): QueueConfig(
@@ -87,15 +92,25 @@ def load_config() -> Config:
                 overflow_queue=str(live[queue.overflow_queue_id].uid)
                 if queue.overflow_queue_id in live
                 else None,
-                skill_rules=rules.get(queue.skill_rule_set_id, ()) if queue.skill_rule_set_id else (),
+                overflow_action=queue.overflow_action,
+                steps=rules.get(queue.skill_rule_set_id, ()) if queue.skill_rule_set_id else (),
             )
             for queue in live.values()
         }
         entries = {
-            entry.number: str(entry.queue.uid)
-            for entry in EntryPoint.objects.filter(active=True).select_related("queue")
+            entry.number: EntryConfig(
+                number=entry.number,
+                queue=str(entry.queue.uid),
+                language=entry.language.name if entry.language else None,
+                priority=entry.priority,
+                fallback_queue=str(live[entry.fallback_queue_id].uid)
+                if entry.fallback_queue_id in live
+                else None,
+            )
+            for entry in EntryPoint.objects.filter(active=True).select_related("queue", "language")
             if str(entry.queue.uid) in queues
         }
-        return Config(agents=agents, queues=queues, entries=entries)
+        skills = dict(Skill.objects.filter(active=True).values_list("name", "kind"))
+        return Config(agents=agents, queues=queues, entries=entries, skills=skills)
     finally:
         connections.close_all()  # loads are rare: hold no idle connection in between

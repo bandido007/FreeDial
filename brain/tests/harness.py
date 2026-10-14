@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from dataclasses import replace
 
 from brain.core.brain import Brain
-from brain.core.config import AgentConfig, Config, QueueConfig
+from brain.core.config import AgentConfig, Config, EntryConfig, QueueConfig
 from brain.service.runtime import Runtime
 from brain.sim import FakeAri, FakeBus
 from contracts import messages as m
@@ -24,7 +24,7 @@ def make_config(**queue_settings) -> Config:
     return Config(
         agents={A: AgentConfig(A, "7001", "Asha"), B: AgentConfig(B, "7002", "Baraka")},
         queues={QUEUE.uid: replace(QUEUE, **queue_settings)},
-        entries={"800": QUEUE.uid},
+        entries={"800": EntryConfig("800", QUEUE.uid)},
     )
 
 

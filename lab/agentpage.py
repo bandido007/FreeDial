@@ -1,5 +1,5 @@
 """M3's "Done when", checked with a real browser: an agent using only Chrome signs in, goes Ready,
-takes a call from 800 end to end, holds, wraps up, and every state change is in the Event table.
+takes a call from 899 (the lab entry) end to end, holds, wraps up, and every state change is in the Event table.
 
     cd ~/AlgoDial && .venv/bin/python lab/agentpage.py            # headless
     .venv/bin/python lab/agentpage.py --show                      # watch it in a window
@@ -230,7 +230,7 @@ async def main(show):
             check("agent is Ready (state pushed by the brain)", True)
 
             say("── a customer calls 800")
-            call = await customer.dial("800")
+            call = await customer.dial("899")
             await asyncio.wait_for(call.answered.wait(), 10)
             await page.wait_for_selector("#call:not([hidden])", timeout=15000)
             check("offer popup shows", True, (await page.inner_text("#caller")) + " " + await page.inner_text("#caller-queue"))

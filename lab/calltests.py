@@ -1,11 +1,11 @@
-"""The brain's 9 call tests (docs/POC_PLAN.md), plus 10 = ring all (M4), against the real Asterisk.
+"""The brain's 9 call tests (docs/POC_PLAN.md), plus 10 = ring all and 11 = voicemail, on the real Asterisk.
 
     cd ~/AlgoDial && .venv/bin/python lab/calltests.py            # all
     .venv/bin/python lab/calltests.py 1 4 8                       # some
 
 What it does:
   * makes sure the lab setup exists: SIP accounts lab-customer, lab-agent-a, lab-agent-b;
-    agents 9001 and 9002; queue "Support"; entry point 800 -> Support
+    agents 9001 and 9002; queue "Support"; entry point 899 -> Support (800-802 are the demo centre)
   * starts the brain itself (stop yours first: two brains on one app would fight),
     recording every decision to brain/sim/recordings/lab.jsonl
   * plays the customer and both agents with lab/sipphone.py
@@ -49,6 +49,7 @@ from contracts import messages as m  # noqa: E402
 from contracts.envelope import decode  # noqa: E402
 from sipphone import Phone  # noqa: E402
 
+LAB_ENTRY = "899"  # needs `sudo deploy/asterisk/apply.sh m4` (every 8xx number goes to the brain)
 RECORDING = ROOT / "brain" / "sim" / "recordings" / "lab.jsonl"
 BRAIN_LOG = ROOT / "lab" / "calltests-brain.log"
 
@@ -75,17 +76,26 @@ def ensure_setup():
     have = set(support.agents.values_list("number", flat=True))
     wanted = list(support.agents.all()) + [Agent.objects.get(number=n) for n in agents if n not in have]
     queues.save_queue(actor=None, uid=support.uid, name=support.name, agents=wanted)
-    if not EntryPoint.objects.filter(number="800").exists():
-        queues.save_entry_point(actor=None, number="800", queue=support, name="Lab entry")
+    entry = EntryPoint.objects.filter(number=LAB_ENTRY).first()
+    if entry is None:
+        queues.save_entry_point(actor=None, number=LAB_ENTRY, queue=support, name="Lab tests")
+    elif entry.queue_id != support.pk:
+        entry.queue = support
+        entry.save()
     support.refresh_from_db()
     return passwords, agents["9001"], agents["9002"], support.ring_timeout
 
 
 def set_strategy(strategy):
     """Switch queue Support's strategy the normal way (the brain hears config.changed); returns the old one."""
+    return set_support(strategy=strategy)["strategy"]
+
+
+def set_support(**fields):
+    """Change queue Support's settings the normal way; returns the old values."""
     support = Queue.objects.get(name__iexact="Support")
-    before = support.strategy
-    queues.save_queue(actor=None, uid=support.uid, name=support.name, strategy=strategy)
+    before = {field: getattr(support, field) for field in fields}
+    queues.save_queue(actor=None, uid=support.uid, name=support.name, **fields)
     return before
 
 
@@ -198,7 +208,7 @@ class Lab:
         await self.ready(self.b, "lab-agent-b")
 
     async def dial(self):
-        call = await self.customer.dial("800")
+        call = await self.customer.dial(LAB_ENTRY)
         await asyncio.wait_for(call.answered.wait(), 10)
         started = await self.w.event(m.CALL_STARTED)
         return call, started["call"]
@@ -364,14 +374,39 @@ class Lab:
             await asyncio.sleep(1.5)
         return f"A and B rang together; B answered, A's phone was cancelled ({ringing_b.end_reason or 'B talked'})"
 
+    async def t11(self):
+        """Voicemail (ROUTING_DESIGN T6): max wait -> prompt, the caller's message is recorded, a callback task is asked for."""
+        before = await asyncio.to_thread(set_support, overflow_action="voicemail", max_wait=6)
+        try:
+            await asyncio.sleep(1.5)  # the brain reloads on config.changed
+            for uid in (self.a, self.b):
+                self.w.command(m.AGENT_NOT_READY, agent=uid, reason="test 11")
+                await self.w.agent_is(uid, availability="not_ready")
+            call, linkedid = await self.dial()
+            await self.w.event(m.CALL_VOICEMAIL, call=linkedid, timeout=15)
+            await asyncio.sleep(9)  # the prompt (about 5 s), the beep, then the customer's tone is recorded
+            await call.hangup()
+            callback = await self.w.event(m.CALLBACK_REQUESTED, call=linkedid)
+            ended = await self.w.event(m.CALL_ENDED, call=linkedid)
+            assert ended["result"] == "voicemail" and callback["recording"], (ended, callback)
+            async with self.w.http.get(f"{settings.ARI_URL}/recordings/stored/{callback['recording']}/file") as response:
+                audio = await response.read()
+            assert response.status == 200 and audio[:4] == b"RIFF" and len(audio) > 8000, (response.status, len(audio))
+            await self.w.ari("DELETE", f"/recordings/stored/{callback['recording']}")
+            await self.w.all_clear()
+        finally:
+            await asyncio.to_thread(set_support, **before)
+            await asyncio.sleep(1.5)
+        return f"prompt, then a {callback['duration']} s message ({len(audio)} bytes WAV) and a callback request"
+
     async def t9(self):
-        """Brain stopped, customer calls 800 -> the dialplan's Queue() answers."""
+        """Brain stopped, customer calls 899 -> the dialplan's Queue() answers."""
         self.w.kill_brain(signal.SIGTERM)
         deadline = time.monotonic() + 10
         while await self.w.brain_connected():
             assert time.monotonic() < deadline, "the app is still registered"
             await asyncio.sleep(0.2)
-        call = await self.customer.dial("800")
+        call = await self.customer.dial(LAB_ENTRY)
         done = asyncio.ensure_future(call.ended.wait())
         await asyncio.wait([asyncio.ensure_future(call.answered.wait()), done], timeout=10, return_when=asyncio.FIRST_COMPLETED)
         if not call.answered.is_set():
@@ -441,5 +476,5 @@ async def main(selected):
 
 
 if __name__ == "__main__":
-    chosen = [int(arg) for arg in sys.argv[1:]] or list(range(1, 11))
+    chosen = [int(arg) for arg in sys.argv[1:]] or list(range(1, 12))
     sys.exit(asyncio.run(main(chosen)))

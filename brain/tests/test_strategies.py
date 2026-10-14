@@ -9,7 +9,7 @@ import pytest
 from brain.core import actions as a
 from brain.core.agents import Activity
 from brain.core.brain import Brain
-from brain.core.config import AgentConfig, Config, QueueConfig, SkillRule, Strategy
+from brain.core.config import AgentConfig, Config, EntryConfig, QueueConfig, Requirement, Step, Strategy
 from contracts import messages as m
 
 NUMBERS = ("7001", "7002", "7003")
@@ -30,7 +30,7 @@ class Desk:
         self.config = Config(
             agents={uid(n): AgentConfig(uid(n), n, f"Agent {n}", skills.get(n, {})) for n in NUMBERS},
             queues={"support": replace(support, **queue)},
-            entries={"800": "support"},
+            entries={"800": EntryConfig("800", "support")},
         )
         ids = itertools.count(1)
         self.core = Brain(self.config, app="algodial", new_id=lambda: f"id{next(ids)}")
@@ -181,21 +181,21 @@ def test_a_lone_agent_who_rings_out_still_becomes_not_responding():
 
 
 # ── skills that widen with waiting time ───────────────────────────────────
-RULES = (
-    SkillRule(0, "swahili >= 8"),
-    SkillRule(30, "swahili >= 5"),
-    SkillRule(60, "true"),
+RULES = (  # until 30 s swahili >= 8, until 60 s swahili >= 5, then anyone
+    Step(30, (Requirement("swahili", 8),)),
+    Step(60, (Requirement("swahili", 5),)),
+    Step(None, ()),
 )
 SKILLS = {"7001": {"swahili": 6}, "7002": {"english": 9}, "7003": {"swahili": 9}}
 
 
 def test_the_strict_rule_picks_the_expert():
-    desk = Desk(skill_rules=RULES, skills=SKILLS)
+    desk = Desk(steps=RULES, skills=SKILLS)
     assert desk.call(now=0)[1] == ["7003"]
 
 
 def test_a_skill_rule_widens_at_the_right_second():
-    desk = Desk(skill_rules=RULES, skills=SKILLS)
+    desk = Desk(steps=RULES, skills=SKILLS)
     busy, _, _ = desk.call(now=0)  # the expert 7003 takes the first call
     desk.answer(busy, "7003", now=1)
 
@@ -208,7 +208,7 @@ def test_a_skill_rule_widens_at_the_right_second():
 
 
 def test_the_widest_rule_lets_anyone_in_at_its_second():
-    desk = Desk(skill_rules=RULES, skills={"7001": {}, "7002": {}, "7003": {}})
+    desk = Desk(steps=RULES, skills={"7001": {}, "7002": {}, "7003": {}})
     cid, rung_now, actions = desk.call(now=0)
     assert rung_now == []
     first = timers(actions, "widen:")[0]
@@ -219,7 +219,7 @@ def test_the_widest_rule_lets_anyone_in_at_its_second():
 
 
 def test_an_agent_who_becomes_ready_is_checked_against_the_rule_in_force_then():
-    desk = Desk(skill_rules=RULES, skills=SKILLS, ready_at=(0, 0, 999))
+    desk = Desk(steps=RULES, skills=SKILLS, ready_at=(0, 0, 999))
     desk.core.on_command(m.AGENT_NOT_READY, {"agent": uid("7003"), "reason": "x"}, "c", 1)
     cid, rung_now, _ = desk.call(now=10)
     assert rung_now == []
@@ -275,7 +275,7 @@ def test_a_free_agent_takes_the_higher_priority_queue_first():
     desk.core.load_config(
         replace(
             desk.config,
-            entries={"800": "support", "900": "backup"},
+            entries={"800": EntryConfig("800", "support"), "900": EntryConfig("900", "backup")},
             queues={**desk.config.queues, "backup": backup},
         ),
         now=0,
@@ -292,7 +292,7 @@ def test_a_free_agent_takes_the_higher_priority_queue_first():
 def test_every_strategy_offers_only_to_free_matching_untried_agents(strategy):
     desk = Desk(
         strategy,
-        skill_rules=(SkillRule(0, "swahili"),),
+        steps=(Step(None, (Requirement("swahili", 1),)),),
         skills={"7001": {"swahili": 1}, "7002": {"swahili": 3}},
     )
     desk.core.on_command(m.AGENT_NOT_READY, {"agent": uid("7002"), "reason": "x"}, "c", 1)

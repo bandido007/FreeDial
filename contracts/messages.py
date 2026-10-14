@@ -20,6 +20,9 @@ CONFIG_CHANGED = "config.changed"  # reload agents, queues and entry points
 CALL_HOLD = "call.hold"  # the agent puts the customer on hold (music); the agent leaves the bridge
 CALL_RESUME = "call.resume"
 AGENT_WRAPUP_DONE = "agent.wrapup_done"  # the agent finished the after-call work, with a wrap-up code
+# The AI agent (M8) or a transfer changes a waiting call's routing ticket. Only configured queues and
+# skills are accepted; anything else sends the call to its entry point's fallback queue.
+ROUTING_UPDATE = "routing.update"  # call, source; optional queue (name), language, skills {name: min level}
 
 COMMANDS: dict[str, tuple[str, ...]] = {
     AGENT_LOGIN: ("agent", "endpoint"),
@@ -30,6 +33,7 @@ COMMANDS: dict[str, tuple[str, ...]] = {
     CALL_HOLD: ("agent",),
     CALL_RESUME: ("agent",),
     AGENT_WRAPUP_DONE: ("agent", "code"),
+    ROUTING_UPDATE: ("call", "source"),
 }
 
 # ── Events: what happened, in the order the brain decided it ──────────────
@@ -40,7 +44,11 @@ CALL_CONNECTED = "call.connected"  # the agent answered and is in the bridge
 CALL_HELD = "call.held"
 CALL_RESUMED = "call.resumed"
 CALL_OVERFLOWED = "call.overflowed"  # max wait or a full queue sent it to another queue
-CALL_ENDED = "call.ended"  # result: answered, abandoned, overflow, failed
+CALL_VOICEMAIL = "call.voicemail"  # overflow to voicemail: the caller is asked to leave a message
+CALLBACK_REQUESTED = "callback.requested"  # a callback task, with the message if one was left
+ROUTING_TICKET = "routing.ticket"  # the call's queue, language, priority and skills, and who set them
+ROUTING_AI_TAG_REJECTED = "routing.ai_tag_rejected"  # an AI decision naming what is not configured
+CALL_ENDED = "call.ended"  # result: answered, abandoned, overflow, voicemail, failed
 LEG_ENDED = "leg.ended"
 STASIS_REJECTED = "stasis.rejected"  # a channel with unknown args, hung up (rule 3)
 AGENT_STATE = "agent.state"  # the agent's whole state after a change
@@ -56,6 +64,10 @@ EVENTS: dict[str, tuple[str, ...]] = {
     CALL_HELD: ("call", "agent"),
     CALL_RESUMED: ("call", "agent"),
     CALL_OVERFLOWED: ("call", "from_queue", "to_queue", "reason"),
+    CALL_VOICEMAIL: ("call", "queue", "reason"),
+    CALLBACK_REQUESTED: ("call", "queue", "caller", "recording", "duration"),
+    ROUTING_TICKET: ("call", "queue", "language", "priority", "skills", "source"),
+    ROUTING_AI_TAG_REJECTED: ("call", "source", "rejected"),
     CALL_ENDED: ("call", "result", "reason"),
     LEG_ENDED: ("call", "leg", "role"),
     STASIS_REJECTED: ("channel", "args", "reason"),

@@ -4,9 +4,8 @@ import re
 
 from django.db import transaction
 
-from apps.agents.models import Agent, AgentSkill, Skill
+from apps.agents.models import Agent, AgentSkill, Skill, SkillKind
 from apps.core.exceptions import DuplicateError, NotFoundError, ValidationError
-from contracts.skills import SKILL_NAME
 
 NOT_FOUND = 10200
 NUMBER_TAKEN = 10201
@@ -14,6 +13,7 @@ BAD_NUMBER = 10202
 USER_TAKEN = 10203
 
 NUMBER_PATTERN = re.compile(r"^\d{2,20}$")
+SKILL_NAME = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 
 
 def get_agent(uid) -> Agent:
@@ -75,7 +75,7 @@ SKILL_TAKEN = 10209
 
 def validate_skill_name(name, *, except_pk=None) -> str:
     name = (name or "").strip().lower()
-    if not SKILL_NAME.match(name) or name in ("true", "false"):
+    if not SKILL_NAME.match(name):
         raise ValidationError(
             "A skill name is lower-case letters, digits and _, starting with a letter (e.g. swahili).",
             code=BAD_SKILL,
@@ -86,9 +86,11 @@ def validate_skill_name(name, *, except_pk=None) -> str:
 
 
 @transaction.atomic
-def create_skill(*, actor, name, description="") -> Skill:
+def create_skill(*, actor, name, kind=SkillKind.TOPIC, description="") -> Skill:
+    if kind not in SkillKind.values:
+        raise ValidationError(f"A skill is a {', '.join(SkillKind.values)}.", code=BAD_SKILL)
     return Skill.objects.create(
-        name=validate_skill_name(name), description=description.strip(), created_by=actor
+        name=validate_skill_name(name), kind=kind, description=description.strip(), created_by=actor
     )
 
 

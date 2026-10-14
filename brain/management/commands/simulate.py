@@ -2,7 +2,7 @@ import random
 
 from django.core.management.base import BaseCommand
 
-from brain.core.config import QueueConfig, SkillRule, Strategy
+from brain.core.config import QueueConfig, Requirement, Step, Strategy
 from brain.sim.simulator import Simulation, VirtualAgent, VirtualCall
 
 
@@ -38,7 +38,11 @@ class Command(BaseCommand):
             VirtualAgent(f"70{n:02d}", skills={"swahili": rng.randint(1, 10)}, answer_after=rng.uniform(1, 6))
             for n in range(1, options["agents"] + 1)
         ]
-        rules = (SkillRule(0, "swahili >= 8"), SkillRule(30, "swahili >= 5"), SkillRule(60, "true"))
+        rules = (
+            Step(30, (Requirement("swahili", 8),)),
+            Step(60, (Requirement("swahili", 5),)),
+            Step(None, ()),
+        )
         strategies = [options["strategy"]] if options["strategy"] else [s.value for s in Strategy]
         if options["skills"]:
             levels = ", ".join(f"{agent.number}={agent.skills['swahili']}" for agent in agents)
@@ -50,7 +54,7 @@ class Command(BaseCommand):
                 strategy=strategy,
                 ring_timeout=15,
                 wrapup_seconds=10,
-                skill_rules=rules if options["skills"] else (),
+                steps=rules if options["skills"] else (),
             )
             report = Simulation(queues=[queue], agents=agents, calls=calls).run()
             self.stdout.write(f"── {strategy}")

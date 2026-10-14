@@ -161,7 +161,7 @@ deploy-check: ## Prove the production settings load and pass Django's deployment
 	DJANGO_SETTINGS_MODULE=config.settings.production $(MANAGE) check --deploy --fail-level ERROR
 
 # ── project ── AlgoDial ─────────────────────────────────────────────────────
-.PHONY: brain brain-check writer live dev sim calltests agentcheck agent-login pjsip-schema
+.PHONY: brain brain-check writer live dev sim seed-demo calltests agentcheck agent-login pjsip-schema
 
 ## AlgoDial
 brain: ## Run the brain (call control): manage.py run_brain
@@ -180,6 +180,9 @@ dev: ## Web (with WebSockets), brain, writer and live relay together; Ctrl-C sto
 	@trap 'kill 0' INT TERM EXIT; \
 	$(MANAGE) run_brain & $(MANAGE) run_writer --consumer writer-1 & $(MANAGE) run_live & \
 	$(MANAGE) runserver 0.0.0.0:$(PORT)
+
+seed-demo: ## The demo centre of docs/ROUTING_DESIGN.md (agents, skills, rule sets, queues, 800-802); safe to rerun
+	$(MANAGE) seed_demo
 
 sim: ## A virtual busy hour through the real brain core, every queue strategy compared (make sim a="--skills")
 	$(MANAGE) simulate $(a)

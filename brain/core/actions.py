@@ -67,6 +67,26 @@ class Originate(AriAction):
 
 
 @dataclass(frozen=True)
+class Play(AriAction):
+    """Play a sound to a channel; Asterisk answers with PlaybackFinished for ``playback_id``."""
+
+    channel: str
+    media: str  # e.g. sound:vm-intro
+    playback_id: str
+
+
+@dataclass(frozen=True)
+class Record(AriAction):
+    """Record a channel to a stored recording ``name`` (wav); Asterisk answers with RecordingFinished."""
+
+    channel: str
+    name: str
+    max_seconds: int = 120
+    max_silence_seconds: int = 10
+    beep: bool = True
+
+
+@dataclass(frozen=True)
 class Hangup(AriAction):
     channel: str
     reason: str = "normal"
