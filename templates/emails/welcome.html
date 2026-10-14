@@ -1,0 +1,29 @@
+{% extends "emails/base_email.html" %}
+{% comment %}
+Welcome e-mail, sent once the account is verified. Context:
+  full_name
+{% endcomment %}
+{% block title %}Welcome to {{ brand.portal }}{% endblock %}
+{% block content %}
+  <p style="margin:0 0 16px;">Hello {{ full_name|default:"there" }},</p>
+  <p style="margin:0 0 16px;">
+    Your {{ brand.portal }} account is verified and ready to use.
+  </p>
+  <p style="margin:0 0 8px;font-weight:bold;">What to do next</p>
+  <ol style="margin:0 0 20px;padding-left:20px;line-height:1.7;">
+    <li>Sign in and complete your profile.</li>
+    <li>Turn on two-factor authentication to protect your account.</li>
+  </ol>
+  <div style="margin:28px 0;text-align:center;">
+    <a href="{{ brand.portal_url }}"
+       style="display:inline-block;background:{{ brand.accent }};color:#ffffff;text-decoration:none;
+              font-weight:bold;font-size:15px;border-radius:8px;padding:14px 32px;">
+      Open {{ brand.portal }}
+    </a>
+  </div>
+  {% if brand.support_email %}
+  <p style="margin:0;color:#6b7280;font-size:13px;">
+    If you did not create this account, please contact {{ brand.support_email }}.
+  </p>
+  {% endif %}
+{% endblock %}

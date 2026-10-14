@@ -1,0 +1,24 @@
+{% extends "emails/base_email.html" %}
+{% comment %}
+Account-deleted receipt. Context:
+  full_name, deleted_at, by_admin
+{% endcomment %}
+{% block title %}Your account has been deleted{% endblock %}
+{% block content %}
+  <p style="margin:0 0 16px;">Hello {{ full_name|default:"there" }},</p>
+  <p style="margin:0 0 16px;">
+    This confirms that your {{ brand.portal }} account was deleted
+    {% if by_admin %}by an administrator{% else %}at your request{% endif %}{% if deleted_at %}
+    on <strong>{{ deleted_at }}</strong>{% endif %}.
+  </p>
+  <p style="margin:0 0 16px;">
+    You have been signed out of every device. Your personal data is retained only
+    for the period the law requires and is then removed.
+  </p>
+  <div style="margin:20px 0;padding:14px 16px;background:#fef2f2;border-radius:8px;
+              border:1px solid #fecaca;color:#991b1b;font-size:13.5px;">
+    If you did <strong>not</strong> ask for this, contact
+    {{ brand.support_email|default:"the administrator" }} as soon as possible so the
+    account can be reviewed.
+  </div>
+{% endblock %}

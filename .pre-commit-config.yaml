@@ -1,0 +1,38 @@
+# Installed by `make venv` (pre-commit install). Runs on every commit; the same
+# rules CI's lint stage enforces, so a commit that passes here passes there.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=800"]
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: debug-statements
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.13.0
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: import-linter
+        name: import-linter (architecture rules)
+        entry: venv/bin/lint-imports
+        language: system
+        pass_filenames: false
+        files: ^apps/.*\.py$
+      - id: no-secrets-in-env-example
+        name: .env.example carries no real secret
+        entry: bash -c 'grep -Eq "^SECRET_KEY=change-me" .env.example && grep -Eq "^ENCRYPTION_KEYS=$" .env.example'
+        language: system
+        pass_filenames: false
+        files: ^\.env\.example$

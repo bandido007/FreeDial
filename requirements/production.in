@@ -1,0 +1,14 @@
+# Production environment.
+-r base.in
+
+# WSGI application server
+gunicorn>=23,<24
+
+# Static files without a separate web server
+whitenoise>=6.9,<7
+
+# Error tracking — active only when SENTRY_DSN is set
+sentry-sdk>=2.35,<3
+
+# Object storage (S3 / MinIO) — active only when STORAGE_BACKEND=s3
+django-storages[s3]>=1.14,<2

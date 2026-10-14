@@ -1,0 +1,1950 @@
+"""The unified root query, composed from every app's Query."""
+type Query {
+  """
+  Every runtime setting with its value. permissions=['can_view_system_settings','can_manage_system_settings']
+  """
+  getSystemSettings(
+    """Only the settings of this group"""
+    group: String
+  ): SystemSettingResponse
+
+  """
+  The settings the sign-in page needs (name, logo, support contact). Public.
+  """
+  getPublicSettings: PublicSettingsResponse
+
+  """
+  The attachment-type catalogue (incl. inactive). permissions=['can_view_attachment_settings']
+  """
+  getAttachmentDefinitions(filtering: AttachmentDefinitionFilterInput): AttachmentDefinitionResponse
+
+  """
+  Active attachment types, for forms that ask for documents. Authenticated.
+  """
+  getActiveAttachmentDefinitions: AttachmentDefinitionResponse
+
+  """
+  Counters for the Attachment types dashboard. permissions=['can_view_attachment_settings']
+  """
+  getAttachmentStats: AttachmentStatsResponse
+
+  """
+  The file types a definition may accept, per kind — the same set the upload endpoint enforces. permissions=['can_view_attachment_settings']
+  """
+  getAllowedFileExtensions: AllowedFileExtensionResponse
+
+  """The files I uploaded. Authenticated."""
+  getMyAttachmentsPageable(searchDto: SearchDataDto!, filtering: AttachmentFilterInput): AttachmentPageResponse
+
+  """Every stored file. permissions=['can_view_all_attachments']"""
+  getAttachmentsPageable(searchDto: SearchDataDto!, filtering: AttachmentFilterInput): AttachmentPageResponse
+
+  """
+  The files attached to one record that I am allowed to open. Authenticated.
+  """
+  getEntityAttachments(entityType: String!, entityUid: UUID!): AttachmentResponse
+
+  """System-wide change trail. permissions=['can_view_audit_logs']"""
+  getAuditLogsPageable(searchDto: SearchDataDto!, filtering: AuditLogFilterInput): AuditLogPageResponse
+
+  """
+  Everything that happened to one record, oldest first. permissions=['can_view_audit_logs']
+  """
+  getRecordHistory(
+    """
+    Model label, e.g. "users.User"
+    """
+    entity: String!
+    objectUid: UUID!
+  ): AuditLogResponse
+
+  """Model labels present in the trail. permissions=['can_view_audit_logs']"""
+  getAuditedEntities: [String]
+
+  """
+  The change trail as a downloadable file, honouring the same filters. permissions=['can_export_audit_logs']
+  """
+  exportAuditLogs(format: TableExportFormatChoices!, filtering: AuditLogFilterInput): ExportFileResponse
+
+  """
+  Endpoint transaction log — ERROR level only (defects a developer must fix); INFO/WARNING rows never surface here. permissions=['can_view_endpoint_logs']
+  """
+  getEndpointLogsPageable(searchDto: SearchDataDto!, filtering: EndpointLogFilterInput): RequestLogPageResponse
+
+  """
+  Counters for the audit dashboard. permissions=['can_view_audit_logs','can_view_endpoint_logs']
+  """
+  getAuditStats: AuditStatsResponse
+
+  """
+  Users subscribed to the daily error report. permissions=['can_manage_endpoint_logs']
+  """
+  getErrorReportRecipients: ErrorReportSubscriptionResponse
+
+  """The signed-in user's own action trail. Any authenticated user."""
+  getMyActivityPageable(searchDto: SearchDataDto!, filtering: AuditLogFilterInput): AuditLogPageResponse
+
+  """
+  Paginated notification log (all channels/statuses). permissions=['can_view_notifications']
+  """
+  getNotificationsPageable(searchDto: SearchDataDto!, filtering: NotificationFilterInput): NotificationPageResponse
+
+  """All notifications addressed to me. Authenticated."""
+  getMyNotifications: NotificationResponse
+
+  """My in-app notifications. Authenticated."""
+  getMyInAppNotifications: NotificationResponse
+
+  """My in-app notifications, page by page. Authenticated."""
+  getMyInAppNotificationsPageable(searchDto: SearchDataDto!, unreadOnly: Boolean = false): NotificationPageResponse
+
+  """How many in-app notifications I have not read. Authenticated."""
+  getMyUnreadNotificationCount: UnreadCountResponse
+
+  """
+  Every category on every channel, with my current choice. Authenticated.
+  """
+  getMyNotificationPreferences: NotificationPreferenceResponse
+
+  """SMTP configurations. permissions=['can_manage_notification_config']"""
+  getEmailConfigurations: EmailConfigurationResponse
+
+  """
+  SMS gateway configurations. permissions=['can_manage_notification_config']
+  """
+  getSmsConfigurations: SmsConfigurationResponse
+
+  """
+  Gateway implementations available. permissions=['can_manage_notification_config']
+  """
+  getSmsProviders: SmsProviderResponse
+
+  """
+  Notification content templates. permissions=['can_manage_notification_config']
+  """
+  getNotificationTemplates: NotificationTemplateResponse
+
+  """The kinds of message the system can send. Authenticated."""
+  getNotificationCategories: NotificationCategoryResponse
+
+  """
+  Current user: identity, account type, authorities, roles and any restriction.
+  """
+  meQuery: LoggedInUserResponse
+
+  """External providers the sign-in page can offer. Public."""
+  getSignInProviders: SignInProviderResponse
+
+  """The current user's live sign-in sessions (access tokens)."""
+  getMySessions: SessionResponse
+
+  """The signed-in user's own sign-in history. Any authenticated user."""
+  getMyLoginHistoryPageable(searchDto: SearchDataDto!, filtering: LoginHistoryFilterInput): UserLoginHistoryPageResponse
+
+  """The signed-in user's own security events. Any authenticated user."""
+  getMySecurityEventsPageable(searchDto: SearchDataDto!, filtering: AuthenticationEventFilterInput): AuthenticationAuditPageResponse
+
+  """
+  System-wide sign-in history. permissions=['can_view_login_history','can_view_audit_logs']
+  """
+  getLoginHistoryPageable(searchDto: SearchDataDto!, filtering: LoginHistoryFilterInput): UserLoginHistoryPageResponse
+
+  """
+  Every security event: sign-ins, failures, password and two-factor changes. permissions=['can_view_login_history','can_view_audit_logs']
+  """
+  getAuthenticationEventsPageable(searchDto: SearchDataDto!, filtering: AuthenticationEventFilterInput): AuthenticationAuditPageResponse
+
+  """Directory (LDAP) configurations. permissions=['can_view_ldap_config']"""
+  getLdapConfigs(filtering: LdapConfigFilterInput): LdapConfigResponse
+
+  """Paginated, searchable list of roles. permissions=['can_view_roles']"""
+  getAllRolesPageable(searchDto: SearchDataDto!, filtering: RoleFilterInput): RolePageResponse
+
+  """One role with its permissions. permissions=['can_view_roles']"""
+  getRole(uid: UUID!): RoleResponse
+
+  """
+  All permission groups with their permissions. permissions=['can_view_roles']
+  """
+  getAllPermissionGroups: PermissionGroupResponse
+
+  """
+  Paginated, filterable directory of users. permissions=['can_view_users']
+  """
+  getAllUsersPageable(searchDto: SearchDataDto!, filtering: UserFilterInput): UserPageResponse
+
+  """A single user with their roles. permissions=['can_view_users']"""
+  getUser(uid: UUID!): UserResponse
+
+  """
+  The user listing as a downloadable file (PDF / EXCEL / CSV / WORD), honouring the same filters as the pageable query. permissions=['can_export_users']
+  """
+  exportUsers(format: TableExportFormatChoices!, filtering: UserFilterInput): ExportFileResponse
+
+  """A user's legal-consent history (audit). permissions=['can_view_users']"""
+  getUserConsents(userUid: UUID!): UserConsentResponse
+
+  """A portable snapshot of the caller's personal data."""
+  exportMyData: MyDataExportResponse
+
+  """
+  Whether people may create their own account, and the policy versions. Public.
+  """
+  getRegistrationStatus: RegistrationStatusResponse
+}
+
+type SystemSettingResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: SystemSettingType
+  dataList: [SystemSettingType]
+}
+
+"""One runtime setting: what it is, its value, and what it may be set to."""
+type SystemSettingType {
+  key: String
+  group: String
+  name: String
+  description: String
+
+  """BOOLEAN · INTEGER · STRING · TEXT · CHOICE · LIST · EMAIL · URL"""
+  type: String
+  value: GenericScalar
+  defaultValue: GenericScalar
+
+  """False while the setting is at its default."""
+  isChanged: Boolean
+  choices: [String]
+  minimum: Int
+  maximum: Int
+
+  """Readable without signing in."""
+  public: Boolean
+}
+
+"""
+The `GenericScalar` scalar type represents a generic
+GraphQL scalar value that could be:
+String, Boolean, Int, Float, List or Object.
+"""
+scalar GenericScalar
+
+type PublicSettingsResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: PublicSettingsType
+  dataList: [PublicSettingsType]
+}
+
+"""What the sign-in page needs, keyed by setting."""
+type PublicSettingsType {
+  values: GenericScalar
+  projectName: String
+}
+
+type AttachmentDefinitionResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: AttachmentDefinitionType
+  dataList: [AttachmentDefinitionType]
+}
+
+type AttachmentDefinitionType {
+  uid: UUID!
+  createdAt: DateTime!
+  updatedAt: DateTime
+
+  """Stable machine key, e.g. curriculum-vitae."""
+  code: String!
+  kind: String
+  maxSizeMb: Int
+  isActive: Boolean!
+  name: LocalizedType
+  description: LocalizedType
+  allowedExtensions: [String]
+}
+
+"""
+Leverages the internal Python implementation of UUID (uuid.UUID) to provide native UUID objects
+in fields, resolvers and input.
+"""
+scalar UUID
+
+"""
+The `DateTime` scalar type represents a DateTime
+value as specified by
+[iso8601](https://en.wikipedia.org/wiki/ISO_8601).
+"""
+scalar DateTime
+
+"""A translated string in both supported languages."""
+type LocalizedType {
+  en: String
+  sw: String
+}
+
+input AttachmentDefinitionFilterInput {
+  uid: UUID
+  kind: String
+  isActive: Boolean
+}
+
+type AttachmentStatsResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: AttachmentStatsType
+  dataList: [AttachmentStatsType]
+}
+
+"""Counter block for the Attachment types dashboard."""
+type AttachmentStatsType {
+  definitionsTotal: Int
+  definitionsActive: Int
+  definitionsDocuments: Int
+  definitionsImages: Int
+
+  """Types that files have been uploaded for."""
+  definitionsInUse: Int
+  filesTotal: Int
+  filesImages: Int
+  filesDocuments: Int
+
+  """Bytes stored across every attachment."""
+  storageBytes: Float
+}
+
+type AllowedFileExtensionResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: AllowedFileExtensionType
+  dataList: [AllowedFileExtensionType]
+}
+
+"""One pickable file type for a definition of ``kind``."""
+type AllowedFileExtensionType {
+  kind: String
+  extension: String
+  label: String
+  mime: String
+}
+
+type AttachmentPageResponse {
+  status: Boolean
+  code: Int
+  message: String
+  content: [AttachmentType]
+  page: PageObject
+}
+
+"""A stored file. The content itself is fetched from the file endpoints."""
+type AttachmentType {
+  uid: UUID!
+  createdAt: DateTime!
+
+  """Original file name."""
+  name: String!
+
+  """Media-relative URL, e.g. /media/profiles/2026/07/<uid>.jpg"""
+  path: String!
+  fileType: FileCategoryChoices
+  mimeType: String!
+
+  """Size in bytes."""
+  size: BigInt!
+  purpose: String!
+
+  """Readable without signing in."""
+  isPublic: Boolean!
+  entityType: String!
+  entityUid: UUID
+  scanStatus: AttachmentsAttachmentScanStatusChoices!
+  uploadedByUid: UUID
+  uploadedByName: String
+  definitionUid: UUID
+
+  """GET this, with the bearer token, to download the file."""
+  downloadUrl: String
+}
+
+"""Coarse file category — drives which validation applies."""
+enum FileCategoryChoices {
+  Image
+  Document
+}
+
+"""
+The `BigInt` scalar type represents non-fractional whole numeric values.
+`BigInt` is not constrained to 32-bit like the `Int` type and thus is a less
+compatible type.
+"""
+scalar BigInt
+
+"""An enumeration."""
+enum AttachmentsAttachmentScanStatusChoices {
+  """SKIPPED"""
+  SKIPPED
+
+  """CLEAN"""
+  CLEAN
+
+  """UNSCANNED"""
+  UNSCANNED
+}
+
+type PageObject {
+  number: Int
+  hasNextPage: Boolean
+  hasPreviousPage: Boolean
+  currentPageNumber: Int
+  nextPageNumber: Int
+  previousPageNumber: Int
+  numberOfPages: Int
+  itemsPerPage: Int
+  totalElements: Int
+  pagesNumberArray: [Int]
+}
+
+input SearchDataDto {
+  pageableParam: PageableParam!
+  searchCombinationType: SearchCombinationType
+  searchFields: [SearchFieldsDto]
+}
+
+input PageableParam {
+  """1-based page number"""
+  pageNumber: Int!
+
+  """Page size"""
+  itemsPerPage: Int!
+
+  """Field to sort by"""
+  sortBy: String = "id"
+
+  """ASC or DESC"""
+  sortDirection: String = "DESC"
+}
+
+"""An enumeration."""
+enum SearchCombinationType {
+  AND
+  OR
+}
+
+input SearchFieldsDto {
+  fieldName: String!
+  searchType: SearchOperationType!
+  fieldValue: String
+  fieldValues: [String]
+}
+
+"""An enumeration."""
+enum SearchOperationType {
+  Equals
+  NotEqual
+  GreaterThan
+  GreaterThanEqual
+  LessThan
+  LessThanEqual
+  Between
+  Like
+  NotLike
+  In
+  NotIn
+  IsNull
+  IsNotNull
+}
+
+input AttachmentFilterInput {
+  uid: UUID
+  fileType: FileCategoryChoices = null
+  purpose: String
+  entityType: String
+  entityUid: UUID
+  uploadedByUid: UUID
+
+  """Free text on the file name"""
+  search: String
+}
+
+type AttachmentResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: AttachmentType
+  dataList: [AttachmentType]
+}
+
+type AuditLogPageResponse {
+  status: Boolean
+  code: Int
+  message: String
+  content: [AuditLogType]
+  page: PageObject
+}
+
+type AuditLogType {
+  uid: UUID!
+  actorEmail: String!
+  actorName: String!
+  action: AuditActionChoices
+
+  """Model label, e.g. "users.User"."""
+  entity: String!
+  appLabel: String!
+  modelName: String!
+  objectUid: UUID
+  objectPk: String!
+  objectRepr: String!
+  changes: GenericScalar
+  requestId: String!
+  ipAddress: String
+  userAgent: String!
+  createdAt: DateTime!
+  actorUid: UUID
+}
+
+"What happened to the audited record.\n\n    ``SoftDeleted`` / ``Restored`` / ``Deactivated`` / ``Activated`` are\n    classified out of the field diff (the ``deleted`` / ``active`` flags on\n    :class:`~apps.core.models.BaseModel`) so the trail reads as intent, not as\n    an opaque boolean flip. ``Deleted`` is a *hard* delete (rare by design).\n    "
+enum AuditActionChoices {
+  Created
+  Updated
+  SoftDeleted
+  Restored
+  Deactivated
+  Activated
+  Deleted
+}
+
+input AuditLogFilterInput {
+  actorUid: UUID
+  action: AuditActionChoices = null
+
+  """
+  Model label, e.g. "users.User"
+  """
+  entity: String
+  appLabel: String
+  objectUid: UUID
+  requestId: String
+
+  """Free text across actor and record"""
+  search: String
+
+  """created_at >= this"""
+  dateFrom: DateTime
+
+  """created_at <= this"""
+  dateTo: DateTime
+}
+
+type AuditLogResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: AuditLogType
+  dataList: [AuditLogType]
+}
+
+type ExportFileResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: ExportFileType
+  dataList: [ExportFileType]
+}
+
+"""
+A generated file, inline. Decode ``contentBase64`` into a Blob client-side.
+"""
+type ExportFileType {
+  fileName: String
+  mimeType: String
+  sizeBytes: Int
+  contentBase64: String
+}
+
+"""An enumeration."""
+enum TableExportFormatChoices {
+  PDF
+  EXCEL
+  CSV
+  WORD
+}
+
+type RequestLogPageResponse {
+  status: Boolean
+  code: Int
+  message: String
+  content: [RequestLogType]
+  page: PageObject
+}
+
+type RequestLogType {
+  uid: UUID!
+  requestId: String!
+  kind: RequestKindChoices
+  operations: String!
+  operationName: String!
+  method: String!
+  path: String!
+  userEmail: String!
+  statusCode: Int!
+  level: LogLevelChoices
+  durationMs: Int!
+  errorType: String!
+  errorMessage: String!
+  traceback: String!
+  errors: GenericScalar
+  variables: GenericScalar
+  ipAddress: String
+  userAgent: String!
+  isResolved: Boolean!
+  resolvedAt: DateTime
+  resolutionNote: String!
+  createdAt: DateTime!
+  userUid: UUID
+  resolvedByName: String
+  resolvedByEmail: String
+}
+
+"""The shape of the API transaction being logged."""
+enum RequestKindChoices {
+  Query
+  Mutation
+  Rest
+}
+
+"Severity of one endpoint transaction.\n\n    * ``INFO``    — completed normally.\n    * ``WARNING`` — an *expected* failure (business-rule violation, bad input,\n      failed sign-in). Nothing for a developer to fix.\n    * ``ERROR``   — an *unexpected* failure (unhandled exception, 5xx). These\n      are the rows the Endpoint Errors screen surfaces for the backend team.\n    "
+enum LogLevelChoices {
+  INFO
+  WARNING
+  ERROR
+}
+
+input EndpointLogFilterInput {
+  kind: RequestKindChoices = null
+  isResolved: Boolean
+  userUid: UUID
+  requestId: String
+
+  """Matches the operations column (contains)"""
+  operation: String
+  errorType: String
+
+  """created_at >= this"""
+  dateFrom: DateTime
+
+  """created_at <= this"""
+  dateTo: DateTime
+}
+
+type AuditStatsResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: AuditStatsType
+  dataList: [AuditStatsType]
+}
+
+"""Counter block for the audit dashboard."""
+type AuditStatsType {
+  actionsToday: Int
+  actionsTotal: Int
+  actorsToday: Int
+  loginsToday: Int
+  failedLoginsToday: Int
+  errorsToday: Int
+  unresolvedErrors: Int
+}
+
+type ErrorReportSubscriptionResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: ErrorReportSubscriptionType
+  dataList: [ErrorReportSubscriptionType]
+}
+
+type ErrorReportSubscriptionType {
+  uid: UUID!
+  createdAt: DateTime!
+  userUid: UUID
+  userName: String
+  userEmail: String
+}
+
+type NotificationPageResponse {
+  status: Boolean
+  code: Int
+  message: String
+  content: [NotificationType]
+  page: PageObject
+}
+
+type NotificationType {
+  uid: UUID!
+  createdAt: DateTime!
+  channel: NotificationChannelChoices
+  category: String
+  status: NotificationStatusChoices
+  title: String!
+  subject: String!
+  message: String!
+  url: String!
+  emailTo: String!
+  phoneTo: String!
+  fullName: String!
+  attempts: Int!
+
+  """Last error / delivery note."""
+  remarks: String!
+  sentTime: DateTime
+  isSent: Boolean!
+
+  """In-app: whether the receiver has read it."""
+  isRead: Boolean!
+
+  """The content carried a secret and was scrubbed after sending."""
+  isRedacted: Boolean!
+
+  """The category as a person reads it."""
+  categoryName: String
+  receiverUid: UUID
+  receiverName: String
+}
+
+"""An enumeration."""
+enum NotificationChannelChoices {
+  EMAIL
+  SMS
+  INAPP
+}
+
+"""An enumeration."""
+enum NotificationStatusChoices {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+input NotificationFilterInput {
+  uid: UUID
+  channel: NotificationChannelChoices = null
+  status: NotificationStatusChoices = null
+  category: String
+  isSent: Boolean
+  receiverUid: UUID
+
+  """Free text across recipient, subject and title"""
+  search: String
+
+  """created_at >= this"""
+  dateFrom: DateTime
+
+  """created_at <= this"""
+  dateTo: DateTime
+}
+
+type NotificationResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: NotificationType
+  dataList: [NotificationType]
+}
+
+type UnreadCountResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: UnreadCountType
+  dataList: [UnreadCountType]
+}
+
+type UnreadCountType {
+  unread: Int
+}
+
+type NotificationPreferenceResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: NotificationPreferenceType
+  dataList: [NotificationPreferenceType]
+}
+
+"""One row of the preferences screen: a category on a channel."""
+type NotificationPreferenceType {
+  category: String
+  name: String
+  description: String
+  channel: NotificationChannelChoices
+  mandatory: Boolean
+  enabled: Boolean
+}
+
+type EmailConfigurationResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: EmailConfigurationType
+  dataList: [EmailConfigurationType]
+}
+
+type EmailConfigurationType {
+  uid: UUID!
+  createdAt: DateTime!
+  active: Boolean!
+
+  """Label, e.g. 'Primary SMTP'."""
+  name: String!
+  host: String!
+  port: Int!
+  username: String!
+  useTls: Boolean!
+  useSsl: Boolean!
+
+  """
+  Verify the server certificate. Un-tick only for an internal relay with a self-signed certificate.
+  """
+  verifyTls: Boolean!
+
+  """Default From address."""
+  fromEmail: String!
+  fromName: String!
+
+  """The configuration the e-mail channel uses."""
+  isDefault: Boolean!
+  hasPassword: Boolean
+}
+
+type SmsConfigurationResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: SmsConfigurationType
+  dataList: [SmsConfigurationType]
+}
+
+type SmsConfigurationType {
+  uid: UUID!
+  createdAt: DateTime!
+  active: Boolean!
+
+  """Label, e.g. 'Primary gateway'."""
+  name: String!
+
+  """Which delivery implementation this row drives (see backends/sms.py)."""
+  provider: String!
+
+  """Gateway endpoint (SMS_API_URL); blank = environment."""
+  apiUrl: String!
+
+  """Registered sender ID (SMS_SENDER_ID); blank = environment."""
+  senderId: String!
+
+  """System ID (SMS_SYSTEM_ID); blank = environment."""
+  systemId: String!
+
+  """Service code (SMS_SERVICE_CODE); blank = environment."""
+  serviceCode: String!
+
+  """Gateway username, if required."""
+  username: String!
+
+  """The configuration the SMS channel uses."""
+  isDefault: Boolean!
+
+  """An API key is stored on the row (never returned)."""
+  hasApiKey: Boolean
+
+  """
+  Every gateway setting resolves — from the row or from the environment — so a send can go out.
+  """
+  isReady: Boolean
+
+  """Gateway settings this row leaves to the SMS_* environment values."""
+  envFallbacks: [String]
+
+  """Gateway settings neither the row nor the environment provide."""
+  missingSettings: [String]
+}
+
+type SmsProviderResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: SmsProviderType
+  dataList: [SmsProviderType]
+}
+
+"""A gateway implementation the SMS configuration screen can select."""
+type SmsProviderType {
+  key: String
+  name: String
+  requiredSettings: [String]
+}
+
+type NotificationTemplateResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: NotificationTemplateType
+  dataList: [NotificationTemplateType]
+}
+
+type NotificationTemplateType {
+  uid: UUID!
+  createdAt: DateTime!
+  active: Boolean!
+  name: String!
+  category: String
+  channel: NotificationChannelChoices
+  subject: String!
+  body: String!
+  isActive: Boolean!
+  categoryName: String
+}
+
+type NotificationCategoryResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: NotificationCategoryType
+  dataList: [NotificationCategoryType]
+}
+
+"""A kind of message an app can send (declared in code)."""
+type NotificationCategoryType {
+  code: String
+  name: String
+  description: String
+
+  """Cannot be muted by the recipient."""
+  mandatory: Boolean
+
+  """Carries a one-time secret; never replayed."""
+  sensitive: Boolean
+}
+
+type LoggedInUserResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: LoggedInUserType
+  dataList: [LoggedInUserType]
+}
+
+"""Payload for ``meQuery`` — identity, classification and access context."""
+type LoggedInUserType {
+  attributes: UserType
+  accountType: AccountTypeChoices
+  authProvider: AuthProviderChoices
+
+  """Flattened permission codes"""
+  authorities: [String]
+  totalAuthorities: Int
+  roles: [RoleType]
+
+  """Policy obliges this account to use two-factor."""
+  mfaRequired: Boolean
+
+  """The account must set up two-factor before it may use the API."""
+  mfaEnrolmentRequired: Boolean
+
+  """The account must choose a new password before it may use the API."""
+  passwordChangeRequired: Boolean
+
+  """Null when passwords do not expire."""
+  passwordExpiresAt: DateTime
+
+  """8015 / 8016 while the session is restricted."""
+  restrictionCode: Int
+}
+
+type UserType {
+  lastLogin: DateTime
+  uid: UUID!
+  email: String!
+  pendingEmail: String!
+  firstName: String!
+  middleName: String!
+  lastName: String!
+  phone: String!
+  gender: UsersUserGenderChoices
+  photo: String!
+  dateOfBirth: Date
+  accountType: AccountTypeChoices
+  authProvider: AuthProviderChoices
+  isActive: Boolean!
+
+  """May sign in to the Django admin site."""
+  isStaff: Boolean!
+
+  """Email address proven (code or link)."""
+  isVerified: Boolean!
+
+  """Phone proven (code sent by SMS)."""
+  phoneVerified: Boolean!
+  accountStatus: AccountStatusChoices
+  mfaEnabled: Boolean!
+
+  """The next sign-in must set a new password."""
+  mustChangePassword: Boolean!
+  passwordChangedAt: DateTime
+  invitedAt: DateTime
+  dateJoined: DateTime!
+  updatedAt: DateTime
+  deleted: Boolean!
+  fullName: String
+
+  """Roles currently granted to the user"""
+  roles: [RoleType]
+
+  """True when every required profile field is filled."""
+  isProfileComplete: Boolean
+
+  """Required profile fields still blank (empty = complete)."""
+  missingProfileFields: [String]
+
+  """Consent documents whose current version is not yet accepted."""
+  pendingConsents: [String]
+
+  """How many unused two-factor recovery codes are left."""
+  mfaRecoveryCodesRemaining: Int
+
+  """
+  False for external and directory accounts — they have no local password.
+  """
+  hasPassword: Boolean
+
+  """Created by an administrator and not yet activated by its owner."""
+  invitationPending: Boolean
+}
+
+"""An enumeration."""
+enum UsersUserGenderChoices {
+  """MALE"""
+  MALE
+
+  """FEMALE"""
+  FEMALE
+}
+
+"""
+The `Date` scalar type represents a Date
+value as specified by
+[iso8601](https://en.wikipedia.org/wiki/ISO_8601).
+"""
+scalar Date
+
+"""An enumeration."""
+enum AccountTypeChoices {
+  System
+  Internal
+  External
+}
+
+"""An enumeration."""
+enum AuthProviderChoices {
+  DB
+  LDAP
+  GOOGLE
+  OIDC
+}
+
+"""An enumeration."""
+enum AccountStatusChoices {
+  ACTIVE
+  SUSPENDED
+  BLOCKED
+}
+
+type RoleType {
+  uid: UUID!
+  createdAt: DateTime!
+  active: Boolean!
+  name: String!
+  description: String!
+
+  """System roles cannot be edited or deleted"""
+  isSystem: Boolean!
+  permissions: [PermissionType]
+  permissionCount: Int
+
+  """People who currently hold this role."""
+  userCount: Int
+}
+
+"""
+A capability as the role editor shows it: short name, plain-language
+description and a weight (VIEW / CHANGE / DECIDE).
+"""
+type PermissionType {
+  uid: UUID!
+  createdAt: DateTime!
+  code: String!
+  name: String!
+  description: String!
+  group: PermissionGroupType
+
+  """
+  VIEW = look only · CHANGE = create/edit/act · DECIDE = approve/publish/delete/grant access (high impact).
+  """
+  accessLevel: String
+}
+
+type PermissionGroupType {
+  uid: UUID!
+  createdAt: DateTime!
+  name: String!
+  description: String!
+  permissions: [PermissionType]
+}
+
+type SignInProviderResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: SignInProviderType
+  dataList: [SignInProviderType]
+}
+
+"""An external provider the sign-in page can offer."""
+type SignInProviderType {
+  key: String
+  label: String
+  issuer: String
+  clientId: String
+}
+
+type SessionResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: SessionType
+  dataList: [SessionType]
+}
+
+"""
+One live access token (a signed-in session), described by the sign-in
+that started it so a person can tell their devices apart.
+"""
+type SessionType {
+  id: String
+  created: DateTime
+  expires: DateTime
+  scope: String
+
+  """Where the session was signed in from."""
+  ipAddress: String
+  browser: String
+  os: String
+  device: String
+
+  """How the person signed in."""
+  provider: String
+
+  """`Chrome 128 · Windows 10`, or 'Unknown device'."""
+  label: String
+
+  """True for the session making this request."""
+  isCurrent: Boolean
+}
+
+type UserLoginHistoryPageResponse {
+  status: Boolean
+  code: Int
+  message: String
+  content: [LoginHistoryType]
+  page: PageObject
+}
+
+type LoginHistoryType {
+  id: ID!
+  loggedInAt: DateTime!
+  ipAddress: String
+  userAgent: String!
+  browser: String!
+  os: String!
+  device: String!
+
+  """How the person signed in."""
+  provider: String!
+  isNewDevice: Boolean!
+  userUid: UUID
+  userName: String
+  userEmail: String
+  label: String
+}
+
+input LoginHistoryFilterInput {
+  userUid: UUID
+  isNewDevice: Boolean
+
+  """Free text across e-mail, address and device"""
+  search: String
+
+  """logged_in_at >= this"""
+  dateFrom: DateTime
+
+  """logged_in_at <= this"""
+  dateTo: DateTime
+}
+
+type AuthenticationAuditPageResponse {
+  status: Boolean
+  code: Int
+  message: String
+  content: [AuthenticationEventType]
+  page: PageObject
+}
+
+type AuthenticationEventType {
+  uid: UUID!
+  email: String!
+  eventType: AuthEventChoices
+  status: String!
+  ipAddress: String
+  userAgent: String!
+  errorMessage: String!
+  metadata: GenericScalar
+  requestId: String!
+  createdAt: DateTime!
+  userUid: UUID
+  userName: String
+}
+
+"""What the authentication audit records."""
+enum AuthEventChoices {
+  TokenGenerated
+  TokenRefreshed
+  TokenRevoked
+  FailedLogin
+  AccountLocked
+  Registered
+  Invited
+  PasswordChanged
+  PasswordResetRequested
+  PasswordResetCompleted
+  MfaEnabled
+  MfaDisabled
+  MfaFailed
+  MfaReset
+  MfaRecoveryCodeUsed
+  SessionRevoked
+  SessionsRevoked
+  EmailChanged
+  ConsentGranted
+}
+
+input AuthenticationEventFilterInput {
+  userUid: UUID
+  eventType: AuthEventChoices = null
+
+  """success or failure"""
+  status: String
+
+  """Free text across e-mail and address"""
+  search: String
+  requestId: String
+
+  """created_at >= this"""
+  dateFrom: DateTime
+
+  """created_at <= this"""
+  dateTo: DateTime
+}
+
+type LdapConfigResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: LdapConfigType
+  dataList: [LdapConfigType]
+}
+
+"""
+Directory configuration — deliberately omits the encrypted bind password.
+"""
+type LdapConfigType {
+  uid: UUID!
+  createdAt: DateTime!
+  active: Boolean!
+
+  """Label for this directory."""
+  name: String!
+  ldapUrl: String!
+
+  """Service-account DN used to search."""
+  bindDn: String!
+
+  """Base DN for user search."""
+  searchBase: String!
+
+  """Directory attribute holding the e-mail."""
+  emailAttribute: String!
+
+  """
+  e.g. example.org — addresses in this domain sign in against this directory.
+  """
+  emailDomain: String!
+  isActive: Boolean!
+  hasBindPassword: Boolean
+  defaultRole: RoleType
+}
+
+input LdapConfigFilterInput {
+  uid: UUID
+  isActive: Boolean
+  active: Boolean
+}
+
+type RolePageResponse {
+  status: Boolean
+  code: Int
+  message: String
+  content: [RoleType]
+  page: PageObject
+}
+
+input RoleFilterInput {
+  uid: UUID
+  isSystem: Boolean
+  active: Boolean
+
+  """Free text across name and description"""
+  search: String
+}
+
+type RoleResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: RoleType
+  dataList: [RoleType]
+}
+
+type PermissionGroupResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: PermissionGroupType
+  dataList: [PermissionGroupType]
+}
+
+type UserPageResponse {
+  status: Boolean
+  code: Int
+  message: String
+  content: [UserType]
+  page: PageObject
+}
+
+"""
+Filters for the user-management listing (all optional, ANDed together).
+
+``search`` is a free-text match across email + names + phone; the remaining
+clauses narrow by exact classification. ``deleted=true`` surfaces
+soft-deleted accounts (otherwise hidden) for authorised callers.
+"""
+input UserFilterInput {
+  uid: UUID
+
+  """Free text across email, names and phone"""
+  search: String
+  accountType: AccountTypeChoices
+  authProvider: AuthProviderChoices
+  accountStatus: AccountStatusChoices
+  gender: GenderChoices
+
+  """Users holding this role"""
+  roleUid: UUID
+  isActive: Boolean
+  isVerified: Boolean
+  isStaff: Boolean
+  mfaEnabled: Boolean
+
+  """Only accounts still waiting to be activated"""
+  invitationPending: Boolean
+
+  """Include only soft-deleted accounts"""
+  deleted: Boolean
+}
+
+"""An enumeration."""
+enum GenderChoices {
+  MALE
+  FEMALE
+}
+
+type UserResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: UserType
+  dataList: [UserType]
+}
+
+type UserConsentResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: UserConsentType
+  dataList: [UserConsentType]
+}
+
+type UserConsentType {
+  uid: UUID!
+  document: ConsentDocumentChoices
+
+  """Policy version accepted, e.g. '2026-01'"""
+  version: String!
+  acceptedAt: DateTime!
+  ipAddress: String
+  userAgent: String!
+}
+
+"""An enumeration."""
+enum ConsentDocumentChoices {
+  TERMS
+  PRIVACY
+}
+
+type MyDataExportResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: MyDataExportType
+  dataList: [MyDataExportType]
+}
+
+"""A portable snapshot of the caller's personal data."""
+type MyDataExportType {
+  data: JSONString
+
+  """The parts the snapshot contains."""
+  sections: [String]
+}
+
+"""
+Allows use of a JSON String for input / output from the GraphQL schema.
+
+Use of this type is *not recommended* as you lose the benefits of having a defined, static
+schema (one of the key benefits of GraphQL).
+"""
+scalar JSONString
+
+type RegistrationStatusResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: RegistrationStatusType
+  dataList: [RegistrationStatusType]
+}
+
+"""What the sign-in page needs to know before anyone is signed in."""
+type RegistrationStatusType {
+  selfRegistrationOpen: Boolean
+  termsVersion: String
+  privacyVersion: String
+}
+
+"""The unified root mutation, composed from every app's Mutation."""
+type Mutation {
+  """permissions=['can_manage_system_settings']"""
+  updateSystemSetting(key: String!, value: GenericScalar!): SystemSettingResponse
+
+  """permissions=['can_manage_system_settings']"""
+  resetSystemSetting(key: String!): SystemSettingResponse
+
+  """permissions=['can_manage_attachment_settings']"""
+  saveAttachmentDefinition(input: AttachmentDefinitionInput!): AttachmentDefinitionResponse
+
+  """permissions=['can_manage_attachment_settings']"""
+  deleteAttachmentDefinition(uid: UUID!): AttachmentDefinitionResponse
+
+  """Authenticated (own files)."""
+  deleteAttachment(uid: UUID!): AttachmentResponse
+
+  """permissions=['can_manage_endpoint_logs']"""
+  resolveEndpointError(note: String, uid: UUID!): RequestLogResponse
+
+  """permissions=['can_manage_endpoint_logs']"""
+  resolveSimilarEndpointErrors(note: String, uid: UUID!): ResolvedCountResponse
+
+  """permissions=['can_manage_endpoint_logs']"""
+  reopenEndpointError(uid: UUID!): RequestLogResponse
+
+  """permissions=['can_manage_endpoint_logs']"""
+  setErrorReportRecipients(userUids: [UUID]!): ErrorReportSubscriptionResponse
+
+  """permissions=['can_manage_endpoint_logs']"""
+  sendErrorReportNow: ErrorReportOutcomeResponse
+
+  """permissions=['can_resend_notification']"""
+  resendNotification(uid: UUID!): NotificationResponse
+
+  """Authenticated."""
+  markInAppNotificationRead(readAll: Boolean = false, uid: UUID): NotificationResponse
+
+  """Authenticated."""
+  setMyNotificationPreference(input: NotificationPreferenceInput!): NotificationPreferenceResponse
+
+  """permissions=['can_manage_notification_config']"""
+  createEmailConfiguration(input: EmailConfigurationInput!): EmailConfigurationResponse
+
+  """permissions=['can_manage_notification_config']"""
+  updateEmailConfiguration(input: EmailConfigurationInput!): EmailConfigurationResponse
+
+  """permissions=['can_manage_notification_config']"""
+  deleteEmailConfiguration(uid: UUID!): EmailConfigurationResponse
+
+  """
+  permissions=['can_manage_notification_config']: send one test e-mail through a row
+  """
+  testEmailConfiguration(email: String!, uid: UUID!): NotificationResponse
+
+  """permissions=['can_manage_notification_config']"""
+  createSmsConfiguration(input: SmsConfigurationInput!): SmsConfigurationResponse
+
+  """permissions=['can_manage_notification_config']"""
+  updateSmsConfiguration(input: SmsConfigurationInput!): SmsConfigurationResponse
+
+  """permissions=['can_manage_notification_config']"""
+  deleteSmsConfiguration(uid: UUID!): SmsConfigurationResponse
+
+  """
+  permissions=['can_manage_notification_config']: send one test SMS through a gateway row
+  """
+  testSmsConfiguration(
+    """Optional custom text; blank = a default test line"""
+    message: String
+    phone: String!
+    uid: UUID!
+  ): NotificationResponse
+
+  """permissions=['can_manage_notification_config']"""
+  createNotificationTemplate(input: NotificationTemplateInput!): NotificationTemplateResponse
+
+  """permissions=['can_manage_notification_config']"""
+  updateNotificationTemplate(input: NotificationTemplateInput!): NotificationTemplateResponse
+
+  """permissions=['can_manage_notification_config']"""
+  deleteNotificationTemplate(uid: UUID!): NotificationTemplateResponse
+
+  """Public."""
+  requestPasswordReset(email: String!): UserResponse
+
+  """Public."""
+  setPassword(input: SetPasswordInput!): UserResponse
+
+  """Authenticated."""
+  changeMyPassword(input: ChangePasswordInput!): UserResponse
+
+  """Authenticated."""
+  beginMfaEnrollment: MfaSetupResponse
+
+  """Authenticated."""
+  confirmMfaEnrollment(otp: String!): MfaRecoveryResponse
+
+  """Authenticated."""
+  regenerateMfaRecoveryCodes(otp: String!): MfaRecoveryResponse
+
+  """Authenticated."""
+  disableMfa(otp: String!): UserResponse
+
+  """Authenticated."""
+  revokeMySession(sessionId: String!): RevokedSessionsResponse
+
+  """Authenticated."""
+  revokeAllMySessions(includeCurrent: Boolean = false): RevokedSessionsResponse
+
+  """permissions=['can_reset_user_mfa','can_edit_user']"""
+  resetUserMfa(uid: UUID!): UserResponse
+
+  """permissions=['can_reset_user_password']"""
+  sendUserPasswordReset(uid: UUID!): UserResponse
+
+  """permissions=['can_reset_user_password']"""
+  requireUserPasswordChange(uid: UUID!): UserResponse
+
+  """permissions=['can_revoke_user_sessions']"""
+  revokeUserSessions(uid: UUID!): RevokedSessionsResponse
+
+  """permissions=['can_manage_ldap_config']"""
+  createLdapConfig(input: LdapConfigInput!): LdapConfigResponse
+
+  """permissions=['can_manage_ldap_config']"""
+  updateLdapConfig(input: LdapConfigInput!): LdapConfigResponse
+
+  """permissions=['can_manage_ldap_config']"""
+  deleteLdapConfig(uid: UUID!): LdapConfigResponse
+
+  """permissions=['can_pull_ldap_users']"""
+  pullLdapUsers(configUid: UUID!): UserResponse
+  createRole(input: RoleInput!): RoleResponse
+  updateRole(input: RoleInput!): RoleResponse
+  deleteRole(uid: UUID!): RoleResponse
+  assignPermissionsToRole(input: RoleInput!): RoleResponse
+
+  """Public. Create my own account."""
+  register(input: RegisterInput!): UserResponse
+
+  """Public."""
+  validateRegistrationOtp(input: ValidateOtpInput!): UserResponse
+
+  """Public."""
+  resendRegistrationOtp(email: String!): UserResponse
+
+  """Authenticated."""
+  updateMyProfile(input: UpdateProfileInput!): UserResponse
+
+  """Authenticated."""
+  requestEmailChange(newEmail: String!): UserResponse
+
+  """Authenticated."""
+  confirmEmailChange(otp: String!): UserResponse
+
+  """Authenticated."""
+  requestPhoneVerification: UserResponse
+
+  """Authenticated."""
+  confirmPhoneVerification(otp: String!): UserResponse
+
+  """Authenticated."""
+  acceptConsents: UserResponse
+
+  """Authenticated."""
+  requestAccountDeletion: UserResponse
+
+  """Authenticated."""
+  deleteMyAccount(
+    """The confirmation code from requestAccountDeletion"""
+    otp: String
+    password: String
+  ): UserResponse
+
+  """permissions=['can_create_user']"""
+  createUser(input: CreateUserInput!): UserResponse
+
+  """permissions=['can_edit_user']"""
+  updateUser(input: UpdateUserInput!): UserResponse
+
+  """permissions=['can_create_user']"""
+  resendUserInvitation(uid: UUID!): UserResponse
+
+  """permissions=['can_delete_user']"""
+  cancelUserInvitation(uid: UUID!): UserResponse
+
+  """permissions=['can_edit_user']"""
+  deactivateUser(uid: UUID!): UserResponse
+
+  """permissions=['can_edit_user']"""
+  activateUser(uid: UUID!): UserResponse
+
+  """permissions=['can_edit_user']"""
+  setUserAccountStatus(status: AccountStatusChoices!, uid: UUID!): UserResponse
+
+  """permissions=['can_delete_user']"""
+  deleteUser(uid: UUID!): UserResponse
+
+  """permissions=['can_delete_user']"""
+  restoreUser(uid: UUID!): UserResponse
+
+  """permissions=['can_assign_user_roles']"""
+  assignRolesToUser(input: AssignRolesInput!): UserResponse
+}
+
+input AttachmentDefinitionInput {
+  """Required when updating"""
+  uid: UUID
+
+  """Required (English) when creating"""
+  name: LocalizedInput
+  description: LocalizedInput
+
+  """"Document" or "Image" (e.g. passport-size photo)"""
+  kind: String
+
+  """e.g. ["pdf","jpg"]; empty = any"""
+  allowedExtensions: [String]
+  maxSizeMb: Int
+  isActive: Boolean
+}
+
+"""A translated string supplied in either/both languages."""
+input LocalizedInput {
+  en: String
+  sw: String
+}
+
+type RequestLogResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: RequestLogType
+  dataList: [RequestLogType]
+}
+
+type ResolvedCountResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: ResolvedCountType
+  dataList: [ResolvedCountType]
+}
+
+type ResolvedCountType {
+  resolved: Int
+}
+
+type ErrorReportOutcomeResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: ErrorReportOutcomeType
+  dataList: [ErrorReportOutcomeType]
+}
+
+type ErrorReportOutcomeType {
+  errors: Int
+  unresolved: Int
+  recipients: Int
+  sent: Boolean
+}
+
+input NotificationPreferenceInput {
+  category: String!
+  channel: NotificationChannelChoices!
+  enabled: Boolean!
+}
+
+input EmailConfigurationInput {
+  """Required when updating"""
+  uid: UUID
+  name: String
+  host: String
+  port: Int
+  username: String
+
+  """Write-only; stored encrypted"""
+  password: String
+  useTls: Boolean
+  useSsl: Boolean
+
+  """Verify the server certificate (default true)"""
+  verifyTls: Boolean
+  fromEmail: String
+  fromName: String
+  isDefault: Boolean
+}
+
+input SmsConfigurationInput {
+  """Required when updating"""
+  uid: UUID
+  name: String
+
+  """A key from getSmsProviders, e.g. LOG or MGOV"""
+  provider: String
+
+  """Blank = SMS_API_URL from the environment"""
+  apiUrl: String
+
+  """Blank = SMS_SENDER_ID from the environment"""
+  senderId: String
+
+  """Blank = SMS_SYSTEM_ID from the environment"""
+  systemId: String
+
+  """Blank = SMS_SERVICE_CODE from the environment"""
+  serviceCode: String
+  username: String
+
+  """Write-only; stored encrypted. Blank = SMS_API_KEY"""
+  apiKey: String
+  isDefault: Boolean
+}
+
+input NotificationTemplateInput {
+  """Required when updating"""
+  uid: UUID
+  name: String
+
+  """A code from getNotificationCategories"""
+  category: String
+  channel: NotificationChannelChoices = null
+  subject: String
+  body: String
+  isActive: Boolean
+}
+
+input SetPasswordInput {
+  """The token from the e-mailed link"""
+  token: String!
+  newPassword: String!
+  confirmPassword: String!
+}
+
+input ChangePasswordInput {
+  oldPassword: String!
+  newPassword: String!
+  confirmPassword: String!
+}
+
+type MfaSetupResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: MfaSetupType
+  dataList: [MfaSetupType]
+}
+
+"""
+Enrolment payload — the shared secret and the otpauth URI to render as a QR.
+"""
+type MfaSetupType {
+  secret: String
+  otpauthUri: String
+}
+
+type MfaRecoveryResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: MfaRecoveryType
+  dataList: [MfaRecoveryType]
+}
+
+"""One-time recovery codes, returned once at enrolment / regeneration."""
+type MfaRecoveryType {
+  recoveryCodes: [String]
+}
+
+type RevokedSessionsResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: RevokedSessionsType
+  dataList: [RevokedSessionsType]
+}
+
+type RevokedSessionsType {
+  revoked: Int
+
+  """True when the caller's own session ended too."""
+  signedOut: Boolean
+}
+
+input LdapConfigInput {
+  """Required when updating"""
+  uid: UUID
+  name: String
+
+  """ldap:// or ldaps:// URL"""
+  ldapUrl: String
+  bindDn: String
+
+  """Write-only; stored encrypted"""
+  bindPassword: String
+  searchBase: String
+
+  """Directory attribute holding the e-mail (default 'mail')"""
+  emailAttribute: String
+
+  """Addresses in this domain sign in against this directory"""
+  emailDomain: String
+
+  """Role granted to accounts from this directory"""
+  defaultRoleUid: UUID
+
+  """Remove the default role (update only)"""
+  clearDefaultRole: Boolean
+  isActive: Boolean
+}
+
+input RoleInput {
+  """Required when updating"""
+  uid: UUID
+  name: String
+  description: String
+
+  """Permissions to grant to this role"""
+  permissionUids: [UUID]
+}
+
+input RegisterInput {
+  email: String!
+  password: String!
+  confirmPassword: String!
+  firstName: String!
+  lastName: String!
+  phone: String!
+  middleName: String
+  dateOfBirth: Date
+
+  """Acceptance of the Terms of Service and Privacy Policy"""
+  acceptedTerms: Boolean!
+}
+
+input ValidateOtpInput {
+  email: String!
+
+  """The 6-digit code"""
+  otp: String!
+}
+
+"""Self-service profile edit (PATCH: omit a field to keep it)."""
+input UpdateProfileInput {
+  firstName: String
+  middleName: String
+  lastName: String
+  phone: String
+  gender: GenderChoices
+  photo: String
+  dateOfBirth: Date
+}
+
+"""
+An administrator creates an account; its owner is invited to activate it.
+"""
+input CreateUserInput {
+  email: String!
+  firstName: String!
+  lastName: String!
+  middleName: String
+  phone: String
+  gender: GenderChoices
+  dateOfBirth: Date
+
+  """Defaults to Internal"""
+  accountType: AccountTypeChoices
+
+  """Roles the account starts with"""
+  roleUids: [UUID]
+  sendInvitation: Boolean = true
+}
+
+"""An administrator corrects a person's details (PATCH: omit to keep)."""
+input UpdateUserInput {
+  uid: UUID!
+  firstName: String
+  middleName: String
+  lastName: String
+  phone: String
+  gender: GenderChoices
+  photo: String
+  dateOfBirth: Date
+  accountType: AccountTypeChoices
+}
+
+"""Set the roles a person holds (replace-set)."""
+input AssignRolesInput {
+  userUid: UUID!
+  roleUids: [UUID]!
+}

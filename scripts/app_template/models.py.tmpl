@@ -1,0 +1,36 @@
+"""Models of the {{name}} app.
+
+Every model subclasses :class:`apps.core.models.BaseModel`: UUIDv7 ``uid``,
+timestamps, who created/updated/deleted it, and soft delete (the default
+manager hides deleted rows; ``all_objects`` shows them). It is audited
+automatically — see ``apps/audit/constants.py`` for the opt-outs.
+"""
+
+from django.db import models
+
+from apps.core.models import BaseModel
+from apps.{{name}}.enums import {{Model}}StatusChoices
+
+
+class {{Model}}(BaseModel):
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices={{Model}}StatusChoices.choices(),
+        default={{Model}}StatusChoices.DRAFT.value,
+        db_index=True,
+    )
+
+    class Meta:
+        db_table = "{{name}}_{{model_snake}}"
+        ordering = ["-created_at"]
+        verbose_name = "{{model_verbose}}"
+        verbose_name_plural = "{{model_verbose}}s"
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def is_editable(self) -> bool:
+        return self.status == {{Model}}StatusChoices.DRAFT.value

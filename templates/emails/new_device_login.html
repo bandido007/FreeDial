@@ -1,0 +1,26 @@
+{% extends "emails/base_email.html" %}
+{% comment %}
+New-device sign-in alert. Context:
+  full_name, signed_in_at, device, ip_address, security_url
+{% endcomment %}
+{% block title %}New sign-in to your account{% endblock %}
+{% block content %}
+  <p style="margin:0 0 16px;">Hello {{ full_name|default:"there" }},</p>
+  <p style="margin:0 0 16px;">
+    Your {{ brand.portal }} account was just signed in to from a device we have
+    not seen before.
+  </p>
+  <table role="presentation" cellpadding="0" cellspacing="0"
+         style="margin:0 0 20px;font-size:14px;border-collapse:collapse;">
+    <tr><td style="padding:4px 16px 4px 0;color:#6b7280;">When</td><td>{{ signed_in_at }}</td></tr>
+    <tr><td style="padding:4px 16px 4px 0;color:#6b7280;">Device</td><td>{{ device|default:"Unknown device" }}</td></tr>
+    <tr><td style="padding:4px 16px 4px 0;color:#6b7280;">Address</td><td>{{ ip_address|default:"Unknown" }}</td></tr>
+  </table>
+  <p style="margin:0 0 16px;">If this was you, no action is needed.</p>
+  <div style="margin:20px 0;padding:14px 16px;background:#fef2f2;border-radius:8px;
+              border:1px solid #fecaca;color:#991b1b;font-size:13.5px;">
+    If this was <strong>not</strong> you, change your password now and sign out
+    of all devices{% if security_url %}:
+    <a href="{{ security_url }}" style="color:#991b1b;">{{ security_url }}</a>{% else %}.{% endif %}
+  </div>
+{% endblock %}

@@ -1,0 +1,56 @@
+"""Tests of the {{name}} app: services against rules, the API through the envelope."""
+
+import pytest
+
+from apps.core.exceptions import NotFoundError, ValidationError
+from apps.{{name}} import services
+from apps.{{name}}.models import {{Model}}
+
+pytestmark = pytest.mark.django_db
+
+PAGE = {"searchDto": {"pageableParam": {"pageNumber": 1, "itemsPerPage": 20}}}
+
+
+@pytest.fixture
+def manager(make_user, grant):
+    person = make_user(account_type="Internal")
+    grant(person, "{{view_code}}", "{{manage_code}}")
+    return person
+
+
+def test_the_rules(manager):
+    row = services.create_{{model_snake}}(actor=manager, name="First", description="x")
+    assert row.status == "DRAFT" and row.is_editable and row.created_by == manager
+    with pytest.raises(ValidationError):
+        services.create_{{model_snake}}(actor=manager, name=" ")
+    services.set_{{model_snake}}_status(uid=row.uid, actor=manager, status="ACTIVE")
+    with pytest.raises(ValidationError) as excinfo:
+        services.update_{{model_snake}}(uid=row.uid, actor=manager, name="Too late")
+    assert excinfo.value.code == {{code_base_1}}
+    with pytest.raises(NotFoundError):
+        services.delete_{{model_snake}}(uid="00000000-0000-7000-8000-000000000000")
+    services.delete_{{model_snake}}(uid=row.uid)
+    assert not {{Model}}.objects.filter(uid=row.uid).exists()
+    assert {{Model}}.all_objects.get(uid=row.uid).deleted
+
+
+def test_the_api(gql, manager, user):
+    saved = gql(
+        "mutation S($input: {{Model}}Input!) { save{{Model}}(input: $input) { code data { uid name status } } }",
+        {"input": {"name": "First"}},
+        user=manager,
+    )
+    assert saved["code"] == 9001 and saved["data"]["status"] == "DRAFT"
+    uid = saved["data"]["uid"]
+    assert gql("mutation S($input: {{Model}}Input!) { save{{Model}}(input: $input) { code } }", {"input": {"name": "x"}}, user=user)["code"] == 9000
+
+    page = gql(
+        "query L($searchDto: SearchDataDto!, $filtering: {{Model}}FilterInput) { get{{Model}}sPageable(searchDto: $searchDto, filtering: $filtering) { content { name } page { totalElements } } }",
+        {**PAGE, "filtering": {"search": "fir"}},
+        user=manager,
+    )
+    assert page["page"]["totalElements"] == 1
+    assert gql("query G($uid: UUID!) { get{{Model}}(uid: $uid) { data { name } } }", {"uid": uid}, user=manager)["data"]["name"] == "First"
+    changed = gql("mutation C($uid: UUID!) { set{{Model}}Status(uid: $uid, status: ACTIVE) { data { status } } }", {"uid": uid}, user=manager)
+    assert changed["data"]["status"] == "ACTIVE"
+    assert gql("mutation D($uid: UUID!) { delete{{Model}}(uid: $uid) { code } }", {"uid": uid}, user=manager)["code"] == 9001

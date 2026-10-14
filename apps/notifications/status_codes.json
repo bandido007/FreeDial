@@ -1,0 +1,6 @@
+[
+  {"code": 9160, "status": false, "messageEn": "This notification cannot be sent again.", "messageSw": "Taarifa hii haiwezi kutumwa tena."},
+  {"code": 9161, "status": false, "messageEn": "This notice is required and cannot be turned off.", "messageSw": "Taarifa hii ni ya lazima na haiwezi kuzimwa."},
+  {"code": 9162, "status": false, "messageEn": "Unknown notification category.", "messageSw": "Aina ya taarifa haijulikani."},
+  {"code": 9163, "status": false, "messageEn": "Unknown SMS provider.", "messageSw": "Mtoa huduma wa SMS hajulikani."}
+]

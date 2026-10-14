@@ -1,0 +1,13 @@
+[
+  {"code": 9013, "status": false, "messageEn": "Invalid or incorrect verification code", "messageSw": "Namba ya uthibitisho si sahihi"},
+  {"code": 9014, "status": false, "messageEn": "The verification code has expired. Please request a new one.", "messageSw": "Namba ya uthibitisho imeisha muda wake. Tafadhali omba nyingine."},
+  {"code": 9020, "status": false, "messageEn": "An account with this phone number already exists.", "messageSw": "Tayari kuna akaunti yenye namba hii ya simu."},
+  {"code": 9022, "status": false, "messageEn": "Please complete your profile first.", "messageSw": "Tafadhali kamilisha wasifu wako kwanza."},
+  {"code": 9023, "status": false, "messageEn": "You must accept the Terms of Service and Privacy Policy.", "messageSw": "Ni lazima ukubali Masharti ya Huduma na Sera ya Faragha."},
+  {"code": 9024, "status": false, "messageEn": "Please verify your email address first.", "messageSw": "Tafadhali thibitisha barua pepe yako kwanza."},
+  {"code": 9100, "status": false, "messageEn": "Creating your own account is not available. Ask an administrator for an account.", "messageSw": "Huwezi kujisajili mwenyewe. Omba akaunti kwa msimamizi wa mfumo."},
+  {"code": 9101, "status": false, "messageEn": "An account with this email already exists.", "messageSw": "Tayari kuna akaunti yenye barua pepe hii."},
+  {"code": 9102, "status": false, "messageEn": "You cannot do this to your own account here.", "messageSw": "Huwezi kufanya hivi kwenye akaunti yako mwenyewe hapa."},
+  {"code": 9103, "status": false, "messageEn": "This account has no invitation waiting.", "messageSw": "Akaunti hii haina mwaliko unaosubiri."},
+  {"code": 9104, "status": false, "messageEn": "Turn on two-factor authentication before changing your email address.", "messageSw": "Washa uthibitishaji wa hatua mbili kabla ya kubadilisha barua pepe yako."}
+]

@@ -1,0 +1,31 @@
+{% extends "emails/base_email.html" %}
+{% comment %}
+Invitation for an account created by an administrator. Context:
+  full_name, invite_url, ttl_hours, invited_by
+{% endcomment %}
+{% block title %}Your {{ brand.portal }} account is ready{% endblock %}
+{% block content %}
+  <p style="margin:0 0 16px;">Hello {{ full_name|default:"there" }},</p>
+  <p style="margin:0 0 16px;">
+    {% if invited_by %}{{ invited_by }} has created{% else %}An administrator has created{% endif %}
+    a {{ brand.portal }} account for you. Choose your password to activate it.
+    This link expires in <strong>{{ ttl_hours|default:72 }} hours</strong> and can be used once.
+  </p>
+  <div style="margin:28px 0;text-align:center;">
+    <a href="{{ invite_url }}"
+       style="display:inline-block;background:{{ brand.accent }};color:#ffffff;text-decoration:none;
+              font-weight:bold;font-size:15px;border-radius:8px;padding:14px 32px;">
+      Set my password
+    </a>
+  </div>
+  <p style="margin:0 0 8px;color:#6b7280;font-size:13px;">
+    If the button doesn't work, copy and paste this link into your browser:
+  </p>
+  <p style="margin:0 0 16px;word-break:break-all;font-size:13px;">
+    <a href="{{ invite_url }}" style="color:{{ brand.accent }};">{{ invite_url }}</a>
+  </p>
+  <p style="margin:0;color:#6b7280;font-size:13px;">
+    If you were not expecting this account, you can ignore this e-mail — nothing
+    happens until a password is set.
+  </p>
+{% endblock %}

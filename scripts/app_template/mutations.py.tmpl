@@ -1,0 +1,76 @@
+"""GraphQL mutations of the {{name}} app.
+
+A mutation checks that the arguments are there, calls one service, and wraps
+the outcome. Rules live in ``services.py``.
+"""
+
+import graphene
+
+from apps.core.decorators import has_permission, log_errors_and_warnings
+from apps.core.enums import to_values
+from apps.core.graphql.context import current_user
+from apps.core.graphql.response import Response
+from apps.core.utils import Utils
+from apps.{{name}} import services
+from apps.{{name}}.enums import {{Model}}StatusEnum
+from apps.{{name}}.inputs import {{Model}}Input
+from apps.{{name}}.permissions import MANAGE_{{MODEL_UPPER}}S
+from apps.{{name}}.types import {{Model}}Type
+
+
+class Save{{Model}}(graphene.Mutation):
+    """Create (no uid) or update (uid) {{article}} {{model_verbose}}."""
+
+    class Arguments:
+        input = {{Model}}Input(required=True)
+
+    Output = Response.get_response_type({{Model}}Type)
+
+    @classmethod
+    @has_permission(permissions=[MANAGE_{{MODEL_UPPER}}S])
+    @log_errors_and_warnings
+    def mutate(cls, root, info, input):
+        actor = current_user(info)
+        if input.uid:
+            row = services.update_{{model_snake}}(
+                uid=input.uid, actor=actor, name=input.name, description=input.description
+            )
+            return Response.build_response(code=9001, info=info, data=row)
+        if not Utils.empty_and_null_checker(input, ["name"]):
+            return Response.build_response(code=9005, info=info)
+        row = services.create_{{model_snake}}(actor=actor, name=input.name, description=input.description or "")
+        return Response.build_response(code=9001, info=info, data=row)
+
+
+class Set{{Model}}Status(graphene.Mutation):
+    class Arguments:
+        uid = graphene.UUID(required=True)
+        status = {{Model}}StatusEnum(required=True)
+
+    Output = Response.get_response_type({{Model}}Type)
+
+    @classmethod
+    @has_permission(permissions=[MANAGE_{{MODEL_UPPER}}S])
+    @log_errors_and_warnings
+    def mutate(cls, root, info, uid, status):
+        row = services.set_{{model_snake}}_status(uid=uid, actor=current_user(info), status=to_values(status))
+        return Response.build_response(code=9001, info=info, data=row)
+
+
+class Delete{{Model}}(graphene.Mutation):
+    class Arguments:
+        uid = graphene.UUID(required=True)
+
+    Output = Response.get_response_type({{Model}}Type)
+
+    @classmethod
+    @has_permission(permissions=[MANAGE_{{MODEL_UPPER}}S])
+    @log_errors_and_warnings
+    def mutate(cls, root, info, uid):
+        return Response.build_response(code=9001, info=info, data=services.delete_{{model_snake}}(uid=uid))
+
+
+class Mutation(graphene.ObjectType):
+    save_{{model_snake}} = Save{{Model}}.Field(description="Create or update {{article}} {{model_verbose}}. permissions=['{{manage_code}}']")
+    set_{{model_snake}}_status = Set{{Model}}Status.Field(description="Change {{article}} {{model_verbose}}'s status. permissions=['{{manage_code}}']")
+    delete_{{model_snake}} = Delete{{Model}}.Field(description="Remove {{article}} {{model_verbose}}. permissions=['{{manage_code}}']")

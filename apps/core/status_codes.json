@@ -1,0 +1,14 @@
+[
+  {"code": 9000, "status": false, "messageEn": "You're not authorized to perform this action", "messageSw": "Hauruhusiwi kufanya kitendo hiki"},
+  {"code": 9001, "status": true, "messageEn": "Operation successful", "messageSw": "Imefanikiwa"},
+  {"code": 9002, "status": false, "messageEn": "Invalid input provided. Please review and try again.", "messageSw": "Taarifa ulizoingiza si sahihi. Tafadhali hakiki na ujaribu tena."},
+  {"code": 9003, "status": false, "messageEn": "Record not found", "messageSw": "Taarifa haijapatikana"},
+  {"code": 9004, "status": false, "messageEn": "Failed to perform this operation", "messageSw": "Imeshindikana kukamilisha kitendo hiki"},
+  {"code": 9005, "status": false, "messageEn": "Required argument is missing", "messageSw": "Taarifa inayohitajika haijajazwa"},
+  {"code": 9006, "status": false, "messageEn": "Duplicate record", "messageSw": "Taarifa hii tayari ipo"},
+  {"code": 9007, "status": false, "messageEn": "Data already in use", "messageSw": "Taarifa hii inatumika"},
+  {"code": 9015, "status": false, "messageEn": "This configuration is in use and cannot be deleted", "messageSw": "Mpangilio huu unatumika na hauwezi kufutwa"},
+  {"code": 9018, "status": false, "messageEn": "Too many attempts. Please wait a few minutes and try again.", "messageSw": "Umejaribu mara nyingi. Tafadhali subiri dakika chache kisha ujaribu tena."},
+  {"code": 9019, "status": false, "messageEn": "Disposable or temporary email addresses are not allowed.", "messageSw": "Barua pepe za muda haziruhusiwi."},
+  {"code": 9021, "status": false, "messageEn": "Enter a valid phone number including the country code.", "messageSw": "Ingiza namba ya simu sahihi pamoja na msimbo wa nchi."}
+]

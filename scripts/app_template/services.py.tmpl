@@ -1,0 +1,59 @@
+"""Writes and rules of the {{name}} app.
+
+Keyword-only arguments, the rule checked first, the write second, an
+``ApplicationError`` subclass raised with a status code when a rule says no.
+Nothing here knows about GraphQL.
+"""
+
+import logging
+
+from apps.core.exceptions import ValidationError
+from apps.{{name}} import selectors
+from apps.{{name}}.enums import {{Model}}StatusChoices
+from apps.{{name}}.models import {{Model}}
+
+logger = logging.getLogger(__name__)
+
+NOT_EDITABLE = {{code_base_1}}
+
+
+def _clean(*, name, description):
+    name = (name or "").strip()
+    if not name:
+        raise ValidationError("A name is required", code=9005)
+    return name, (description or "").strip()
+
+
+def create_{{model_snake}}(*, actor, name, description="") -> {{Model}}:
+    name, description = _clean(name=name, description=description)
+    return {{Model}}.objects.create(name=name, description=description, created_by=actor)
+
+
+def update_{{model_snake}}(*, uid, actor, name=None, description=None) -> {{Model}}:
+    row = selectors.get_{{model_snake}}(uid)
+    if not row.is_editable:
+        raise ValidationError("This {{model_verbose}} can no longer be changed.", code=NOT_EDITABLE)
+    row.name, row.description = _clean(
+        name=row.name if name is None else name,
+        description=row.description if description is None else description,
+    )
+    row.updated_by = actor
+    row.save()
+    return row
+
+
+def set_{{model_snake}}_status(*, uid, actor, status: str) -> {{Model}}:
+    if status not in {{Model}}StatusChoices.values():
+        raise ValidationError("Invalid status", code=9002)
+    row = selectors.get_{{model_snake}}(uid)
+    row.status = status
+    row.updated_by = actor
+    row.save(update_fields=["status", "updated_by", "updated_at"])
+    logger.info("[{{name}}] %s set to %s by %s", row.uid, status, getattr(actor, "pk", None))
+    return row
+
+
+def delete_{{model_snake}}(*, uid) -> {{Model}}:
+    row = selectors.get_{{model_snake}}(uid)
+    row.delete()  # soft delete: the row stays for the trail
+    return row

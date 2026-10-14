@@ -1,3 +1,44 @@
-.venv/
-ari.env
+# Python
 __pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Virtualenvs
+venv/
+.venv/
+env/
+
+# Environment + secrets — never committed
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Runtime artefacts
+logs/
+media/
+staticfiles/
+celerybeat-schedule*
+*.sqlite3
+db.sqlite3
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+.import_linter_cache/
+
+# AlgoDial lab
+ari.env

@@ -1,0 +1,9 @@
+[
+  {"code": 9180, "status": false, "messageEn": "That file is too large.", "messageSw": "Faili hilo ni kubwa mno."},
+  {"code": 9181, "status": false, "messageEn": "That file type is not accepted.", "messageSw": "Aina hiyo ya faili haikubaliki."},
+  {"code": 9182, "status": false, "messageEn": "The file's content does not match its type.", "messageSw": "Maudhui ya faili hayalingani na aina yake."},
+  {"code": 9183, "status": false, "messageEn": "The file was refused by the virus scanner.", "messageSw": "Faili limekataliwa na kikagua virusi."},
+  {"code": 9184, "status": false, "messageEn": "You are not allowed to open this file.", "messageSw": "Huruhusiwi kufungua faili hili."},
+  {"code": 9185, "status": false, "messageEn": "The file could not be saved. Please try again.", "messageSw": "Faili halikuweza kuhifadhiwa. Tafadhali jaribu tena."},
+  {"code": 9186, "status": false, "messageEn": "The file could not be checked for viruses. Please try again shortly.", "messageSw": "Faili halikuweza kukaguliwa virusi. Tafadhali jaribu tena baada ya muda mfupi."}
+]

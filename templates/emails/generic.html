@@ -1,0 +1,18 @@
+{% extends "emails/base_email.html" %}
+{% comment %}
+Default fallback e-mail body used when a notification has no specific template.
+Renders the notification's subject and message; ``variables`` are also available.
+{% endcomment %}
+{% block title %}{{ notification.subject|default:brand.portal }}{% endblock %}
+{% block content %}
+  {% if notification.salutation %}<p style="margin:0 0 16px;">{{ notification.salutation }}</p>{% endif %}
+  <p style="margin:0 0 16px;white-space:pre-line;">{{ notification.message }}</p>
+  {% if notification.url %}
+    <p style="margin:24px 0;">
+      <a href="{% if notification.url|slice:":1" == "/" %}{{ brand.portal_url }}{% endif %}{{ notification.url }}"
+         style="background:{{ brand.accent }};color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;display:inline-block;">
+        Open
+      </a>
+    </p>
+  {% endif %}
+{% endblock %}

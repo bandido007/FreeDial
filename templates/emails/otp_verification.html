@@ -1,0 +1,24 @@
+{% extends "emails/base_email.html" %}
+{% comment %}
+Verification code e-mail. Context (from Notification.variables):
+  full_name, otp, ttl_minutes, purpose_label
+{% endcomment %}
+{% block title %}Your verification code{% endblock %}
+{% block preheader %}Your {{ brand.portal }} verification code{% endblock %}
+{% block content %}
+  <p style="margin:0 0 16px;">Hello {{ full_name|default:"there" }},</p>
+  <p style="margin:0 0 16px;">
+    Use the code below to {{ purpose_label|default:"confirm your account" }}. The code
+    expires in <strong>{{ ttl_minutes|default:10 }} minutes</strong>.
+  </p>
+  <div style="margin:24px 0;text-align:center;">
+    <span style="display:inline-block;font-size:32px;letter-spacing:8px;font-weight:bold;
+                 color:{{ brand.accent }};background:#ecfdf5;border-radius:8px;padding:16px 28px;">
+      {{ otp }}
+    </span>
+  </div>
+  <p style="margin:0 0 8px;color:#6b7280;font-size:13px;">
+    For your security, never share this code with anyone. Our staff will never
+    ask you for it.
+  </p>
+{% endblock %}

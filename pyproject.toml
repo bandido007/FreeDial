@@ -1,0 +1,136 @@
+[project]
+name = "algodial"
+version = "1.0.0"
+description = "A ready-to-run Django backend: authentication, users, roles, audit, notifications, files."
+requires-python = ">=3.12"
+
+# ── Ruff: lint + format ─────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+exclude = ["migrations", "venv", ".venv", "scripts/app_template"]
+
+[tool.ruff.lint]
+# pycodestyle (E/W), pyflakes (F), isort (I), bugbear (B), pyupgrade (UP),
+# Django (DJ), security (S), simplifications (SIM), print statements (T20).
+select = ["E", "W", "F", "I", "B", "UP", "DJ", "S", "SIM", "T20"]
+ignore = [
+    "E501",   # line length is handled by the formatter
+    "B008",   # function calls in argument defaults (common in Django/graphene)
+    "DJ001",  # null=True on string fields: used deliberately in a few places
+    "S101",   # assert is how pytest works
+    "S110",   # try/except/pass: best-effort observability is deliberate, and commented
+    "S112",   # try/except/continue: same
+    "SIM105", # contextlib.suppress reads worse than an explicit, commented except
+    "SIM108", # ternaries are not always clearer
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S105", "S106", "S107", "S311"]
+"conftest.py" = ["S105", "S106"]
+"config/settings/*.py" = ["S105", "F403", "F405"]
+"apps/core/models.py" = ["DJ012"]  # managers sit next to the flags they filter on
+"config/celery.py" = ["T20"]
+"scripts/*.py" = ["T20", "S603", "S607"]
+"apps/core/management/commands/*.py" = ["T20"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# ── Pytest ──────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.testing"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-ra --strict-markers --strict-config -p no:cacheprovider"
+testpaths = ["apps", "tests"]
+markers = [
+    "slow: a test that takes noticeably longer than the rest",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:graphene.*",
+    "ignore::DeprecationWarning:graphql.*",
+    "ignore::DeprecationWarning:oauth2_provider.*",
+    "ignore::DeprecationWarning:pkg_resources.*",
+]
+
+# ── Coverage ────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["apps", "config"]
+branch = true
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/admin.py",
+    "config/asgi.py",
+    "config/wsgi.py",
+    "config/settings/*",
+]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+
+# ── Mypy ────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+plugins = ["mypy_django_plugin.main"]
+ignore_missing_imports = true
+check_untyped_defs = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+exclude = ["migrations/", "venv/", "tests/", "scripts/app_template/"]
+
+[tool.django-stubs]
+django_settings_module = "config.settings.testing"
+
+# ── Import rules: the dependency order, enforced ────────────────────────────
+# Higher layers may import lower ones, never the reverse. Apps on the same
+# line are independent of each other.
+[tool.importlinter]
+root_packages = ["apps", "config"]
+include_external_packages = false
+
+[[tool.importlinter.contracts]]
+name = "Foundation apps respect the dependency order"
+type = "layers"
+# Tests may reach for whatever they need to set a scene up.
+ignore_imports = ["apps.**.tests.** -> apps.**"]
+unmatched_ignore_imports_alerting = "none"
+layers = [
+    # <scaffold:project-layers>
+    "apps.authentication",
+    "apps.users",
+    "apps.audit",
+    "apps.rbac | apps.notifications | apps.attachments | apps.configuration",
+    "apps.core",
+]
+
+[[tool.importlinter.contracts]]
+name = "Core imports no other app"
+type = "forbidden"
+ignore_imports = ["apps.core.tests.** -> apps.**"]
+unmatched_ignore_imports_alerting = "none"
+source_modules = ["apps.core"]
+forbidden_modules = [
+    "apps.rbac",
+    "apps.users",
+    "apps.authentication",
+    "apps.notifications",
+    "apps.audit",
+    "apps.attachments",
+    "apps.configuration",
+    # <scaffold:project-forbidden>
+]

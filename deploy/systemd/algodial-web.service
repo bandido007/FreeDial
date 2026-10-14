@@ -1,0 +1,39 @@
+# The API: gunicorn behind nginx (see deploy/nginx/site.conf).
+# Install: copy to /etc/systemd/system/, `systemctl daemon-reload`, `systemctl enable --now algodial-web`.
+# The app lives in /srv/algodial, owned by the `algodial` user; `.env` sits next to manage.py.
+[Unit]
+Description=algodial — API (gunicorn)
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=notify
+User=algodial
+Group=algodial
+WorkingDirectory=/srv/algodial
+EnvironmentFile=/srv/algodial/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/srv/algodial/venv/bin/gunicorn config.wsgi:application \
+    --bind unix:/run/algodial/web.sock \
+    --workers 3 \
+    --timeout 60 \
+    --graceful-timeout 30 \
+    --access-logfile - \
+    --error-logfile -
+ExecReload=/bin/kill -s HUP $MAINPID
+RuntimeDirectory=algodial
+RuntimeDirectoryMode=0755
+Restart=always
+RestartSec=3
+KillMode=mixed
+TimeoutStopSec=35
+
+# Hardening — the process needs to write only media/ and logs/.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/algodial/media /srv/algodial/logs /run/algodial
+
+[Install]
+WantedBy=multi-user.target

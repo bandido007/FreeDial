@@ -1,0 +1,27 @@
+# Periodic tasks (one instance only — beat must never run twice).
+[Unit]
+Description=algodial — Celery beat
+After=network.target redis.service postgresql.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=algodial
+Group=algodial
+WorkingDirectory=/srv/algodial
+EnvironmentFile=/srv/algodial/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/srv/algodial/venv/bin/celery -A config beat \
+    --loglevel=info \
+    --scheduler django_celery_beat.schedulers:DatabaseScheduler
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/algodial/logs
+
+[Install]
+WantedBy=multi-user.target

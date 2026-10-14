@@ -1,0 +1,34 @@
+"""Permissions the {{name}} app declares.
+
+`make seed` writes them to the database; the role editor shows the group.
+Every code a resolver requires must be declared here (a guard test checks).
+"""
+
+from apps.core.catalogue import Group, Perm, RoleSpec
+
+VIEW_{{MODEL_UPPER}}S = "can_view_{{model_snake}}s"
+MANAGE_{{MODEL_UPPER}}S = "can_manage_{{model_snake}}s"
+
+GROUPS = [
+    Group(
+        name="{{Verbose name}}",
+        description="Who may see and manage {{model_verbose}}s.",
+        permissions=[
+            Perm(
+                VIEW_{{MODEL_UPPER}}S,
+                "View {{model_verbose}}s",
+                "See every {{model_verbose}} and its details. Read-only.",
+            ),
+            Perm(
+                MANAGE_{{MODEL_UPPER}}S,
+                "Manage {{model_verbose}}s",
+                "Create, change, activate, archive and delete {{model_verbose}}s.",
+            ),
+        ],
+    ),
+]
+
+# Roles this app wants to exist, with the permissions they start with.
+ROLES: list[RoleSpec] = [
+    # RoleSpec(name="{{Verbose name}} Manager", description="…", permissions=[VIEW_{{MODEL_UPPER}}S, MANAGE_{{MODEL_UPPER}}S]),
+]

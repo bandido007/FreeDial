@@ -1,0 +1,5 @@
+[
+  {"code": 9220, "status": false, "messageEn": "Only unexpected errors can be resolved.", "messageSw": "Ni hitilafu zisizotarajiwa tu zinazoweza kutatuliwa."},
+  {"code": 9221, "status": false, "messageEn": "This error is already marked as resolved.", "messageSw": "Hitilafu hii tayari imewekwa kuwa imetatuliwa."},
+  {"code": 9222, "status": false, "messageEn": "This error is not resolved.", "messageSw": "Hitilafu hii haijatatuliwa."}
+]

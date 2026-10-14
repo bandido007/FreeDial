@@ -1,0 +1,8 @@
+# Optional: directory (LDAP) sign-in. Needs system libraries
+# (libldap2-dev + libsasl2-dev on Debian, `brew install openldap` on macOS),
+# so it is kept out of the default install. The Docker image adds it when
+# built with `--build-arg WITH_LDAP=1`.
+-c production.txt
+
+django-auth-ldap>=5.2,<6
+python-ldap>=3.4,<4

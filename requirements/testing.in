@@ -1,0 +1,7 @@
+# Test environment (CI + local `make test`).
+-r base.in
+
+pytest>=8.4,<9
+pytest-django>=4.11,<5
+pytest-cov>=7,<8
+model-bakery>=1.20,<2

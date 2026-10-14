@@ -1,0 +1,14 @@
+"""Enumerations of the {{name}} app (model choices + their GraphQL enums)."""
+
+import graphene
+
+from apps.core.enums import BaseEnum
+
+
+class {{Model}}StatusChoices(BaseEnum):
+    DRAFT = "DRAFT"
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+
+
+{{Model}}StatusEnum = graphene.Enum.from_enum({{Model}}StatusChoices)

@@ -1,0 +1,110 @@
+# ════════════════════════════════════════════════════════════════════════════
+#  CI pipeline: lint → test → checks → deploy (bare metal, over SSH)
+#
+#  Every stage runs the same Make targets a developer runs locally, so a
+#  green pipeline and a green `make ci` mean the same thing.
+#  Set these CI/CD variables per environment for the deploy job:
+#    DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY (type: file), DEPLOY_PATH
+#  The host runs scripts/deploy.sh — see docs/DEPLOYMENT.md for the one-time setup.
+# ════════════════════════════════════════════════════════════════════════════
+stages: [lint, test, checks, deploy]
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  PYTHON_IMAGE: python:3.12-slim
+  DJANGO_SETTINGS_MODULE: config.settings.testing
+  SECRET_KEY: ci-only-not-a-real-key-ci-only-not-a-real-key-0123456789
+  # The test stage talks to real PostgreSQL + Redis services.
+  TEST_DATABASE_URL: postgres://postgres:postgres@postgres:5432/test_db
+  REDIS_URL: redis://redis:6379/1
+  CELERY_BROKER_URL: redis://redis:6379/0
+  POSTGRES_DB: test_db
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  POSTGRES_HOST_AUTH_METHOD: trust
+
+default:
+  image: $PYTHON_IMAGE
+  cache:
+    key:
+      files: [requirements/development.txt]
+    paths: [.cache/pip]
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends build-essential libpq-dev make > /dev/null
+    - python -m venv venv
+    - venv/bin/pip install --quiet --upgrade pip
+    - venv/bin/pip install --quiet --require-hashes -r requirements/development.txt
+
+# ── 1. Lint: style, imports, architecture, types ────────────────────────────
+lint:
+  stage: lint
+  script:
+    - make lint
+    - make typecheck
+
+# ── 2. Test: the suite against PostgreSQL and Redis ─────────────────────────
+test:
+  stage: test
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+  script:
+    - venv/bin/python -m pytest --cov-report=xml --cov-report=term --junitxml=report.xml
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    expire_in: 1 week
+
+# ── 3. Checks: generated files current, migrations written, deps clean ─────
+checks:
+  stage: checks
+  script:
+    - make check
+    - make validate-fe
+    - make audit
+  allow_failure:
+    exit_codes: [0]
+
+production-settings:
+  stage: checks
+  script:
+    # The production module must refuse to start with development defaults …
+    - >
+      ! DJANGO_SETTINGS_MODULE=config.settings.production SECRET_KEY=django-insecure-x
+      venv/bin/python -c "import django; django.setup()" 2>/dev/null
+    # … and must start with a complete, safe environment.
+    - >
+      DJANGO_SETTINGS_MODULE=config.settings.production
+      SECRET_KEY=$SECRET_KEY DEBUG=False ALLOWED_HOSTS=api.example.org
+      ENCRYPTION_KEYS=$(venv/bin/python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+      DATABASE_URL=postgres://app:strongpassword@db:5432/app CORS_ALLOWED_ORIGINS=https://app.example.org
+      AXES_ENABLED=True LDAP_SIMULATE_DIRECTORY=False SMS_ALLOW_LOG_PROVIDER=False EXPOSE_ERROR_DETAILS=False
+      venv/bin/python -c "import django; django.setup(); print('production settings OK')"
+
+# ── 4. Deploy: check out the release on the host and run the deploy script ──
+deploy:
+  stage: deploy
+  image: alpine:3.20
+  before_script: []
+  cache: {}
+  environment:
+    name: production
+    url: https://$DEPLOY_HOST
+  script:
+    - apk add --no-cache openssh-client
+    - chmod 600 "$DEPLOY_SSH_KEY"
+    - >
+      ssh -i "$DEPLOY_SSH_KEY" -o StrictHostKeyChecking=accept-new "$DEPLOY_USER@$DEPLOY_HOST"
+      "cd $DEPLOY_PATH && scripts/deploy.sh $CI_COMMIT_SHA"
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: manual
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual

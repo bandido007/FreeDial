@@ -1,0 +1,23 @@
+"""GraphQL output types of the {{name}} app."""
+
+import graphene
+from graphene_django import DjangoObjectType
+
+from apps.{{name}}.enums import {{Model}}StatusEnum
+from apps.{{name}}.models import {{Model}}
+
+
+class {{Model}}Type(DjangoObjectType):
+    status = {{Model}}StatusEnum()
+    created_by_name = graphene.String()
+    is_editable = graphene.Boolean()
+
+    class Meta:
+        model = {{Model}}
+        fields = ("uid", "name", "description", "status", "created_at", "updated_at")
+
+    def resolve_created_by_name(self, info):
+        return self.created_by.get_full_name() if self.created_by_id else ""
+
+    def resolve_is_editable(self, info):
+        return self.is_editable

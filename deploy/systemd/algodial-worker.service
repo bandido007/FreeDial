@@ -1,0 +1,30 @@
+# Background work: notifications, exports, purges.
+[Unit]
+Description=algodial — Celery worker
+After=network.target redis.service postgresql.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=algodial
+Group=algodial
+WorkingDirectory=/srv/algodial
+EnvironmentFile=/srv/algodial/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/srv/algodial/venv/bin/celery -A config worker \
+    --loglevel=info \
+    --concurrency 2 \
+    --max-tasks-per-child 500
+Restart=always
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=60
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/algodial/media /srv/algodial/logs
+
+[Install]
+WantedBy=multi-user.target

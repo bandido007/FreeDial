@@ -1,0 +1,4 @@
+[
+  {"code": 9200, "status": false, "messageEn": "Unknown setting.", "messageSw": "Mpangilio haujulikani."},
+  {"code": 9201, "status": false, "messageEn": "That value is not valid for this setting.", "messageSw": "Thamani hiyo si sahihi kwa mpangilio huu."}
+]

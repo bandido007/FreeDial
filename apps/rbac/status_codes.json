@@ -1,0 +1,5 @@
+[
+  {"code": 9140, "status": false, "messageEn": "System roles cannot be changed or deleted.", "messageSw": "Majukumu ya mfumo hayawezi kubadilishwa au kufutwa."},
+  {"code": 9141, "status": false, "messageEn": "This role is assigned to one or more users and cannot be deleted.", "messageSw": "Jukumu hili limepewa mtumiaji mmoja au zaidi na haliwezi kufutwa."},
+  {"code": 9142, "status": false, "messageEn": "You cannot remove your own administrator role.", "messageSw": "Huwezi kujiondolea jukumu lako la usimamizi."}
+]

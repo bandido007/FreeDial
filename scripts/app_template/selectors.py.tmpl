@@ -1,0 +1,20 @@
+"""Reads of the {{name}} app. Selectors never mutate."""
+
+from django.db.models import Q, QuerySet
+
+from apps.core.exceptions import NotFoundError
+from apps.{{name}}.models import {{Model}}
+
+NOT_FOUND = {{code_base}}
+
+
+def get_{{model_snake}}(uid) -> {{Model}}:
+    row = {{Model}}.objects.select_related("created_by").filter(uid=uid).first()
+    if row is None:
+        raise NotFoundError("{{model_verbose_cap}} not found", code=NOT_FOUND)
+    return row
+
+
+def {{model_snake}}s_queryset(filters: Q | None = None) -> QuerySet[{{Model}}]:
+    qs = {{Model}}.objects.select_related("created_by")
+    return qs.filter(filters) if filters is not None else qs

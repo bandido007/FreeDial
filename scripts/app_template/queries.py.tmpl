@@ -1,0 +1,59 @@
+"""GraphQL queries of the {{name}} app.
+
+A resolver reads the request, builds filters, asks a selector, and wraps the
+answer in the envelope. Nothing else.
+"""
+
+import graphene
+from django.db.models import Q
+
+from apps.core.decorators import has_permission, log_errors_and_warnings
+from apps.core.enums import to_values
+from apps.core.graphql.pagination import Page, SearchDataDto
+from apps.core.graphql.response import Response
+from apps.core.graphql.search import GenericSpecificationSearch
+from apps.{{name}} import selectors
+from apps.{{name}}.inputs import {{Model}}FilterInput
+from apps.{{name}}.models import {{Model}}
+from apps.{{name}}.permissions import VIEW_{{MODEL_UPPER}}S
+from apps.{{name}}.types import {{Model}}Type
+
+
+def _filters(search_dto, filtering) -> Q:
+    filters = GenericSpecificationSearch.build_search_filters(search_dto, model={{Model}})
+    if filtering is not None:
+        if filtering.uid is not None:
+            filters &= Q(uid=filtering.uid)
+        if filtering.status is not None:
+            filters &= Q(status=to_values(filtering.status))
+        search = (filtering.search or "").strip()
+        if search:
+            filters &= Q(name__icontains=search) | Q(description__icontains=search)
+    return filters
+
+
+class Query(graphene.ObjectType):
+    get_{{model_snake}} = Response(
+        {{Model}}Type,
+        uid=graphene.UUID(required=True),
+        description="One {{model_verbose}}. permissions=['{{view_code}}']",
+    )
+    get_{{model_snake}}s_pageable = Page(
+        {{Model}}Type,
+        search_dto=SearchDataDto(required=True),
+        filtering={{Model}}FilterInput(),
+        description="Paginated, searchable {{model_verbose}}s. permissions=['{{view_code}}']",
+    )
+
+    @staticmethod
+    @has_permission(permissions=[VIEW_{{MODEL_UPPER}}S])
+    @log_errors_and_warnings
+    def resolve_get_{{model_snake}}(root, info, uid):
+        return Response.build_response(code=9001, info=info, data=selectors.get_{{model_snake}}(uid))
+
+    @staticmethod
+    @has_permission(permissions=[VIEW_{{MODEL_UPPER}}S])
+    @log_errors_and_warnings
+    def resolve_get_{{model_snake}}s_pageable(root, info, search_dto, filtering=None):
+        rows = selectors.{{model_snake}}s_queryset(_filters(search_dto, filtering))
+        return Page.build_response(code=9001, info=info, pageable=search_dto.pageable_param, data=rows)

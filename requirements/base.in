@@ -1,0 +1,54 @@
+# ──────────────────────────────────────────────────────────────────────────
+# Base requirements — installed in EVERY environment.
+# Edit this file, then run `make deps` to regenerate the pinned, hashed
+# base.txt. Never edit the generated *.txt files by hand.
+# ──────────────────────────────────────────────────────────────────────────
+
+# Core framework — Django 5.2 LTS (supported to April 2028).
+Django>=5.2,<5.3
+
+# REST + OAuth2 (token endpoints, file endpoints)
+djangorestframework>=3.16,<3.17
+django-oauth-toolkit==3.0.1
+
+# GraphQL API layer
+graphene-django>=3.2,<3.3
+graphene>=3.4,<3.5
+
+# Cross-origin requests (the SPA lives on a different origin)
+django-cors-headers>=4.7,<5
+
+# Typed, 12-factor configuration
+django-environ>=0.12,<0.13
+
+# PostgreSQL adapter — psycopg 3
+psycopg[binary]>=3.2,<3.3
+
+# Asynchronous task processing
+celery>=5.5,<5.6
+redis>=6.4,<7
+django-redis>=6.0,<7
+django-celery-beat>=2.8,<2.9
+
+# Brute-force login protection
+django-axes>=8.0,<9
+
+# External sign-in — verifies OIDC ID tokens (Google, Keycloak, Microsoft, …)
+PyJWT[crypto]>=2.10,<3
+
+# Outbound HTTP (SMS gateway, breached-password check, OIDC discovery)
+requests>=2.32,<3
+
+# Symmetric encryption of DB-stored secrets — see apps.core.crypto
+cryptography>=45
+
+# Image normalisation on upload
+Pillow>=11.3,<12
+
+# Browser / OS / device parsing for the login history
+user-agents>=2.2,<3
+
+# Table exports (apps.core.exports) — PDF / Word / Excel builders
+reportlab>=4.4
+python-docx>=1.2,<2
+openpyxl>=3.1,<4
