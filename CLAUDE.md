@@ -16,7 +16,9 @@ recommendation with evidence (docs, source code, who does it this way), then wai
 | Asterisk config | `/etc/asterisk`, a git repo. Commit every change there with a clear message |
 | SIP (PJSIP) | UDP transport on **5062** (5060 belongs to an old jambonz stack) |
 | ARI | `http://127.0.0.1:8091/ari`, user `algodial`, app name `algodial`. Port 8088 is taken by InfluxDB and 8090 by Docker |
-| Dialplan entry | Extension `800` in context `[lab]`: `Stasis(algodial,inbound,${EXTEN},${CHANNEL(endpoint)})` |
+| Dialplan entry | Extension `800` in context `[lab]`: `Stasis(algodial,inbound,${EXTEN},${CHANNEL(endpoint)},${CHANNEL(linkedid)})`; if `STASISSTATUS` is `FAILED` (no brain) it goes to `Answer()` + `Queue(support)` (members 1001, 1002). Changes to `/etc/asterisk` go through `sudo deploy/asterisk/apply.sh <step>` |
+| WebSocket SIP | `transport-ws` (pjsip.conf). It opens no port of its own: browsers connect to Asterisk's HTTP server `/ws` on 127.0.0.1:8091 (the `0.0.0.0:5060` that `pjsip show transports` prints is a placeholder) |
+| Start order | Start Docker (`make up`) before Asterisk is restarted, or Asterisk logs `PostgreSQL RealTime: Failed to connect` once; it reconnects by itself on the next lookup |
 | CEL | `/var/log/asterisk/cel-custom/cel_trace.csv` (advanced `cel_custom` mapping; `apps=` must list apps by name, `all` does not work in 22.11) |
 | Test phones | Account `1001` = Zoiper on the laptop (127.0.0.1:5062), `1002` = Zoiper on a phone on the LAN |
 | PJSIP realtime | `res_config_pgsql` → AlgoDial PostgreSQL (127.0.0.1:5442), role `asterisk` (read-only on `ps_endpoints`, `ps_auths`, `ps_aors`). Sorcery reads `pjsip.conf` first (1001, 1002, transports), then the database. Tables by Asterisk's Alembic (`make pjsip-schema`). Applied by `deploy/asterisk/m1-pjsip-realtime.sh`; commits in `/etc/asterisk` are made as root |

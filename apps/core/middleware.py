@@ -9,7 +9,7 @@ from apps.core.context import (
     reset_current_user,
     reset_request_id,
     run_after_request_queue,
-    set_current_user,
+    set_current_user_from,
     set_request_id,
 )
 from apps.core.utils import generate_uuid7, strip_mount_prefix
@@ -57,7 +57,7 @@ class CurrentUserMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        token = set_current_user(getattr(request, "user", None))
+        token = set_current_user_from(request)  # project: lazy, safe under ASGI
         try:
             return self.get_response(request)
         finally:

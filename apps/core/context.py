@@ -41,14 +41,37 @@ logger = logging.getLogger(__name__)
 
 
 # ── Acting user ──────────────────────────────────────────────────────────────
+class _RequestUser:
+    """Points at a request's user without touching it (project fix for ASGI).
+
+    ``request.user`` is a lazy object. Under ASGI, asgiref inspects every context
+    variable each time it hops between the event loop and a worker thread; holding
+    the lazy user itself would make it load from the database inside the event loop
+    (SynchronousOnlyOperation). The user is resolved only when someone asks for it.
+    """
+
+    __slots__ = ("request",)
+
+    def __init__(self, request):
+        self.request = request
+
+
 def get_current_user():
     """The user this unit of work is attributed to, or ``None``."""
-    return _current_user.get()
+    user = _current_user.get()
+    if isinstance(user, _RequestUser):
+        return getattr(user.request, "user", None)
+    return user
 
 
 def set_current_user(user):
     """Set the acting user; returns a token for :func:`reset_current_user`."""
     return _current_user.set(user)
+
+
+def set_current_user_from(request):
+    """Make ``request.user`` the acting user, read only when needed; returns a reset token."""
+    return _current_user.set(_RequestUser(request))
 
 
 def reset_current_user(token) -> None:
