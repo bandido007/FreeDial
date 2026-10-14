@@ -187,13 +187,13 @@ seed-demo: ## The demo centre of docs/ROUTING_DESIGN.md (agents, skills, rule se
 sim: ## A virtual busy hour through the real brain core, every queue strategy compared (make sim a="--skills")
 	$(MANAGE) simulate $(a)
 
-agentcheck: ## M3 in a real browser: sign in, Ready, a call from 800, hold, wrap-up, Event table (stop your brain first)
+agentcheck: ## M3, M5, M6 in real browsers: agent call from 899, supervisor monitor/whisper/barge, every transfer (stop your brain first)
 	$(PY) lab/agentpage.py
 
 agent-login: ## A lab agent to sign in on /agent/ with (email and password go into .env)
 	$(PY) lab/agent_login.py
 
-calltests: ## The 9 call tests on the real lab with scripted phones (stop your brain first; make calltests t="1 4")
+calltests: ## Call tests 1-18 on the real lab with scripted phones (stop your brain first; make calltests t="1 4")
 	$(PY) lab/calltests.py $(t)
 
 pjsip-schema: ## Asterisk's PJSIP realtime tables (its own Alembic) + Asterisk's read-only role + rewrite accounts

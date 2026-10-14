@@ -102,7 +102,7 @@ EVENTS: dict[str, tuple[str, ...]] = {
     ROUTING_TICKET: ("call", "queue", "language", "priority", "skills", "source"),
     ROUTING_AI_TAG_REJECTED: ("call", "source", "rejected"),
     TRANSFER_STARTED: ("call", "transfer", "kind", "target_kind", "target", "agent"),
-    TRANSFER_ANSWERED: ("call", "transfer", "leg"),
+    TRANSFER_ANSWERED: ("call", "transfer", "leg", "agent"),
     TRANSFER_COMPLETED: ("call", "transfer"),
     TRANSFER_CANCELLED: ("call", "transfer", "reason"),
     TRANSFER_FAILED: ("call", "transfer", "reason"),

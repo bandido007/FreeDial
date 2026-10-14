@@ -1,18 +1,21 @@
-"""M3's and M5's "Done when", checked with real browsers. M3: an agent using only Chrome signs in, goes
-Ready, takes a call from 899 (the lab entry) end to end, holds, wraps up, and every state change is in
-the Event table. M5: two agents in two browsers consult, conference, drop, and transfer blind to an
-agent, a queue and a number, each by clicking the page.
+"""M3's, M5's and M6's "Done when", checked with real browsers. M3: an agent using only Chrome signs
+in, goes Ready, takes a call from 899 (the lab entry) end to end, holds, wraps up, and every state
+change is in the Event table. M6: a supervisor in Chrome switches monitor / whisper / barge on that
+agent's call, and the customer's phone measures when it hears the supervisor. M5: two agents in two
+browsers consult, conference, drop, and transfer blind to an agent, a queue and a number, each by
+clicking the page.
 
-    cd ~/AlgoDial && .venv/bin/python lab/agentpage.py            # headless
+    cd ~/AlgoDial && .venv/bin/python lab/agentpage.py            # headless (or: make agentcheck)
     .venv/bin/python lab/agentpage.py --show                      # watch it in a window
+    .venv/bin/python lab/agentpage.py --no-transfers --no-supervision   # M3 only
 
 It starts its own stack on this machine: web (ASGI, port 8017), brain, writer and the live
-relay, so stop your brain first. The customer is lab/sipphone.py dialling 800; Chrome's
-fake microphone plays the agent. Needs `sudo deploy/asterisk/apply.sh m3` (transport-ws).
+relay, so stop your brain first. The customer is lab/sipphone.py dialling 899; Chrome's
+fake microphone plays the agents and the supervisor (a 1300 Hz tone). Needs
+`sudo deploy/asterisk/apply.sh m3` (transport-ws) and m4 (entry 899).
 
-Lab setup it keeps (idempotent): user lab.agent@example.org (a fresh random password per run)
-with the Agent role, agent 9003 in queue Support, wrap-up codes Sale and Complaint, the Not
-Ready reason Break.
+Logins come from lab/agent_login.py (passwords in .env): agent 9003 (LAB_CHECK_AGENT_*),
+agent 7001 (LAB_AGENT_*, the transfer target) and the lab supervisor (LAB_SUPERVISOR_*).
 """
 import argparse
 import asyncio
@@ -55,6 +58,12 @@ CHECK_AGENT = next(spec for spec in agent_login.AGENTS if spec[0] == "LAB_CHECK_
 PORT = 8017
 EMAIL = agent_login.env_value("LAB_CHECK_AGENT_EMAIL") or CHECK_AGENT[1]
 LOG = ROOT / "lab" / "agentpage-stack.log"
+
+
+def brain_running():
+    """Another brain on this machine? (ARI's app list is not proof: Asterisk keeps an app listed while
+    a bridge left behind is still subscribed to it, even with nobody connected.)"""
+    return subprocess.run(["pgrep", "-f", "manage.py run_brain"], capture_output=True).returncode == 0
 
 
 def say(text):
@@ -110,6 +119,8 @@ async def activity(page):
 
 
 async def done_wrapping_up(page):
+    # Right after a hangup the page may still say talking; wait for the brain's next state first.
+    await until(page, "!['talking', 'on_hold', 'offered'].includes(window.agentDesk.state.activity)", 10)
     if await activity(page) == "wrapup":
         await page.click("#wrapup-done")
     await until(page, "window.agentDesk.state.activity !== 'wrapup'", 10)
@@ -401,8 +412,8 @@ async def main(show, transfers=True, supervision=True):
     password, agent_uid, customer_password = await asyncio.to_thread(setup)
     admin_session = await asyncio.to_thread(admin_cookie)
     started = datetime.now(timezone.utc)
-    if await brain_connected():
-        say("A brain is already connected to ARI. Stop it first (and any `make dev`).")
+    if brain_running():
+        say("A brain is running on this machine (make dev or make brain). Stop it first.")
         return 2
     if not port_free(PORT):
         say(f"Port {PORT} is taken.")

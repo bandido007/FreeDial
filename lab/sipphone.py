@@ -153,7 +153,7 @@ class Phone:
         self.registered = False
         self.rtp_packets = 0
         self.tone_hz = tone_hz  # the "voice" this phone sends: tell phones apart by frequency
-        self.received = collections.deque(maxlen=8000 * 4)  # the last 4 s of audio heard (PCMU, decoded)
+        self.audio_in = collections.deque(maxlen=8000 * 4)  # the last 4 s of audio heard (PCMU, decoded)
 
     # ── transport ──────────────────────────────────────────────────────────
     async def start(self):
@@ -502,13 +502,22 @@ class Phone:
         asyncio.ensure_future(self._send_tone(call, target))
 
     async def _send_tone(self, call, target):
-        payload = bytes(ulaw(int(6000 * math.sin(2 * math.pi * self.tone_hz * n / 8000))) for n in range(160))
+        # One second of tone, sent 160 samples at a time: a whole second holds whole cycles of any
+        # integer frequency, so the wave runs on across packets (repeating one 20 ms packet would
+        # shift a 440 Hz tone to 400/450 Hz, which hears(440) cannot find).
+        second = bytes(ulaw(int(6000 * math.sin(2 * math.pi * self.tone_hz * n / 8000))) for n in range(8000))
         ssrc, sequence, stamp = secrets.randbits(32), secrets.randbits(16), secrets.randbits(32)
+        # Packet n goes out at start + n * 20 ms, like a real phone's clock. Sleeping 20 ms after each
+        # send drifts late; a mixing bridge (snoop, 3-way) then fills the gaps with silence, which
+        # breaks any tone that is not a whole number of cycles per 20 ms.
+        loop = asyncio.get_running_loop()
+        start, n = loop.time(), 0
         while not call.ended.is_set():
             header = struct.pack("!BBHII", 0x80, 0, sequence & 0xFFFF, stamp & 0xFFFFFFFF, ssrc)
-            self.rtp.sendto(header + payload, target)
-            sequence, stamp = sequence + 1, stamp + 160
-            await asyncio.sleep(0.02)
+            offset = (n * 160) % 8000
+            self.rtp.sendto(header + second[offset:offset + 160], target)
+            sequence, stamp, n = sequence + 1, stamp + 160, n + 1
+            await asyncio.sleep(max(0.0, start + n * 0.02 - loop.time()))
 
     def heard(self, packet):
         """Keep the audio of an RTP packet (PCMU) to tell later which tones this phone hears."""
@@ -517,11 +526,11 @@ class Phone:
         start = 12 + 4 * (packet[0] & 0x0F)
         if packet[0] & 0x10 and len(packet) >= start + 4:  # header extension
             start += 4 + 4 * int.from_bytes(packet[start + 2:start + 4], "big")
-        self.received.extend(ULAW_TO_LINEAR[byte] for byte in packet[start:])
+        self.audio_in.extend(ULAW_TO_LINEAR[byte] for byte in packet[start:])
 
     def hears(self, frequency, seconds=1.0):
         """How much of what this phone heard in the last ``seconds`` is ``frequency`` (0 to 1, Goertzel)."""
-        samples = list(self.received)[-int(8000 * seconds):]
+        samples = list(self.audio_in)[-int(8000 * seconds):]
         if len(samples) < 800:
             return 0.0
         energy = sum(x * x for x in samples) or 1.0

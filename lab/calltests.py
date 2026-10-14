@@ -9,7 +9,8 @@ What it does:
   * makes sure the lab setup exists: SIP accounts lab-customer, lab-agent-a, lab-agent-b;
     agents 9001 and 9002; queue "Support"; entry point 899 -> Support (800-802 are the demo centre)
   * starts the brain itself (stop yours first: two brains on one app would fight),
-    recording every decision to brain/sim/recordings/lab.jsonl
+    recording every decision to brain/sim/recordings/lab.jsonl (a full run starts it afresh;
+    a run of some tests records to lab/calltests-partial.jsonl instead)
   * plays the customer and both agents with lab/sipphone.py
   * after each test checks, through ARI, that no channel and no bridge is left
     (what `core show channels` and `bridge show all` would say)
@@ -54,8 +55,16 @@ from sipphone import Phone  # noqa: E402
 
 CEL = "/var/log/asterisk/cel-custom/cel_trace.csv"
 LAB_ENTRY = "899"  # needs `sudo deploy/asterisk/apply.sh m4` (every 8xx number goes to the brain)
-RECORDING = ROOT / "brain" / "sim" / "recordings" / "lab.jsonl"
+ALL_TESTS = list(range(1, 19))
+RECORDING = ROOT / "brain" / "sim" / "recordings" / "lab.jsonl"  # a full run; test_replay.py replays it
+PARTIAL_RECORDING = ROOT / "lab" / "calltests-partial.jsonl"  # a run of some tests (git-ignored)
 BRAIN_LOG = ROOT / "lab" / "calltests-brain.log"
+
+
+def brain_running():
+    """Another brain on this machine? (ARI's app list is not proof: Asterisk keeps an app listed while
+    a bridge left behind is still subscribed to it, even with nobody connected.)"""
+    return subprocess.run(["pgrep", "-f", "manage.py run_brain"], capture_output=True).returncode == 0
 
 
 def say(text):
@@ -105,8 +114,9 @@ def set_support(**fields):
 
 # ── the world as Asterisk and the bus see it ───────────────────────────────
 class World:
-    def __init__(self, http):
+    def __init__(self, http, recording):
         self.http = http
+        self.recording = recording
         self.redis = bus.client()
         self.cursor = "$"
         self.seen = []
@@ -141,8 +151,8 @@ class World:
             await asyncio.sleep(0.1)
         raise AssertionError(f"no {kind} {match or ''} within {timeout}s")
 
-    def command(self, kind, **data):
-        return bus.send_command(kind, data)
+    def command(self, command_type, /, **data):
+        return bus.send_command(command_type, data)
 
     def agent_state(self, uid):
         raw = self.redis.hget(settings.BUS_AGENTS_KEY, uid)
@@ -173,11 +183,10 @@ class World:
 
     # ── the brain process ──────────────────────────────────────────────────
     async def start_brain(self):
-        RECORDING.parent.mkdir(parents=True, exist_ok=True)
         log = open(BRAIN_LOG, "a")  # noqa: SIM115
         self.mark()
         self.brain = subprocess.Popen(
-            [str(ROOT / ".venv" / "bin" / "python"), "manage.py", "run_brain", "--record", str(RECORDING)],
+            [str(ROOT / ".venv" / "bin" / "python"), "manage.py", "run_brain", "--record", str(self.recording)],
             cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
         )
         await self.event(m.BRAIN_RECONCILED, timeout=20)
@@ -539,6 +548,7 @@ class Lab:
         tones = {"customer": 440, "agent": 700, "supervisor": 1300}
         self.customer.tone_hz, self.phone_a.tone_hz, self.phone_b.tone_hz = tones["customer"], tones["agent"], tones["supervisor"]
         present, absent = 0.05, 0.01
+        call = linkedid = None
         try:
             self.phone_a.mode = self.phone_b.mode = "answer"
             await self.ready(self.a, "lab-agent-a")
@@ -559,6 +569,8 @@ class Lab:
                     await self.w.event(m.SUPERVISE_CHANGED, call=linkedid, mode=mode)
                 await asyncio.sleep(2.5)  # only audio heard in this mode counts
                 heard[mode] = {
+                    "agent<-customer": self.phone_a.hears(tones["customer"], 1.5),
+                    "customer<-agent": self.customer.hears(tones["agent"], 1.5),
                     "customer<-sup": self.customer.hears(tones["supervisor"], 1.5),
                     "agent<-sup": self.phone_a.hears(tones["supervisor"], 1.5),
                     "sup<-customer": self.phone_b.hears(tones["customer"], 1.5),
@@ -578,11 +590,12 @@ class Lab:
                 if ((heard[mode][who] < present) if should else (heard[mode][who] > absent))
             ]
             assert not wrong, wrong
-            await call.hangup()
-            await self.w.event(m.CALL_ENDED, call=linkedid)
-            await self.w.all_clear()
         finally:
             self.customer.tone_hz = self.phone_a.tone_hz = self.phone_b.tone_hz = 440
+            if call is not None and not call.ended.is_set():
+                await call.hangup()
+        await self.w.event(m.CALL_ENDED, call=linkedid)
+        await self.w.all_clear()
         return "monitor: nobody hears the supervisor; whisper: only the agent; barge: everyone (measured at each phone)"
 
     async def t9(self):
@@ -610,13 +623,18 @@ async def main(selected):
     passwords, agent_a, agent_b, ring_timeout = await asyncio.to_thread(ensure_setup)
     headers = {"Authorization": aiohttp.encode_basic_auth(settings.ARI_USER, settings.ARI_PASSWORD)}
     async with aiohttp.ClientSession(headers=headers) as http:
-        world = World(http)
-        if await world.brain_connected():
-            say("A brain is already connected to ARI as 'algodial'. Stop it first (Ctrl-C in its terminal).")
+        # The brain appends (it restarts mid-run, test 8); each run starts its recording empty. Only a
+        # full run replaces lab.jsonl, so the replayed recording is always one complete, current run.
+        recording = RECORDING if sorted(selected) == ALL_TESTS else PARTIAL_RECORDING
+        world = World(http, recording)
+        if brain_running():
+            say("A brain is running on this machine (make dev or make brain). Stop it first (Ctrl-C in its terminal).")
             return 2
         if await world.ari("GET", "/channels"):
             say("Asterisk has live channels; run the tests on a quiet lab.")
             return 2
+        recording.parent.mkdir(parents=True, exist_ok=True)
+        recording.write_text("")
         customer = await Phone("lab-customer", passwords["lab-customer"]).start()
         phone_a = await Phone("lab-agent-a", passwords["lab-agent-a"]).start()
         phone_b = await Phone("lab-agent-b", passwords["lab-agent-b"]).start()
@@ -657,10 +675,10 @@ async def main(selected):
         print()
         for number, (verdict, detail) in results.items():
             print(f"  {number}  {verdict}  {detail}")
-        print(f"\nBrain log: {BRAIN_LOG}\nRecording: {RECORDING}")
+        print(f"\nBrain log: {BRAIN_LOG}\nRecording: {recording}")
         return 0 if all(verdict == "PASS" for verdict, _ in results.values()) else 1
 
 
 if __name__ == "__main__":
-    chosen = [int(arg) for arg in sys.argv[1:]] or list(range(1, 19))
+    chosen = [int(arg) for arg in sys.argv[1:]] or ALL_TESTS
     sys.exit(asyncio.run(main(chosen)))

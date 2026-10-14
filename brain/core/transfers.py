@@ -241,7 +241,16 @@ class TransferMixin:
             self.legs.pop(leg, None)
             return self._reject(channel, args, "its transfer is gone")
         out: list[a.Action] = [
-            a.Emit(m.TRANSFER_ANSWERED, {"call": call.id, "transfer": transfer.id, "leg": leg})
+            a.Emit(
+                m.TRANSFER_ANSWERED,
+                {
+                    "call": call.id,
+                    "transfer": transfer.id,
+                    "leg": leg,
+                    "agent": transfer.by,
+                    "target_agent": transfer.target_agent,
+                },
+            )
         ]
         target = self.agents.get(transfer.target_agent or "")
         if target is not None:

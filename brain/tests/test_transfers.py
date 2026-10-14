@@ -149,6 +149,22 @@ async def test_consult_then_complete():
 
 
 @scenario
+async def test_every_transfer_event_names_both_agents_so_their_pages_get_it():
+    """The live relay sends an event to the pages of the agents it names (agent, target_agent).
+    A page that missed transfer.answered never enabled Complete / Conference (found in Chrome)."""
+    async with brain() as lab:
+        customer, a_leg = await on_a_call(lab)
+        await consulting(lab, customer, a_leg)
+        await lab.command(m.CONFERENCE_START, agent=A)
+        await eventually(lambda: lab.bus.of_type(m.CONFERENCE_STARTED))
+        for kind in (m.TRANSFER_STARTED, m.TRANSFER_ANSWERED, m.CONFERENCE_STARTED):
+            data = last(lab, kind)
+            assert (data["agent"], data["target_agent"]) == (A, B), (kind, data)
+        lab.sim.hangup(customer)
+        await lab.all_clear()
+
+
+@scenario
 async def test_consult_then_cancel_puts_the_agent_back_with_the_customer():
     async with brain() as lab:
         customer, a_leg = await on_a_call(lab)

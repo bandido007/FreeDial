@@ -16,6 +16,17 @@ MIDDLEWARE.insert(
 )
 INTERNAL_IPS = ["127.0.0.1", "localhost"]
 
+
+def _show_toolbar(request):
+    """The toolbar's usual rule, but never on the agent and supervisor pages: it covers their
+    buttons (Sign out sits under it) and those pages talk to the API, not to Django templates."""
+    from debug_toolbar.middleware import show_toolbar
+
+    return show_toolbar(request) and not request.path.startswith(("/agent/", "/supervisor/"))
+
+
+DEBUG_TOOLBAR_CONFIG = {"SHOW_TOOLBAR_CALLBACK": _show_toolbar}
+
 # Lockouts get in the way during local iteration.
 AXES_ENABLED = env.bool("AXES_ENABLED", default=False)
 
