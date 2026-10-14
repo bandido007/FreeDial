@@ -124,9 +124,9 @@ Supervisors: Asha (Front Desk), Daudi (Claims & Providers).
 
 | Number | Destination | Default language | Priority | If the AI or brain fails |
 | --- | --- | --- | --- | --- |
-| 800 | AI agent "Msaidizi" (may route to Membership, Claims, Escalations, General) | swahili | queue default | General |
+| 800 | AI agent "Jambo AI" (may route to Membership, Claims, Escalations, General) | swahili | queue default | General |
 | 801 | Providers queue (provider hotline, no AI) | swahili | 10 | Claims |
-| 802 | AI agent "Msaidizi" | english | queue default | General |
+| 802 | AI agent "Jambo AI" | english | queue default | General |
 
 ## 4. Matcher tests (write these first)
 

@@ -39,7 +39,7 @@ def ai_config(start_timeout: float = 10.0):
         config,
         entries=entries,
         skills=skills,
-        ai_agents={AI: AiAgentConfig(AI, "Msaidizi", start_timeout=start_timeout)},
+        ai_agents={AI: AiAgentConfig(AI, "Jambo AI", start_timeout=start_timeout)},
     )
 
 

@@ -14,7 +14,7 @@ def test_a_change_tells_the_brain(monkeypatch):
 
     calls = []
     monkeypatch.setattr(receivers, "config_changed", lambda: calls.append(1))
-    ai = AiAgent.objects.create(name="Msaidizi", instructions="A helpline.")
+    ai = AiAgent.objects.create(name="Jambo AI", instructions="A helpline.")
     AiRoute.objects.create(ai_agent=ai, queue=queues.save_queue(actor=None, name="General"), when="anything")
     ai.delete()
     assert len(calls) == 3
@@ -22,13 +22,13 @@ def test_a_change_tells_the_brain(monkeypatch):
 
 def test_the_admin_pages_follow_the_permissions(client, make_user, grant):
     ai = AiAgent.objects.create(
-        name="Msaidizi", instructions="A helpline.", sensitive_topics="overdose\n\n sumu "
+        name="Jambo AI", instructions="A helpline.", sensitive_topics="overdose\n\n sumu "
     )
     page, change = "/admin/ai/aiagent/", f"/admin/ai/aiagent/{ai.pk}/change/"
     viewer = make_user(account_type="Internal", is_staff=True)
     grant(viewer, VIEW_AI_AGENTS)
     client.force_login(viewer)
-    assert client.get(page).status_code == 200 and b"Msaidizi" in client.get(page).content
+    assert client.get(page).status_code == 200 and b"Jambo AI" in client.get(page).content
     assert client.post(change, {"name": "Changed"}).status_code == 403
     editor = make_user(account_type="Internal", is_staff=True)
     grant(editor, VIEW_AI_AGENTS, EDIT_AI_AGENTS)

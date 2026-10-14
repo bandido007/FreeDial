@@ -6,6 +6,7 @@ are control: MEDIA_START, MEDIA_MARK_PROCESSED, MEDIA_XOFF / MEDIA_XON from Aste
 MARK_MEDIA (tell me when what I sent so far has played) and FLUSH_MEDIA (drop what is queued).
 """
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -67,6 +68,22 @@ class AsteriskMedia:
     async def _command(self, command: str, **fields: Any) -> None:
         if not self.ws.closed:
             await self.ws.send_str(json.dumps({"command": command, **fields}))
+
+    async def wait_closed(self, timeout: float) -> bool:
+        """Wait for Asterisk to end the leg (the brain hangs it up). True if it did within ``timeout``."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while not self.ws.closed:
+            left = deadline - loop.time()
+            if left <= 0:
+                return False
+            try:
+                message = await self.ws.receive(timeout=left)
+            except TimeoutError:
+                return False
+            if message.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                return True
+        return True
 
     async def close(self) -> None:
         await self.ws.close()

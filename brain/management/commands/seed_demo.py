@@ -148,8 +148,10 @@ class Command(BaseCommand):
             queue.save()
 
     def _ai_agent(self) -> AiAgent:
-        """Msaidizi, the demo AI agent, with the queues it may send callers to."""
-        ai = AiAgent.objects.filter(name=ai_demo.NAME, deleted=False).first() or AiAgent(name=ai_demo.NAME)
+        """Jambo AI, the demo AI agent, with the queues it may send callers to."""
+        names = (ai_demo.NAME, *ai_demo.OLD_NAMES)
+        ai = AiAgent.objects.filter(name__in=names, deleted=False).first() or AiAgent()
+        ai.name = ai_demo.NAME
         ai.instructions = ai_demo.INSTRUCTIONS
         ai.greeting_swahili, ai.greeting_english = ai_demo.GREETING_SWAHILI, ai_demo.GREETING_ENGLISH
         ai.sensitive_topics = "\n".join(ai_demo.SENSITIVE_TOPICS)

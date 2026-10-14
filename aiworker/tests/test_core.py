@@ -22,7 +22,7 @@ from aiworker.core.turns import SpeechStarted, TurnDetector, TurnEnded
 
 SETTINGS = AgentSettings(
     uid="ai-1",
-    name="Msaidizi",
+    name="Jambo AI",
     instructions="A helpline.",
     greetings={"swahili": "Habari", "english": "Hello"},
     routes=(Route("Claims", "claims, payments", {"claims": 1}), Route("General", "anything else")),
@@ -167,7 +167,7 @@ def test_what_the_model_sees():
     messages = conversation.messages(forced_reason=rules.ASKED_FOR_PERSON)
     assert (
         messages[0]["role"] == "system"
-        and "Msaidizi" in messages[0]["content"]
+        and "Jambo AI" in messages[0]["content"]
         and "- Claims: claims, payments" in messages[0]["content"]
     )
     assert [msg["role"] for msg in messages[1:]] == ["assistant", "user", "system"]

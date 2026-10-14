@@ -49,7 +49,7 @@ DEFAULT_STT, DEFAULT_LLM, DEFAULT_TTS, DEFAULT_VOICE = (
 
 
 class AiAgent(BaseModel):
-    name = models.CharField(max_length=80, help_text="What the AI calls itself, e.g. Msaidizi")
+    name = models.CharField(max_length=80, help_text="What the AI calls itself, e.g. Jambo AI")
     instructions = models.TextField(
         help_text="Who the helpline is and what the AI may answer. Everything it says comes from here."
     )

@@ -413,7 +413,105 @@ async def media_stats(page):
     )
 
 
-async def main(show, transfers=True, supervision=True):
+async def ai_from_the_page(playwright, show, customer, admin_session, check, password):
+    """M8's Done-when: the AI answers, handles one question and hands off on request; the agent sees
+    the summary, and the interaction shows both parts (the lab AI agent on entry 897, real OpenAI)."""
+    import calltests
+    from apps.calls.models import InteractionPart, PartKind
+    from apps.queues.models import Queue
+
+    await asyncio.to_thread(lambda: calltests.ensure_lab_ai(Queue.objects.get(name__iexact="Support")))
+    question = await calltests.voice("What time does your office open on Saturday?")
+    person = await calltests.voice("I want to talk to a person, please.")
+
+    async def heard(level=300.0, timeout=20):
+        started = time.monotonic()
+        while customer.loudness(0.3) < level:
+            assert time.monotonic() - started < timeout, "the caller heard nothing from the AI"
+            await asyncio.sleep(0.05)
+
+    async def quiet(timeout=30):
+        started = time.monotonic()
+        while customer.loudness(0.8) > 100:
+            assert time.monotonic() - started < timeout, "the AI never stopped talking"
+            await asyncio.sleep(0.05)
+
+    browser = await playwright.chromium.launch(
+        channel="chrome",
+        headless=not show,
+        args=["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
+    )
+    page = await signed_in(browser, EMAIL, password, admin_session)
+    await page.click("#ready")
+    await until(page, "document.getElementById('availability').textContent === 'Ready'", 10)
+    customer.tone_hz = 0
+    started = datetime.now(timezone.utc)
+    try:
+        call = await customer.dial(calltests.LAB_AI_ENTRY)
+        await asyncio.wait_for(call.answered.wait(), 10)
+        await heard()
+        await quiet()
+        await asyncio.sleep(customer.say(question))
+        await heard()
+        await quiet()
+        check("the AI greeted the caller and answered the question", True)
+        await asyncio.sleep(customer.say(person))
+        await page.wait_for_selector("#ai-summary:not([hidden])", timeout=30000)
+        summary = await page.inner_text("#ai-summary-text")
+        reason = await page.inner_text("#ai-reason")
+        check(
+            "the agent's incoming call shows the AI's summary",
+            "saturday" in summary.lower() and reason == "asked for a person",
+            f"{reason}: {summary}",
+        )
+        await page.click("#answer")
+        await until(page, "window.agentDesk.state.activity === 'talking'", 15)
+        check("the agent talks with the caller the AI handed over", not call.ended.is_set())
+        await call.hangup()
+        await until(page, "window.agentDesk.state.activity === 'wrapup'", 10)
+        await page.select_option("#wrapup-code", "Information given")
+        await page.click("#wrapup-done")
+        await until(page, "window.agentDesk.state.activity !== 'wrapup'", 10)
+    finally:
+        customer.tone_hz = 440
+        customer.speech.clear()
+
+    deadline = time.monotonic() + 10
+    while True:
+        rows = await asyncio.to_thread(
+            lambda: list(
+                InteractionPart.objects.filter(call__entry=calltests.LAB_AI_ENTRY, started_at__gte=started)
+                .select_related("call")
+                .order_by("started_at")
+            )
+        )
+        if len(rows) == 2 and rows[1].wrapup_code or time.monotonic() > deadline:
+            break
+        await asyncio.sleep(0.5)
+    kinds = [row.kind for row in rows]
+    ai_part = rows[0] if rows else None
+    callers = [turn["text"] for turn in ai_part.transcript if turn["who"] == "caller"] if ai_part else []
+    check(
+        "the interaction has both parts: the AI (summary, transcript), then the agent (wrap-up code)",
+        kinds == [PartKind.AI, PartKind.AGENT]
+        and ai_part.outcome == "handoff"
+        and len(callers) == 2
+        and rows[1].wrapup_code == "Information given",
+        f"{kinds}; caller said {callers}; wrap-up {rows[1].wrapup_code if len(rows) > 1 else '-'}",
+    )
+    if rows:
+        async with aiohttp.ClientSession(cookies={"sessionid": admin_session}) as http:
+            async with http.get(f"http://127.0.0.1:{PORT}/admin/calls/call/{rows[0].call.pk}/change/") as response:
+                html = await response.text()
+        check(
+            "the call's admin page shows the interaction and the transcript",
+            "Interaction" in html and "Saturday" in html and "Information given" in html,
+        )
+    await page.click("#signout")
+    await browser.close()
+
+
+async def main(show, transfers=True, supervision=True, ai=True):
     password, agent_uid, customer_password = await asyncio.to_thread(setup)
     admin_session = await asyncio.to_thread(admin_cookie)
     started = datetime.now(timezone.utc)
@@ -583,6 +681,11 @@ async def main(show, transfers=True, supervision=True):
             async with async_playwright() as playwright:
                 await supervision_from_the_page(playwright, show, customer, admin_session, check, password)
 
+        if ai:
+            say("── M8: the AI agent answers, then hands over to the agent")
+            async with async_playwright() as playwright:
+                await ai_from_the_page(playwright, show, customer, admin_session, check, password)
+
         if transfers:
             transfers_started = datetime.now(timezone.utc)
             async with async_playwright() as playwright:
@@ -613,5 +716,15 @@ if __name__ == "__main__":
     parser.add_argument("--show", action="store_true", help="open a visible Chrome window")
     parser.add_argument("--no-transfers", action="store_true", help="skip the M5 transfer phase")
     parser.add_argument("--no-supervision", action="store_true", help="skip the M6 supervisor phase")
+    parser.add_argument("--no-ai", action="store_true", help="skip the M8 AI agent phase")
     arguments = parser.parse_args()
-    sys.exit(asyncio.run(main(arguments.show, transfers=not arguments.no_transfers, supervision=not arguments.no_supervision)))
+    sys.exit(
+        asyncio.run(
+            main(
+                arguments.show,
+                transfers=not arguments.no_transfers,
+                supervision=not arguments.no_supervision,
+                ai=not arguments.no_ai,
+            )
+        )
+    )

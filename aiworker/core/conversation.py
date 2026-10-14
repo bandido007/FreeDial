@@ -143,8 +143,10 @@ class Conversation:
             out.append(
                 {
                     "role": "system",
-                    "content": f"The caller is now handed to a person (reason: {forced_reason}). Call handoff: "
-                    "a summary for the agent and one short sentence telling the caller to hold on.",
+                    "content": f"The caller is now handed to a person (reason: {forced_reason}). Call handoff. "
+                    "The summary tells the agent everything the caller asked or needs in this call, what you "
+                    "already told them, and why a person takes over. Then one short sentence telling the "
+                    "caller to hold on.",
                 }
             )
         return out
@@ -202,7 +204,11 @@ How you work:
                 "type": "string",
                 "enum": [rules.ASKED_FOR_PERSON, rules.AI_DECIDED, rules.SENSITIVE_TOPIC],
             },
-            "summary": {"type": "string", "description": "For the agent, in English, one to three sentences"},
+            "summary": {
+                "type": "string",
+                "description": "For the agent, in English, one to three sentences: what the caller asked or needs, "
+                "what you already told them, why a person takes over",
+            },
             "say": {
                 "type": "string",
                 "description": "One short sentence to the caller: hold on for a person",

@@ -144,8 +144,8 @@ QUEUES: dict[str, dict[str, Any]] = {
     ),
 }
 
-# (number, queue, language, priority or None = the queue's, fallback queue). 800 and 802 are the
-# AI agent "Msaidizi" in the spec; until M8 they go straight to General.
+# (number, queue, language, priority or None = the queue's, fallback queue). On 800 and 802 the AI
+# agent "Jambo AI" answers first (seed_demo, apps/ai/demo.py); the routing tests start at the queue.
 ENTRIES = [
     ("800", "General", "swahili", None, "General"),
     ("801", "Providers", "swahili", 10, "Claims"),

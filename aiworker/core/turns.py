@@ -27,7 +27,7 @@ class TurnDetector:
         self,
         *,
         start_ms: int = 120,
-        end_ms: int = 700,
+        end_ms: int = 550,
         min_ms: int = 300,
         max_ms: int = 20000,
         preroll_ms: int = 300,

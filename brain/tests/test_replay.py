@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from brain.core.brain import Brain
-from brain.core.config import AgentConfig, Config, EntryConfig, QueueConfig, Requirement, Step
+from brain.core.config import AgentConfig, AiAgentConfig, Config, EntryConfig, QueueConfig, Requirement, Step
 from brain.service.runtime import deserialize, serialize
 
 RECORDINGS = Path(__file__).resolve().parent.parent / "sim" / "recordings"
@@ -41,6 +41,8 @@ def config_from(data: dict) -> Config:
         queues={uid: queue(fields) for uid, fields in data["queues"].items()},
         entries={number: entry(number, value) for number, value in data["entries"].items()},
         skills=dict(data.get("skills", {})),
+        ai_agents={uid: AiAgentConfig(**ai) for uid, ai in data.get("ai_agents", {}).items()},  # since M8
+        dial_template=data.get("dial_template", Config.dial_template),
     )
 
 

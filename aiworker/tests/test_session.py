@@ -19,7 +19,7 @@ from contracts import messages as m
 
 SETTINGS = AgentSettings(
     uid="ai-1",
-    name="Msaidizi",
+    name="Jambo AI",
     instructions="A health insurance helpline.",
     greetings={"swahili": "Habari, karibu.", "english": "Hello, welcome."},
     routes=(Route("Claims", "claims", {"claims": 1}), Route("General", "anything else")),
@@ -106,6 +106,7 @@ class Commands:
         self.sent: list[tuple[str, dict]] = []
 
     async def __call__(self, kind: str, data: dict) -> None:
+        await asyncio.sleep(0.01)  # Redis takes a moment: the session must not cancel its own send
         self.sent.append((kind, data))
 
 
@@ -280,5 +281,48 @@ async def test_a_voice_slow_to_start_is_replaced_by_tts_1():
         assert media.audio == [QUIET]
         media.inbox.put_nowait(("closed", None))
         assert await run(task) == "closed"
+
+        # the next call does not wait for the slow voice again
+        media, again = FakeMedia(), SlowVoice()
+        task = asyncio.create_task(session(media, again, commands, settings=settings).run())
+        media.inbox.put_nowait(("start", {}))
+        await until(lambda: again.spoken == ["Habari, karibu."])
+        assert again.models == ["tts-1/coral"]
+        media.inbox.put_nowait(("closed", None))
+        await run(task)
     finally:
         service.FIRST_AUDIO_SECONDS = saved
+        service.slow_until.clear()
+
+
+class StallingVoice(SlowVoice):
+    """gpt-4o-mini-tts as measured on 2026-10-15: starts on time, then goes silent for 14 s."""
+
+    async def speak(self, text, *, model, voice, style=""):
+        self.models.append(f"{model}/{voice}")
+        self.spoken.append(text)
+        yield LOUD
+        if model == "gpt-4o-mini-tts":
+            await asyncio.sleep(30)
+            yield LOUD
+
+
+@scenario
+async def test_a_voice_that_stalls_mid_sentence_is_flushed_and_said_again_by_tts_1():
+    import aiworker.service as service
+
+    saved = service.STALL_SECONDS
+    service.STALL_SECONDS = 0.05
+    try:
+        media, commands, speech = FakeMedia(), Commands(), StallingVoice()
+        task = asyncio.create_task(session(media, speech, commands).run())
+        media.inbox.put_nowait(("start", {}))
+        await until(lambda: len(speech.models) == 2)
+        await until(lambda: len(media.audio) == 2)
+        assert speech.models == ["gpt-4o-mini-tts/coral", "tts-1/coral"]
+        assert media.flushes == 1, "the half sentence is dropped before it is said again"
+        media.inbox.put_nowait(("closed", None))
+        await run(task)
+    finally:
+        service.STALL_SECONDS = saved
+        service.slow_until.clear()

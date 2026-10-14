@@ -253,7 +253,7 @@ async def test_transfers_that_cannot_work_are_refused_with_a_reason():
         await lab.command(m.AGENT_LOGOUT, agent=C)
         await eventually(lambda: lab.agent(C).get("availability") == "logged_out")
         await lab.command(m.CALL_TRANSFER, agent=A, kind="blind", target_kind="agent", target=C)
-        await lab.command(m.CALL_TRANSFER, agent=A, kind="blind", target_kind="ai", target="Msaidizi")
+        await lab.command(m.CALL_TRANSFER, agent=A, kind="blind", target_kind="ai", target="Jambo AI")
         await lab.command(m.CALL_TRANSFER, agent=A, kind="consult", target_kind="queue", target="Backup")
         await lab.command(m.CALL_TRANSFER, agent=A, kind="blind", target_kind="queue", target="Nowhere")
         await lab.command(m.CALL_TRANSFER, agent=A, kind="blind", target_kind="number", target="10 02;x")

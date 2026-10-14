@@ -36,8 +36,12 @@ STT_LANGUAGE_HINT = False
 # On 2026-10-14 gpt-4o-mini-tts took 17-30 s to start speaking for half an hour; tts-1 kept answering in
 # about a second. If the chosen voice has not started within this, the sentence is spoken by tts-1.
 FIRST_AUDIO_SECONDS = 3.0
+STALL_SECONDS = 2.0  # silence inside a sentence's stream that counts as a stall
 FALLBACK_TTS = "tts-1"
 FALLBACK_VOICES = ("alloy", "ash", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer")
+SLOW_PAUSE_SECONDS = 300.0  # once a voice model was slow, every call skips it this long
+slow_until: dict[str, float] = {}  # TTS model -> until when it is skipped (process-wide)
+HANDOVER_SECONDS = 10.0  # after our last command, how long we leave the line up for the brain
 LAST_WORDS_GRACE = 5.0  # seconds past the last words' length to wait for Asterisk to have played them
 
 
@@ -87,6 +91,7 @@ class Session:
         self.playing: str | None = None  # the mark of words still playing in Asterisk
         self.final: tuple[str, str, dict[str, Any]] | None = None  # (mark, command, data): sent once played
         self.done = asyncio.Event()
+        self.sending = False
         self.outcome = "closed"
         self.last_words = 0.0  # seconds of the last thing said
         self.timer: asyncio.Task[None] | None = None
@@ -157,15 +162,24 @@ class Session:
 
     async def _decide(self, pcm: bytes) -> Decision:
         hint = self.conversation.language if STT_LANGUAGE_HINT else None
+        started = self.clock()
         text = await self.speech.transcribe(pcm, model=self.settings.stt_model, language=hint)
-        log.info("call %s: caller said %r (%.1f s)", self.call, text, seconds(pcm))
-        decision = self.conversation.heard(text, self.clock() - self.started)
+        heard = self.clock()
+        log.info(
+            "call %s: caller said %r (%.1f s; transcribed in %.2f s)",
+            self.call,
+            text,
+            seconds(pcm),
+            heard - started,
+        )
+        decision = self.conversation.heard(text, heard - self.started)
         if decision is None:
             name, args = await self.speech.decide(
                 model=self.settings.llm_model,
                 messages=self.conversation.messages(),
                 tools=self.conversation.tools(),
             )
+            log.info("call %s: model chose %s in %.2f s", self.call, name, self.clock() - heard)
             decision = self.conversation.decided(name, args)
         if isinstance(decision, Summarize):
             decision = await self._summarize(decision.reason)
@@ -210,8 +224,10 @@ class Session:
     async def _say(self, text: str) -> str:
         self.conversation.said(text, self.clock() - self.started)
         log.info("call %s: AI says %r", self.call, text)
-        sent = 0
+        sent, asked = 0, self.clock()
         async for chunk in self._voice(text):
+            if not sent:
+                log.info("call %s: first audio after %.2f s", self.call, self.clock() - asked)
             await self.media.send_audio(chunk)
             sent += len(chunk)
         self.marks += 1
@@ -222,21 +238,37 @@ class Session:
         return mark
 
     async def _voice(self, text: str) -> AsyncIterator[bytes]:
-        """The sentence as speech, from the chosen model; from tts-1 if that one is too slow to start."""
+        """The sentence as speech, from the chosen model. If it is slow to start, or stalls mid-sentence,
+        the sentence is said (again, from the start) by tts-1, and the chosen model rests for a while."""
         s = self.settings
-        chunks = self.speech.speak(text, model=s.tts_model, voice=s.voice, style=s.voice_style).__aiter__()
-        try:
-            first = await asyncio.wait_for(chunks.__anext__(), FIRST_AUDIO_SECONDS)
-        except StopAsyncIteration:
-            return
-        except TimeoutError:
-            log.warning("call %s: %s slow to speak, using %s", self.call, s.tts_model, FALLBACK_TTS)
-            voice = s.voice if s.voice in FALLBACK_VOICES else "coral"
+        voice = s.voice if s.voice in FALLBACK_VOICES else "coral"
+        if slow_until.get(s.tts_model, 0.0) > self.clock():
             async for chunk in self.speech.speak(text, model=FALLBACK_TTS, voice=voice):
                 yield chunk
             return
-        yield first
-        async for chunk in chunks:
+        chunks = self.speech.speak(text, model=s.tts_model, voice=s.voice, style=s.voice_style).__aiter__()
+        wait, started = FIRST_AUDIO_SECONDS, False
+        while True:
+            try:
+                chunk = await asyncio.wait_for(chunks.__anext__(), wait)
+            except StopAsyncIteration:
+                return
+            except TimeoutError:
+                break
+            started, wait = True, STALL_SECONDS
+            yield chunk
+        log.warning(
+            "call %s: %s %s, using %s for %.0f s",
+            self.call,
+            s.tts_model,
+            "stalled mid-sentence" if started else "slow to speak",
+            FALLBACK_TTS,
+            SLOW_PAUSE_SECONDS,
+        )
+        slow_until[s.tts_model] = self.clock() + SLOW_PAUSE_SECONDS
+        if started:
+            await self.media.flush()  # drop the half sentence still queued in Asterisk
+        async for chunk in self.speech.speak(text, model=FALLBACK_TTS, voice=voice):
             yield chunk
 
     async def _say_last(self, text: str, command: str, data: dict[str, Any], outcome: str) -> None:
@@ -260,12 +292,15 @@ class Session:
         await self._finish()
 
     async def _finish(self) -> None:
-        if self.final is None or self.done.is_set():
+        if self.final is None or self.sending:
             return
-        self.done.set()
+        self.sending = True  # once: the mark and the timer may both get here
         _mark, command, data = self.final
-        await self.send(command, data)
-        log.info("call %s: AI part over: %s (%s)", self.call, command, data.get("reason"))
+        try:
+            await self.send(command, data)
+            log.info("call %s: AI part over: %s (%s)", self.call, command, data.get("reason"))
+        finally:
+            self.done.set()  # only now: run() then stops the tasks, this one included
 
 
 # ── the worker process ────────────────────────────────────────────────────
@@ -313,6 +348,10 @@ async def run_worker(key: str) -> None:
                     log.info("call %s: AI %s (%s) answers", call, settings.name, data.get("language"))
                     outcome = await session.run()
                     log.info("call %s: AI session over: %s", call, outcome)
+                    # The brain hangs up our leg when it handles our last command. Closing first would
+                    # reach Asterisk before the command reaches the brain: it would see the AI die.
+                    if outcome != "closed" and not await media.wait_closed(HANDOVER_SECONDS):
+                        log.warning("call %s: the brain did not take the call back in time", call)
                 finally:
                     await media.close()
             except Exception:  # one call failing never stops the worker; the brain hands that call over

@@ -166,6 +166,7 @@ class Phone:
         self.registered = False
         self.rtp_packets = 0
         self.tone_hz = tone_hz  # the "voice" this phone sends: tell phones apart by frequency (0: silence)
+        self.last_audio_at = 0.0  # when the last audio packet arrived
         self.speech = collections.deque()  # mu-law bytes of words to say (say()); they replace the tone
         self.audio_in = collections.deque(maxlen=8000 * 4)  # the last 4 s of audio heard (PCMU, decoded)
 
@@ -550,9 +551,12 @@ class Phone:
         return len(encoded) / 8000
 
     def loudness(self, seconds=1.0):
-        """RMS of what this phone heard in the last ``seconds`` (0 = silence)."""
-        samples = list(self.audio_in)[-int(8000 * seconds):]
-        return math.sqrt(sum(x * x for x in samples) / len(samples)) if samples else 0.0
+        """RMS of what this phone heard in the last ``seconds`` of time (0 = silence). Asterisk sends
+        no packets while nobody talks, so time without packets counts as silence."""
+        gap = min(seconds, max(0.0, time.monotonic() - self.last_audio_at - 0.06))
+        samples = list(self.audio_in)[-int(8000 * (seconds - gap)):] if seconds - gap > 0 else []
+        total = int(8000 * seconds)
+        return math.sqrt(sum(x * x for x in samples) / total) if total else 0.0
 
     def heard(self, packet):
         """Keep the audio of an RTP packet (PCMU) to tell later which tones this phone hears."""
@@ -562,6 +566,7 @@ class Phone:
         if packet[0] & 0x10 and len(packet) >= start + 4:  # header extension
             start += 4 + 4 * int.from_bytes(packet[start + 2:start + 4], "big")
         self.audio_in.extend(ULAW_TO_LINEAR[byte] for byte in packet[start:])
+        self.last_audio_at = time.monotonic()
 
     def hears(self, frequency, seconds=1.0):
         """How much of what this phone heard in the last ``seconds`` is ``frequency`` (0 to 1, Goertzel)."""

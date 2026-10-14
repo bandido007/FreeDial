@@ -1,8 +1,9 @@
-"""The demo AI agent "Msaidizi" (docs/ROUTING_DESIGN.md section 3): a fictional public
+"""The demo AI agent "Jambo AI" (docs/ROUTING_DESIGN.md section 3): a fictional public
 health-insurance helpline. Seeded by ``manage.py seed_demo``; the bake-off talks to the same text.
 """
 
-NAME = "Msaidizi"
+NAME = "Jambo AI"
+OLD_NAMES = ("Msaidizi",)  # what the demo AI was called before; the seed renames it
 
 INSTRUCTIONS = """\
 The Demo Health Insurance Fund helpline (a fictional fund for this demo). Callers are members,
@@ -27,9 +28,9 @@ Hand the call to a person when the caller asks for one, when they want something
 own record, or when you cannot help. Complaints go to Escalations. Anything else goes to General.
 """
 
-GREETING_SWAHILI = "Habari, karibu Mfuko wa Bima ya Afya. Mimi ni Msaidizi. Nikusaidie nini leo?"
+GREETING_SWAHILI = "Habari, karibu Mfuko wa Bima ya Afya. Mimi ni Jambo AI. Nikusaidie nini leo?"
 GREETING_ENGLISH = (
-    "Hello, welcome to the Health Insurance Fund. I'm Msaidizi, the assistant. How can I help you today?"
+    "Hello, welcome to the Health Insurance Fund. I'm Jambo AI, the assistant. How can I help you today?"
 )
 
 SENSITIVE_TOPICS = ("overdose", "sumu")
