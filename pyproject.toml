@@ -111,7 +111,9 @@ type = "layers"
 ignore_imports = ["apps.**.tests.** -> apps.**"]
 unmatched_ignore_imports_alerting = "none"
 layers = [
-    "apps.telephony | apps.teams",  # project: independent of each other
+    "apps.queues",  # project
+    "apps.agents",  # project
+    "apps.telephony | apps.teams | apps.calls",  # project: independent of each other
     # <scaffold:project-layers>
     "apps.authentication",
     "apps.users",

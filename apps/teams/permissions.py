@@ -27,7 +27,7 @@ GROUPS = [
 ROLES: list[RoleSpec] = [
     RoleSpec(
         name="Contact Centre Manager",
-        description="Sets up teams and who supervises them.",
+        description="Sets up teams, agents, queues and entry points.",
         permissions=[VIEW_TEAMS, MANAGE_TEAMS],
     ),
 ]

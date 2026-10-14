@@ -27,6 +27,9 @@ OPTIONAL_MODULES = ()
 PROJECT_MODULES = (
     "apps.telephony",
     "apps.teams",
+    "apps.calls",
+    "apps.agents",
+    "apps.queues",
     # <scaffold:project-modules>
 )
 

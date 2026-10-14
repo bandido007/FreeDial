@@ -1,18 +1,24 @@
 """Wires the brain together: core decisions, adapters for the outside world.
 
-M0: check that ARI and Redis are reachable, then wait to be stopped.
-Call handling (ARI events, per-call tasks, reconcile) arrives in M2.
+``run`` checks ARI and Redis, loads the configuration, takes back the agent states
+a previous brain saved, and hands over to :class:`~brain.service.runtime.Runtime`.
 """
 
 import asyncio
+import dataclasses
+import json
 import logging
 import signal
+import uuid
 from dataclasses import dataclass
+from typing import TextIO
 from urllib.parse import urlsplit, urlunsplit
 
 from brain.adapters.ari import Ari
 from brain.adapters.bus import Bus
-from brain.adapters.config import BrainSettings
+from brain.adapters.config import BrainSettings, load_config
+from brain.core.brain import Brain
+from brain.service.runtime import Runtime
 
 log = logging.getLogger("brain")
 
@@ -58,7 +64,7 @@ async def check(settings: BrainSettings) -> list[CheckResult]:
     return results
 
 
-async def run(settings: BrainSettings) -> None:
+async def run(settings: BrainSettings, record: TextIO | None = None) -> None:
     results = await check(settings)
     for result in results:
         log.log(
@@ -77,6 +83,42 @@ async def run(settings: BrainSettings) -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop.set)
 
-    log.info("brain ready as ARI app %r (M0 skeleton: no call handling yet)", settings.ari_app)
-    await stop.wait()
+    config = await asyncio.to_thread(load_config)
+    log.info(
+        "configuration: %d agents, %d queues, entry points %s",
+        len(config.agents),
+        len(config.queues),
+        ", ".join(sorted(config.entries)) or "none",
+    )
+    ari = Ari(
+        url=settings.ari_url, user=settings.ari_user, password=settings.ari_password, app=settings.ari_app
+    )
+    bus = Bus(
+        url=settings.bus_redis_url,
+        commands_stream=settings.commands_stream,
+        events_stream=settings.events_stream,
+        agents_key=settings.agents_key,
+    )
+    async with ari, bus:
+        core = Brain(config, app=settings.ari_app, new_id=lambda: str(uuid.uuid4()))
+        saved = await bus.load_agents()
+        core.restore_agents(saved)
+        if record is not None:  # a replay starts a fresh core here
+            start = {
+                "kind": "start",
+                "app": settings.ari_app,
+                "config": dataclasses.asdict(config),
+                "agents": saved,
+            }
+            record.write(json.dumps(start) + "\n")
+        runtime = Runtime(
+            core=core,
+            ari=ari,
+            bus=bus,
+            load_config=lambda: asyncio.to_thread(load_config),
+            consumer=settings.consumer,
+            record=record,
+        )
+        log.info("brain ready as ARI app %r", settings.ari_app)
+        await runtime.run_forever(stop)
     log.info("brain stopped")

@@ -1,0 +1,27 @@
+# The writer: brain events from the Redis stream into Event, Call and Leg (project).
+[Unit]
+Description=algodial — writer (call events into PostgreSQL)
+After=network.target redis.service postgresql.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=algodial
+Group=algodial
+WorkingDirectory=/srv/algodial
+EnvironmentFile=/srv/algodial/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/srv/algodial/venv/bin/python manage.py run_writer --consumer writer-1
+Restart=always
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/algodial/logs
+
+[Install]
+WantedBy=multi-user.target

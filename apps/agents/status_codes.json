@@ -1,0 +1,6 @@
+[
+  {"code": 10200, "status": false, "messageEn": "Agent not found.", "messageSw": "Wakala hapatikani."},
+  {"code": 10201, "status": false, "messageEn": "An agent with this number already exists.", "messageSw": "Wakala mwenye namba hii yupo tayari."},
+  {"code": 10202, "status": false, "messageEn": "An agent number is 2 to 20 digits.", "messageSw": "Namba ya wakala ni tarakimu 2 hadi 20."},
+  {"code": 10203, "status": false, "messageEn": "This user is already another agent.", "messageSw": "Mtumiaji huyu tayari ni wakala mwingine."}
+]

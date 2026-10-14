@@ -1,0 +1,15 @@
+--- a/extensions.conf
++++ b/extensions.conf
+@@ -26,5 +26,11 @@
+ 
+ 
+ exten => 800,1,NoOp(Handing call to AlgoDial)
+- same => n,Stasis(algodial,inbound,${EXTEN},${CHANNEL(endpoint)})
++ same => n,Stasis(algodial,inbound,${EXTEN},${CHANNEL(endpoint)},${CHANNEL(linkedid)})
++ same => n,GotoIf($["${STASISSTATUS}" = "FAILED"]?fallback)
++ same => n,Hangup()
++ ; AlgoDial rule 5: the brain is down (no app 'algodial'), so a plain queue takes the call.
++ same => n(fallback),NoOp(AlgoDial brain unavailable: plain Queue() fallback)
++ same => n,Answer()
++ same => n,Queue(support)
+  same => n,Hangup()

@@ -72,3 +72,6 @@ OAUTH2_PROVIDER = {
     "OIDC_RSA_PRIVATE_KEY": ephemeral_rsa_key(),
     "OIDC_ISS_ENDPOINT": "http://testserver",
 }
+
+# ── project ── AlgoDial: tests use their own Redis database, never the lab's streams.
+BUS_REDIS_URL = env("TEST_BUS_REDIS_URL", default="redis://127.0.0.1:6392/5")

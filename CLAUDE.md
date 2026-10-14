@@ -21,6 +21,8 @@ recommendation with evidence (docs, source code, who does it this way), then wai
 | Test phones | Account `1001` = Zoiper on the laptop (127.0.0.1:5062), `1002` = Zoiper on a phone on the LAN |
 | PJSIP realtime | `res_config_pgsql` → AlgoDial PostgreSQL (127.0.0.1:5442), role `asterisk` (read-only on `ps_endpoints`, `ps_auths`, `ps_aors`). Sorcery reads `pjsip.conf` first (1001, 1002, transports), then the database. Tables by Asterisk's Alembic (`make pjsip-schema`). Applied by `deploy/asterisk/m1-pjsip-realtime.sh`; commits in `/etc/asterisk` are made as root |
 | SIP check | `lab/sipcheck.py <id> <password>` registers like a phone: `200 OK` = works, `401` = unknown account or wrong password |
+| Call tests | `make calltests` (stop your brain first): the 9 call tests on the real Asterisk with scripted phones (`lab/sipphone.py`) as `lab-customer`, `lab-agent-a`, `lab-agent-b` (agents 9001, 9002, queue Support, entry 800). Records every decision to `brain/sim/recordings/lab.jsonl`, which `brain/tests/test_replay.py` replays |
+| What Asterisk sends (recorded) | Reject (486) = `ChannelDestroyed` cause 17; ring timeout = cause 19; hung up by the brain = 16; offline phone = the originate itself fails `500 Allocation failed`. A customer's hangup sends only `StasisEnd`. ARI channel JSON has no linkedid, so the dialplan passes it as an arg |
 | Repo | `~/AlgoDial`, built from the team starter `~/Django Starter/django-5` (commit `263e849`) |
 | Local services | `make up` (Docker): PostgreSQL **5442**, Redis **6392**, Mailpit **8025** (UI) / **1025** (SMTP), all on 127.0.0.1. Web on 8000 |
 | Lab prototype | `~/AlgoDial/lab/` (`brain.py`, `events.py`, `celtail.py`); `ari.env` (not in git) |

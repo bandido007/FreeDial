@@ -13,6 +13,11 @@ class Command(BaseCommand):
         parser.add_argument(
             "--check", action="store_true", help="Check ARI and Redis are reachable, then exit."
         )
+        parser.add_argument(
+            "--record",
+            metavar="FILE",
+            help="Append every decision (input, ids, actions) to FILE as JSON lines, for replay tests.",
+        )
 
     def handle(self, *args, **options):
         settings = BrainSettings.from_django()
@@ -26,7 +31,11 @@ class Command(BaseCommand):
                 raise CommandError(f"cannot reach {', '.join(failed)}")
             return
 
+        record = open(options["record"], "a") if options["record"] else None  # noqa: SIM115
         try:
-            asyncio.run(service.run(settings))
+            asyncio.run(service.run(settings, record=record))
         except service.StartupError as exc:
             raise CommandError(str(exc)) from exc
+        finally:
+            if record is not None:
+                record.close()

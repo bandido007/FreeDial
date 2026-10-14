@@ -116,6 +116,9 @@ PROJECT_APPS: list[str] = [
     "brain",  # project: call control, lives in brain/ (not apps/)
     "apps.telephony",
     "apps.teams",
+    "apps.calls",
+    "apps.agents",
+    "apps.queues",
     # <scaffold:project-apps>
 ]
 
@@ -680,6 +683,10 @@ ARI_APP = env("ARI_APP", default="algodial")
 BUS_REDIS_URL = env("BUS_REDIS_URL", default="redis://127.0.0.1:6392/4")
 BUS_COMMANDS_STREAM = env("BUS_COMMANDS_STREAM", default="algodial:commands")
 BUS_EVENTS_STREAM = env("BUS_EVENTS_STREAM", default="algodial:events")
+# Live agent state: one Redis hash the brain writes (agent uid -> JSON) and the web reads.
+BUS_AGENTS_KEY = env("BUS_AGENTS_KEY", default="algodial:agents")
+# The brain's name in the commands consumer group; keep it stable so a restart re-reads its own pending.
+BRAIN_CONSUMER = env("BRAIN_CONSUMER", default="brain-1")
 
 # PJSIP realtime: a SIP account saved here is rows Asterisk reads live (apps.telephony).
 # The tables come from Asterisk's own Alembic scripts in its source tree.

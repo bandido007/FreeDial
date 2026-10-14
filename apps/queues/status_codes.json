@@ -1,0 +1,6 @@
+[
+  {"code": 10300, "status": false, "messageEn": "Queue not found.", "messageSw": "Foleni haipatikani."},
+  {"code": 10301, "status": false, "messageEn": "A queue with this name already exists.", "messageSw": "Foleni yenye jina hili ipo tayari."},
+  {"code": 10302, "status": false, "messageEn": "This number already leads somewhere.", "messageSw": "Namba hii tayari inaelekea mahali pengine."},
+  {"code": 10303, "status": false, "messageEn": "A queue setting is out of range.", "messageSw": "Mpangilio wa foleni uko nje ya kiwango."}
+]

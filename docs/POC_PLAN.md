@@ -50,7 +50,7 @@ Admin pages for users, roles, teams. SIP accounts are written as **PJSIP realtim
 **Done when:** creating an account in the admin page lets Zoiper register with it, with no Asterisk reload; deleting it stops registration.
 
 ### M2: Brain v1
-Turn `~/AlgoDial/brain.py` into the brain service: per-call event queues, reconcile on (re)connect, unknown args hang up, `originator` on every originate, total cleanup, every event written to the Event table and published to Redis. Add the `STASISSTATUS` fallback to extension 800.
+Turn `lab/brain.py` into the brain service: per-call event queues, reconcile on (re)connect, unknown args hang up, `originator` on every originate, total cleanup, every event written to the Event table and published to Redis. Add the `STASISSTATUS` fallback to extension 800.
 **Done when:** unit tests run the brain against a fake ARI (recorded event sequences); on the real lab, the 9 call tests below pass and `core show channels` / `bridge show all` are empty after each.
 
 ### M3: Agent web page with browser phone

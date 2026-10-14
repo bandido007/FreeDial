@@ -32,6 +32,8 @@ make ci            # lint, import contracts, types, checks, tests: must be green
 make run           # web on http://127.0.0.1:8000 (/admin, /graphql)
 make brain-check   # can the brain reach ARI and Redis?
 make brain         # run the brain
+make writer        # run the writer: brain events into the Event, Call and Leg tables
+make calltests     # the 9 call tests against the real Asterisk (with the brain stopped)
 ```
 
 `make help` lists every target.

@@ -161,7 +161,7 @@ deploy-check: ## Prove the production settings load and pass Django's deployment
 	DJANGO_SETTINGS_MODULE=config.settings.production $(MANAGE) check --deploy --fail-level ERROR
 
 # ── project ── AlgoDial ─────────────────────────────────────────────────────
-.PHONY: brain brain-check pjsip-schema
+.PHONY: brain brain-check writer calltests pjsip-schema
 
 ## AlgoDial
 brain: ## Run the brain (call control): manage.py run_brain
@@ -169,6 +169,12 @@ brain: ## Run the brain (call control): manage.py run_brain
 
 brain-check: ## Check the brain can reach ARI and Redis, then exit
 	$(MANAGE) run_brain --check
+
+writer: ## Run the writer: brain events into Event, Call and Leg
+	$(MANAGE) run_writer --consumer writer-1
+
+calltests: ## The 9 call tests on the real lab with scripted phones (stop your brain first; make calltests t="1 4")
+	$(PY) lab/calltests.py $(t)
 
 pjsip-schema: ## Asterisk's PJSIP realtime tables (its own Alembic) + Asterisk's read-only role + rewrite accounts
 	$(MANAGE) pjsip_schema
