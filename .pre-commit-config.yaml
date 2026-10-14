@@ -26,10 +26,10 @@ repos:
     hooks:
       - id: import-linter
         name: import-linter (architecture rules)
-        entry: venv/bin/lint-imports
+        entry: .venv/bin/lint-imports  # project: AlgoDial uses .venv
         language: system
         pass_filenames: false
-        files: ^apps/.*\.py$
+        files: ^(apps|brain|contracts|config)/.*\.py$  # project: + brain, contracts, config
       - id: no-secrets-in-env-example
         name: .env.example carries no real secret
         entry: bash -c 'grep -Eq "^SECRET_KEY=change-me" .env.example && grep -Eq "^ENCRYPTION_KEYS=$" .env.example'
