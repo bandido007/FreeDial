@@ -71,6 +71,16 @@ def setup():
     return password, str(agent.uid), customer
 
 
+def admin_cookie():
+    """A logged-in admin session, as the browser of someone who also uses /admin has."""
+    from django.contrib.auth import get_user_model
+    from django.test import Client
+
+    client = Client()
+    client.force_login(get_user_model().objects.get(email=settings.DEFAULT_ADMIN_EMAIL))
+    return client.cookies["sessionid"].value
+
+
 def port_free(port):
     with socket.socket() as sock:
         return sock.connect_ex(("127.0.0.1", port)) != 0
@@ -153,6 +163,7 @@ async def media_stats(page):
 
 async def main(show):
     password, agent_uid, customer_password = await asyncio.to_thread(setup)
+    admin_session = await asyncio.to_thread(admin_cookie)
     started = datetime.now(timezone.utc)
     if await brain_connected():
         say("A brain is already connected to ARI. Stop it first (and any `make dev`).")
@@ -194,7 +205,11 @@ async def main(show):
                 headless=not show,
                 args=["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
             )
-            page = await browser.new_page()
+            context = await browser.new_context()
+            # Like a real browser: someone is also signed in to the admin on this host. The page
+            # must still act as the agent of its own token, never as the cookie's user.
+            await context.add_cookies([{"name": "sessionid", "value": admin_session, "url": f"http://127.0.0.1:{PORT}"}])
+            page = await context.new_page()
             page.on("console", lambda message: message.type == "error" and say(f"  browser: {message.text}"))
             await page.goto(f"http://127.0.0.1:{PORT}/agent/")
 

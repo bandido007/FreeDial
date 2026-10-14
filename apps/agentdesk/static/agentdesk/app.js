@@ -62,7 +62,7 @@
 
   async function tokenRequest(fields) {
     const body = new URLSearchParams({ client_id: config.clientId, ...fields });
-    const reply = await fetch(config.tokenUrl, { method: "POST", body });
+    const reply = await fetch(config.tokenUrl, { method: "POST", body, credentials: "omit" });
     return reply.json();
   }
 
@@ -99,6 +99,7 @@
     }
     const reply = await fetch(config.graphqlUrl, {
       method: "POST",
+      credentials: "omit",  // the token is the only identity: an admin cookie on this host must not count
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokens.access}` },
       body: JSON.stringify({ query, variables }),
     });
@@ -376,7 +377,7 @@
     }
     if (tokens) {
       const body = new URLSearchParams({ token: tokens.access, client_id: config.clientId });
-      fetch(config.revokeUrl, { method: "POST", body }).catch(() => {});
+      fetch(config.revokeUrl, { method: "POST", body, credentials: "omit" }).catch(() => {});
     }
     tokens = null;
     store.drop("algodial.tokens");
