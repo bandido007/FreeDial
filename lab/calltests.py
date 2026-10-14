@@ -376,12 +376,13 @@ class Lab:
 
     async def t11(self):
         """Voicemail (ROUTING_DESIGN T6): max wait -> prompt, the caller's message is recorded, a callback task is asked for."""
-        before = await asyncio.to_thread(set_support, overflow_action="voicemail", max_wait=6)
+        before = await asyncio.to_thread(set_support, overflow_action="voicemail", max_wait=10)
         try:
             await asyncio.sleep(1.5)  # the brain reloads on config.changed
-            for uid in (self.a, self.b):
-                self.w.command(m.AGENT_NOT_READY, agent=uid, reason="test 11")
-                await self.w.agent_is(uid, availability="not_ready")
+            for uid in (self.a, self.b):  # nobody to take the call
+                self.w.command(m.AGENT_WRAPUP_DONE, agent=uid, code="")
+                self.w.command(m.AGENT_LOGOUT, agent=uid)
+                await self.w.agent_is(uid, availability="logged_out")
             call, linkedid = await self.dial()
             await self.w.event(m.CALL_VOICEMAIL, call=linkedid, timeout=15)
             await asyncio.sleep(9)  # the prompt (about 5 s), the beep, then the customer's tone is recorded
