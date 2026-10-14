@@ -112,6 +112,10 @@ cov: ## Tests with an HTML coverage report in htmlcov/
 	DJANGO_SETTINGS_MODULE=$(TEST_SETTINGS) $(PY) -m pytest --cov-report=html --cov-report=term
 	@echo "open htmlcov/index.html"
 
+format-web: ## Prettier for the pages' CSS and JS (never Django templates: it splits {% %} tags across lines)
+	npx --yes prettier@3.3.3 --write static/algodial apps/agentdesk/static/agentdesk/app.css \
+		apps/agentdesk/static/agentdesk/app.js apps/supervisor/static/supervisor
+
 lint: ## Ruff (lint) + import-linter (architecture rules)
 	$(BIN)/ruff check .
 	$(BIN)/ruff format --check .

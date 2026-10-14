@@ -1,0 +1,37 @@
+{% load i18n %}
+<aside id="workspace-records" class="workspace-records" aria-label="{{ workspace_title }}">
+  <h2>{{ workspace_title|capfirst }}</h2>
+  <form method="get" class="workspace-search">
+    <label for="workspace-search">{% translate "Search records" %}</label>
+    <div>
+      <input id="workspace-search" name="workspace_q" type="search" value="{{ workspace_query }}">
+      <button type="submit">{% translate "Search" %}</button>
+    </div>
+  </form>
+  {% if workspace_add_url %}
+    <a class="workspace-add" href="{{ workspace_add_url }}">{% translate "Add" %} {{ opts.verbose_name }}</a>
+  {% endif %}
+  <nav aria-label="{% translate 'Records' %}">
+    <ul>
+      {% for row in workspace_records %}
+        <li><a href="{{ row.url }}"{% if row.selected %} aria-current="page"{% endif %}>{{ row.label }}</a></li>
+      {% empty %}
+        <li class="workspace-empty">{% translate "No matching records." %}</li>
+      {% endfor %}
+    </ul>
+  </nav>
+  {% if workspace_page %}
+    <div class="workspace-pagination">
+      {% if workspace_page.has_previous %}
+        <a href="?workspace_q={{ workspace_query|urlencode }}&amp;workspace_page={{ workspace_page.previous_page_number }}">{% translate "Previous" %}</a>
+      {% endif %}
+      <span>{{ workspace_page.number }} / {{ workspace_page.paginator.num_pages }}</span>
+      {% if workspace_page.has_next %}
+        <a href="?workspace_q={{ workspace_query|urlencode }}&amp;workspace_page={{ workspace_page.next_page_number }}">{% translate "Next" %}</a>
+      {% endif %}
+    </div>
+  {% endif %}
+  {% if not workspace_hide_table %}
+    <a href="{{ workspace_list_url }}?table=1">{% translate "Table, filters and bulk actions" %}</a>
+  {% endif %}
+</aside>

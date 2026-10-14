@@ -1,0 +1,12 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+{% block content %}
+  {% if workspace_records is not None %}
+    <div class="workspace-editor">
+      {% include "admin/workspace_records.html" %}
+      <div class="workspace-form">{{ block.super }}</div>
+    </div>
+  {% else %}
+    {{ block.super }}
+  {% endif %}
+{% endblock %}

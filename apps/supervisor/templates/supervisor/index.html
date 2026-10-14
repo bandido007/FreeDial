@@ -1,71 +1,155 @@
 {% load static %}<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AlgoDial supervisor</title>
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="{% static 'agentdesk/app.css' %}">
-  <link rel="stylesheet" href="{% static 'supervisor/app.css' %}">
-  {{ config|json_script:"desk-config" }}
-  <script src="{% static 'agentdesk/vendor/jssip-3.12.0.min.js' %}" defer></script>
-  <script src="{% static 'supervisor/app.js' %}" defer></script>
-</head>
-<body>
-  <main class="wide">
-    <section id="signin" class="card" hidden>
-      <h1>AlgoDial supervisor</h1>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AlgoDial supervisor</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="{% static 'algodial/ui.css' %}" />
+    <link rel="stylesheet" href="{% static 'supervisor/app.css' %}" />
+    {{ config|json_script:"desk-config" }}
+    <script src="{% static 'algodial/ui.js' %}" defer></script>
+    <script src="{% static 'agentdesk/vendor/jssip-3.12.0.min.js' %}" defer></script>
+    <script src="{% static 'supervisor/app.js' %}" defer></script>
+  </head>
+  <body>
+    <section id="signin" class="ui-signin" hidden>
+      <h1>AlgoDial</h1>
+      <p class="ui-muted" data-i18n="Sign in to your supervisor workspace"></p>
       <form id="signin-form" autocomplete="on">
-        <label>Email <input id="email" type="email" autocomplete="username" required></label>
-        <label>Password <input id="password" type="password" autocomplete="current-password" required></label>
-        <label id="otp-row" hidden>Two-factor code <input id="otp" inputmode="numeric" autocomplete="one-time-code"></label>
-        <button type="submit">Sign in</button>
+        <label class="ui-field" for="email"
+          ><span data-i18n="Email"></span
+          ><input id="email" type="email" autocomplete="username" required /></label
+        ><label class="ui-field" for="password"
+          ><span data-i18n="Password"></span
+          ><input id="password" type="password" autocomplete="current-password" required /></label
+        ><label id="otp-row" class="ui-field" for="otp" hidden
+          ><span data-i18n="Two-factor code"></span
+          ><input id="otp" inputmode="numeric" autocomplete="one-time-code" /></label
+        ><button type="submit" class="ui-primary" data-i18n="Sign in"></button>
         <p id="signin-error" class="error" role="alert"></p>
       </form>
     </section>
-
     <section id="desk" hidden>
-      <header class="card bar">
-        <div><strong id="me"></strong> <span class="muted">supervisor</span></div>
-        <div class="chips">
-          <span id="phone-chip" class="chip">Phone: off</span>
-          <span id="live-chip" class="chip">Live: off</span>
-          <button id="signout" class="quiet">Sign out</button>
+      <header class="ui-header">
+        <a class="ui-brand" href="/supervisor/"
+          ><strong>AlgoDial</strong><small data-i18n="Supervisor workspace"></small
+        ></a>
+        <div class="ui-header-actions">
+          <a href="/admin/" id="management-link" hidden data-i18n="Management"></a><span id="me"></span>
+          <div class="ui-language" role="group" aria-label="Language">
+            <button class="selected" aria-pressed="true">EN</button
+            ><button disabled aria-pressed="false" title="Swahili labels await Tostao’s review">SW</button>
+          </div>
+          <button data-ui-theme aria-label="Switch colour theme">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path
+                d="M12 3v2 M12 19v2 M3 12h2 M19 12h2 M5 5l2 2 M17 17l2 2 M5 19l2-2 M17 7l2-2 M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0"
+              />
+            </svg></button
+          ><button id="signout" data-i18n="Sign out"></button>
         </div>
       </header>
-
-      <section id="listening" class="card call" hidden>
-        <h2>Listening to <span id="listening-caller"></span></h2>
-        <p class="muted" id="listening-mode-help"></p>
-        <div class="row">
-          <button id="mode-monitor" class="secondary" data-mode="monitor">Monitor</button>
-          <button id="mode-whisper" class="secondary" data-mode="whisper">Whisper</button>
-          <button id="mode-barge" class="secondary" data-mode="barge">Barge</button>
-          <button id="stop" class="danger">Stop</button>
+      <section class="superbar">
+        <div class="team-selector">
+          <label for="team-filter" data-i18n="Team"></label
+          ><select id="team-filter">
+            <option value="" data-i18n="All my teams"></option>
+          </select>
+        </div>
+        <div class="metrics">
+          <div>
+            <span data-i18n="Today’s service level"></span
+            ><strong id="service-level" class="ui-number">—</strong>
+          </div>
+          <div><span data-i18n="Waiting"></span><strong id="waiting-count" class="ui-number">0</strong></div>
+          <div>
+            <span data-i18n="Longest wait"></span><strong id="longest-wait" class="ui-number">00:00</strong>
+          </div>
         </div>
       </section>
-
-      <p id="notice" class="error" role="alert"></p>
-
-      <section class="card">
-        <h2>Queues</h2>
-        <table><thead><tr><th>Queue</th><th>Waiting</th><th>Longest wait</th><th>Today</th></tr></thead>
-          <tbody id="queues"></tbody></table>
+      <div id="queues" class="queue-strip" aria-label="Queue snapshot"></div>
+      <section id="listening" class="monitor-bar" aria-label="Current supervision" hidden>
+        <div><strong id="listening-caller"></strong><small id="listening-mode-help"></small></div>
+        <div class="supervision-actions">
+          <button id="mode-monitor" data-mode="monitor" data-i18n="Switch to monitor"></button
+          ><button id="mode-whisper" data-mode="whisper" data-i18n="Switch to whisper"></button
+          ><button id="mode-barge" data-mode="barge" data-i18n="Switch to barge"></button
+          ><button id="stop" class="ui-danger" data-i18n="Stop"></button>
+        </div>
       </section>
-
-      <section class="card">
-        <h2>Calls</h2>
-        <table><thead><tr><th>Caller</th><th>Queue</th><th>State</th><th>Agent</th><th>Time</th><th></th></tr></thead>
-          <tbody id="calls"></tbody></table>
-      </section>
-
-      <section class="card">
-        <h2>Agents</h2>
-        <table><thead><tr><th>Agent</th><th>State</th><th>Since</th><th></th></tr></thead>
-          <tbody id="agents"></tbody></table>
-      </section>
+      <p id="notice" class="ui-notice" role="alert" hidden></p>
+      <main class="team-panel">
+        <div class="team-heading">
+          <div>
+            <h1 data-i18n="Needs attention first"></h1>
+            <small id="team-summary"></small>
+          </div>
+          <div class="connection-status">
+            <span id="phone-chip" role="status"></span><small id="live-chip" role="status"></small
+            ><button id="reconnect" hidden data-i18n="Reconnect"></button>
+          </div>
+        </div>
+        <div class="team-table">
+          <table class="team">
+            <thead>
+              <tr>
+                <th scope="col" data-i18n="Agent"></th>
+                <th scope="col" data-i18n="State and reason"></th>
+                <th scope="col" data-i18n="Time in state"></th>
+                <th scope="col" data-i18n="Current call"></th>
+                <th scope="col" data-i18n="Actions"></th>
+              </tr>
+            </thead>
+            <tbody id="agents"></tbody>
+          </table>
+        </div>
+        <p id="no-agents" class="ui-muted" hidden data-i18n="No agents in this team."></p>
+      </main>
+      <footer class="supervisor-footer">
+        <span id="update-status" role="status"></span>
+        <details>
+          <summary data-i18n="Live calls"></summary>
+          <div class="live-calls">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col" data-i18n="Caller"></th>
+                  <th scope="col" data-i18n="Queue"></th>
+                  <th scope="col" data-i18n="State"></th>
+                  <th scope="col" data-i18n="Agent"></th>
+                  <th scope="col" data-i18n="Time"></th>
+                  <th scope="col" data-i18n="Actions"></th>
+                </tr>
+              </thead>
+              <tbody id="calls"></tbody>
+            </table>
+          </div>
+        </details>
+      </footer>
+      <dialog id="agent-action" aria-labelledby="agent-action-title">
+        <form id="agent-action-form">
+          <h2 id="agent-action-title"></h2>
+          <label for="agent-next-state" data-i18n="State"></label
+          ><select id="agent-next-state">
+            <option value="ready" data-i18n="Ready"></option>
+            <option value="not_ready" data-i18n="Not Ready"></option>
+            <option value="logged_out" data-i18n="Sign out"></option></select
+          ><label id="action-reason-label" for="agent-reason" data-i18n="Not Ready reason"></label
+          ><select id="agent-reason"></select>
+          <p id="agent-action-error" class="error" role="alert"></p>
+          <div class="dialog-actions">
+            <button type="submit" class="ui-primary" data-i18n="Apply change"></button
+            ><button type="button" id="agent-action-cancel" data-i18n="Cancel"></button>
+          </div>
+        </form>
+      </dialog>
+      <dialog id="history-dialog" aria-labelledby="history-title">
+        <h2 id="history-title"></h2>
+        <ol id="agent-history"></ol>
+        <button id="history-close" data-i18n="Close"></button>
+      </dialog>
     </section>
-  </main>
-  <audio id="remote-audio" autoplay></audio>
-</body>
+    <audio id="remote-audio" autoplay></audio>
+  </body>
 </html>

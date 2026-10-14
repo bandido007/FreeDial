@@ -15,7 +15,7 @@ from channels.layers import get_channel_layer
 from django.conf import settings
 
 from apps.calls import bus
-from apps.realtime.consumers import agent_group
+from apps.realtime.consumers import AGENT_DESKS_GROUP, agent_group
 from contracts.envelope import ContractError, Event, decode
 
 log = logging.getLogger(__name__)
@@ -46,6 +46,7 @@ def follow_live_calls(layer: Any, stop=lambda: False) -> None:
                 message = listener.get_message(timeout=1.0)
                 if message and message.get("type") == "message":
                     change = json.loads(message["data"])
+                    async_to_sync(layer.group_send)(AGENT_DESKS_GROUP, {"type": "queues.changed"})
                     async_to_sync(layer.group_send)(
                         bus.SUPERVISORS_GROUP,
                         {"type": "live.call", "call": change["call"], "snapshot": change["snapshot"]},

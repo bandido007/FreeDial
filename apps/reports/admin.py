@@ -15,7 +15,8 @@ from apps.reports.permissions import VIEW_REPORTS
 from apps.reports.selectors import PRESETS, build_report, period
 from apps.reports.tables import SECTIONS, tables
 
-FORMATS = {"csv": "CSV", "xlsx": "EXCEL", "pdf": "PDF"}
+FORMATS = {"csv": "CSV", "xlsx": "EXCEL", "pdf": "PDF"}  # file format codes for build_table
+LABELS = {"csv": "CSV", "xlsx": "Excel", "pdf": "PDF"}
 
 
 def _period(request):
@@ -68,7 +69,7 @@ class ReportAdmin(RbacAdminMixin, admin.ModelAdmin):
             "since": since,
             "until": report.until,
             "tables": [(section, table) for section, table in tables(report).items()],
-            "formats": FORMATS,
+            "formats": LABELS,
             "query": query,
         }
         return TemplateResponse(request, "reports/report.html", context)

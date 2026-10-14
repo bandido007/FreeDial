@@ -240,7 +240,16 @@ def test_an_ai_call_shows_both_parts_of_the_interaction():
         ),
         (m.CALL_CONNECTED, {"call": call, "leg": agent_leg, "agent": "b"}),
         (m.CALL_ENDED, {"call": call, "result": "answered", "reason": "customer hung up", "agent": "b"}),
-        (m.AGENT_WRAPPED_UP, {"agent": "b", "call": call, "code": "Information given", "by": "agent"}),
+        (
+            m.AGENT_WRAPPED_UP,
+            {
+                "agent": "b",
+                "call": call,
+                "code": "Information given",
+                "by": "agent",
+                "notes": "Will send the receipt.",
+            },
+        ),
     ]
     for second, (kind, data) in enumerate(events):
         writer.write(Message(kind, data, at=f"2026-10-14T05:00:{second:02d}+00:00"))
@@ -254,6 +263,7 @@ def test_an_ai_call_shows_both_parts_of_the_interaction():
     )
     assert ai.transcript == transcript and ai.ai_agent_uid == "ai-uid" and ai.ended_at.second == 3
     assert (agent.kind, agent.agent_uid, agent.wrapup_code) == (PartKind.AGENT, "b", "Information given")
+    assert agent.notes == "Will send the receipt.", "the agent's notes are kept with their part of the call"
     assert agent.started_at.second == 6 and agent.ended_at.second == 7
     leg = Leg.objects.get(uniqueid=ai_leg)
     assert (leg.role, leg.outcome, leg.answered_at.second, leg.ended_at.second) == ("ai", "answered", 2, 4)

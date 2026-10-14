@@ -1,0 +1,741 @@
+/* Match Django's existing widgets and forms to the approved design tokens. */
+:root,
+html[data-theme="light"],
+html[data-theme="dark"],
+html[data-theme="auto"] {
+  --primary: var(--accent);
+  --secondary: var(--surface);
+  --primary-fg: var(--surface);
+  --body-fg: var(--ink);
+  --body-bg: var(--paper);
+  --body-quiet-color: var(--muted);
+  --body-medium-color: var(--muted);
+  --body-loud-color: var(--ink);
+  --header-color: var(--ink);
+  --header-branding-color: var(--ink);
+  --header-bg: var(--surface);
+  --header-link-color: var(--accent);
+  --breadcrumbs-fg: var(--muted);
+  --breadcrumbs-link-fg: var(--accent);
+  --breadcrumbs-bg: var(--paper);
+  --link-fg: var(--accent);
+  --link-hover-color: var(--ink);
+  --link-selected-fg: var(--accent);
+  --hairline-color: var(--line);
+  --border-color: var(--line);
+  --error-fg: var(--notready);
+  --message-success-bg: var(--surface);
+  --message-warning-bg: var(--surface);
+  --message-error-bg: var(--surface);
+  --darkened-bg: var(--surface);
+  --selected-bg: var(--paper);
+  --selected-row: var(--paper);
+  --button-fg: var(--surface);
+  --button-bg: var(--accent);
+  --button-hover-bg: var(--accent);
+  --default-button-bg: var(--accent);
+  --default-button-hover-bg: var(--accent);
+  --close-button-bg: var(--surface);
+  --close-button-hover-bg: var(--paper);
+  --delete-button-bg: var(--notready);
+  --delete-button-hover-bg: var(--notready);
+  --object-tools-fg: var(--ink);
+  --object-tools-bg: var(--surface);
+  --object-tools-hover-bg: var(--paper);
+  --font-family-primary: Atkinson, system-ui, sans-serif;
+}
+body,
+td,
+th,
+input,
+textarea,
+select,
+.form-row p {
+  font-family: Atkinson, system-ui, sans-serif;
+  font-size: 15px;
+}
+#header {
+  min-height: 64px;
+  padding: 12px 32px;
+  border-bottom: 1px solid var(--line);
+  gap: 16px;
+}
+#header a:link,
+#header a:visited {
+  color: var(--accent);
+}
+.workspace-brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--ink) !important;
+  font-size: 20px;
+  font-weight: 650;
+}
+.workspace-brand span {
+  font-size: 13px;
+  color: var(--muted);
+  border-left: 1px solid var(--line);
+  padding-left: 12px;
+  font-weight: 400;
+}
+#user-tools {
+  text-transform: none;
+  font-size: 13px;
+  line-height: 1.6;
+  letter-spacing: normal;
+}
+#user-tools a,
+#logout-form button {
+  border: 0;
+  font-size: 13px;
+}
+#logout-form button {
+  min-height: 32px;
+}
+#header .theme-toggle {
+  display: none;
+}
+.workspace-theme {
+  margin-left: 12px;
+  min-width: 36px;
+  color: var(--ink);
+}
+div.breadcrumbs {
+  padding: 12px 32px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.breadcrumbs a {
+  color: var(--accent) !important;
+}
+#content {
+  padding: 24px 32px;
+  min-width: 0;
+}
+#content h1 {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--ink);
+}
+#content h2,
+.module h2,
+.module caption,
+.inline-group h2 {
+  font-size: 18px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--ink);
+  background: var(--surface);
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.module {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.dashboard #content {
+  width: auto;
+  max-width: none;
+}
+.dashboard #content-main {
+  width: calc(100% - 300px);
+}
+.dashboard #content-related {
+  width: 276px;
+  margin-right: -300px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+}
+.dashboard .module table {
+  width: 100%;
+}
+.dashboard .module caption a {
+  font-size: 18px;
+  color: var(--ink) !important;
+}
+.dashboard .module td,
+.dashboard .module th {
+  padding: 12px 16px;
+}
+#nav-sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  width: 240px;
+  min-width: 240px;
+}
+#nav-sidebar .module {
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+#nav-sidebar th,
+#nav-sidebar td {
+  padding: 8px 12px;
+}
+#nav-sidebar .current-model {
+  background: var(--paper);
+}
+#toggle-nav-sidebar {
+  background: var(--surface);
+  color: var(--accent);
+  border-radius: 0;
+  border-color: var(--line);
+  min-width: 24px;
+}
+#nav-filter {
+  width: calc(100% - 24px);
+  margin: 12px;
+  border: 1px solid var(--control-border);
+}
+.workspace-editor {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  min-height: 480px;
+  overflow: hidden;
+}
+.workspace-records {
+  padding: 20px;
+  border-right: 1px solid var(--line);
+  min-width: 0;
+}
+.workspace-records h2 {
+  padding: 0 !important;
+  border: 0 !important;
+  margin: 0 0 16px;
+}
+.workspace-search label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.workspace-search > div {
+  display: flex;
+  gap: 8px;
+}
+.workspace-search input {
+  width: 100%;
+  min-width: 0;
+}
+.workspace-search button {
+  font-size: 13px;
+  padding: 6px 8px;
+}
+.workspace-add {
+  display: block;
+  margin: 16px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  text-align: center;
+}
+.workspace-records nav ul {
+  padding: 0;
+  list-style: none;
+  margin: 16px -20px;
+}
+.workspace-records nav li {
+  padding: 0;
+  list-style: none;
+}
+.workspace-records nav a {
+  display: block;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.workspace-records nav a[aria-current="page"] {
+  border-left: 3px solid var(--accent);
+  padding-left: 17px;
+  background: var(--paper);
+  font-weight: 600;
+}
+.workspace-pagination {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 12px 0;
+  margin-bottom: 12px;
+}
+.workspace-records > a:last-child {
+  font-size: 13px;
+}
+.workspace-empty {
+  padding: 16px !important;
+  color: var(--muted);
+}
+.workspace-form {
+  padding: 24px;
+  min-width: 0;
+}
+.workspace-form #content-main {
+  float: none;
+  width: auto;
+}
+.workspace-form .module {
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+.workspace-form .aligned label {
+  width: 160px;
+}
+.workspace-form .aligned .form-row .flex-container {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.workspace-form .aligned .form-row input:not([type="checkbox"]),
+.workspace-form .aligned .form-row select,
+.workspace-form .aligned .form-row textarea {
+  max-width: 100%;
+}
+.workspace-form .aligned .form-row p,
+.workspace-form .aligned .form-row div.help {
+  margin-left: 168px;
+  padding-left: 0;
+}
+.workspace-form .form-row {
+  padding: 12px 0;
+}
+.workspace-selection {
+  padding-top: 48px;
+}
+.workspace-selection p {
+  color: var(--muted);
+  max-width: 460px;
+}
+.workspace-form .object-tools {
+  float: none;
+  margin: 0 0 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.object-tools a,
+.object-tools a:link,
+.object-tools a:visited {
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: normal;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--surface);
+}
+.object-tools a.addlink {
+  padding-right: 12px;
+  background-image: none;
+}
+.submit-row {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.submit-row input,
+.button,
+input[type="submit"],
+input[type="button"],
+a.button {
+  border-radius: 6px;
+  min-height: 36px;
+  font-size: 15px;
+  font-weight: 400;
+  text-transform: none;
+  border: 1px solid var(--control-border);
+  padding: 8px 12px;
+}
+.submit-row .default {
+  font-weight: 600;
+}
+.submit-row a.deletelink {
+  background: var(--surface);
+  color: var(--notready);
+  border: 1px solid var(--notready);
+  min-height: 36px;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+.form-row input,
+.form-row textarea,
+.form-row select,
+#toolbar input,
+#changelist-filter select {
+  border-color: var(--control-border);
+  background: var(--surface);
+}
+.help,
+.help li,
+.form-row .help,
+.inline-related .help {
+  color: var(--muted);
+  font-size: 13px;
+}
+.errorlist,
+.errornote {
+  color: var(--notready);
+  background: var(--surface);
+  border-color: var(--notready);
+}
+.errorlist li {
+  background-image: none;
+}
+table thead th {
+  background: var(--paper);
+  text-transform: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+td,
+th {
+  border-color: var(--line);
+  font-variant-numeric: tabular-nums;
+}
+.results {
+  overflow-x: auto;
+}
+#changelist .actions {
+  background: var(--surface);
+  padding: 12px;
+}
+#changelist #toolbar {
+  padding: 16px;
+  background: var(--surface);
+}
+#changelist-filter {
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+}
+#changelist-filter h2 {
+  font-size: 18px;
+}
+#changelist-filter h3 {
+  font-size: 15px;
+}
+.selector {
+  max-width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  width: auto;
+}
+.selector-available,
+.selector-chosen {
+  max-width: 100%;
+  width: 280px;
+}
+.selector select {
+  width: 100%;
+  height: 200px;
+}
+.selector ul.selector-chooser {
+  height: auto;
+  align-self: center;
+}
+.inline-group .tabular {
+  overflow-x: auto;
+}
+.inline-group .tabular td input,
+.inline-group .tabular td select {
+  max-width: 180px;
+}
+.login #container {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  min-width: 320px;
+  width: min(440px, calc(100% - 32px));
+  margin: 10vh auto;
+}
+.login #header {
+  padding: 24px;
+  flex-wrap: wrap;
+}
+.login #content {
+  padding: 24px 32px;
+}
+.login .form-row label {
+  font-size: 15px;
+  color: var(--ink);
+}
+.login .form-row #id_username,
+.login .form-row #id_password {
+  width: 100%;
+  border-color: var(--control-border);
+  padding: 10px 12px;
+  min-height: 44px;
+}
+.login .submit-row {
+  padding: 0;
+  background: none;
+  border: 0;
+}
+.workspace-field-error {
+  display: block;
+  color: var(--notready);
+  font-size: 13px;
+  margin-top: 8px;
+}
+.report-period {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.report-period label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.report-custom {
+  display: flex;
+  gap: 12px;
+}
+.report-table {
+  overflow-x: auto;
+}
+.report-table table {
+  width: 100%;
+}
+.report-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.report-downloads {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  font-weight: 400;
+}
+.report-empty {
+  padding: 16px;
+}
+.rule-preview {
+  border-top: 1px solid var(--line);
+  padding: 24px 0;
+  margin-top: 24px;
+}
+.rule-timeline {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 0;
+  list-style: none;
+}
+.rule-timeline li {
+  border-left: 3px solid var(--accent);
+  padding: 8px 16px;
+  max-width: 280px;
+}
+.rule-timeline strong {
+  display: block;
+  margin-bottom: 8px;
+}
+.rule-test-fields {
+  display: flex;
+  gap: 16px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+.rule-test-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rule-result {
+  padding: 16px 0;
+  font-weight: 600;
+}
+.delete-impact {
+  padding: 16px;
+  border-left: 3px solid var(--notready);
+  background: var(--surface);
+  margin-bottom: 24px;
+}
+@media (min-width: 1600px) {
+  #content {
+    padding: 32px 48px;
+  }
+  .workspace-editor {
+    grid-template-columns: 320px minmax(0, 1fr);
+  }
+  .workspace-form {
+    padding: 32px;
+  }
+}
+@media (max-width: 1200px) {
+  #header {
+    flex-wrap: wrap;
+  }
+  #content {
+    padding: 20px;
+  }
+  .workspace-editor {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+  .workspace-form {
+    padding: 20px;
+  }
+  .workspace-form .aligned .form-row p,
+  .workspace-form .aligned .form-row div.help {
+    margin-left: 0;
+  }
+  .workspace-form .aligned label {
+    width: 100%;
+  }
+  .dashboard #content-main {
+    width: 100%;
+  }
+  .dashboard #content-related {
+    width: 100%;
+    margin: 24px 0 0;
+    float: none;
+  }
+}
+@media (max-width: 800px) {
+  .workspace-editor {
+    grid-template-columns: 1fr;
+  }
+  .workspace-records {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .workspace-records nav {
+    max-height: 240px;
+    overflow: auto;
+  }
+  #content {
+    padding: 16px;
+  }
+  .workspace-brand span {
+    display: none;
+  }
+  .report-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+}
+.select2-container--admin-autocomplete .select2-selection--single,
+.select2-container--admin-autocomplete .select2-selection--multiple {
+  border: 1px solid var(--control-border);
+  background: var(--surface);
+  min-height: 36px;
+  border-radius: 6px;
+}
+.select2-container--admin-autocomplete .select2-selection--single .select2-selection__rendered,
+.select2-container--admin-autocomplete .select2-selection--multiple .select2-selection__rendered {
+  color: var(--ink);
+  line-height: 34px;
+}
+.select2-container--admin-autocomplete .select2-dropdown {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--control-border);
+}
+.select2-container--admin-autocomplete .select2-search__field {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--control-border);
+  min-height: 36px;
+}
+.select2-container--admin-autocomplete .select2-selection--multiple .select2-selection__choice {
+  background: var(--paper);
+  color: var(--ink);
+  border-color: var(--control-border);
+  min-height: 32px;
+}
+.select2-container--admin-autocomplete .select2-selection--multiple .select2-selection__choice__remove {
+  color: var(--ink);
+  min-width: 24px;
+  min-height: 24px;
+}
+.select2-container--admin-autocomplete .select2-results__option--highlighted[aria-selected] {
+  background: var(--accent);
+  color: var(--surface);
+}
+.workspace-form .form-row:has(.selector) .flex-container {
+  display: block;
+}
+.workspace-form .form-row:has(.selector) label {
+  display: block;
+  float: none;
+  width: 100%;
+  margin-bottom: 8px;
+}
+.selector .selector-filter input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--control-border);
+}
+
+.breadcrumbs a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.delete-confirmation #content li a,
+.help a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+#content input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]),
+#content textarea,
+#content select {
+  border-color: var(--control-border);
+  background: var(--surface);
+  color: var(--ink);
+}
+#logout-form button {
+  text-transform: none;
+}
+#content button.button {
+  font-size: 15px;
+  padding: 8px 12px;
+}
+
+.inline-group .tabular td.original p {
+  font-size: 13px;
+  height: auto;
+  line-height: 1.3;
+  max-width: calc(100% - 24px);
+}
+.submit-row input.default {
+  text-transform: none;
+}
+
+/* Django's forms.css loads after this file on change forms, with equally specific selectors.
+   These rules are anchored on #content so the design wins there too. */
+#content .submit-row input.default {
+  text-transform: none; /* sentence case everywhere (UI_DESIGN.md 3) */
+}
+#content .inline-group .tabular td.original p {
+  display: none; /* "< 30s: claims >= 7" repeats the row's own fields, in tiny type */
+}
+#content .inline-group .tabular tr.has_original td {
+  padding-top: 8px;
+}
+#content .inline-group .tabular td select {
+  max-width: none; /* "$language (the call's language)" must be readable whole */
+}

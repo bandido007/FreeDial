@@ -73,10 +73,19 @@ class QueueAdmin(RbacAdminMixin, admin.ModelAdmin):
             return "no calls yet"
         return (
             f"{stats['service_level_percent']:.0f}% in {obj.service_level_seconds}s "
-            f"(target {obj.service_level_percent}%) · {stats['answered']}/{stats['offered']} answered"
+            f"(target {obj.service_level_percent}%) / {stats['answered']}/{stats['offered']} answered"
         )
 
     search_fields = ("name",)
+
+    def delete_view(self, request, object_id, extra_context=None):
+        context = dict(extra_context or {})
+        obj = self.get_object(request, object_id)
+        if obj is not None and self.has_delete_permission(request, obj):
+            context["workspace_delete_impact"] = (
+                f"{obj.members.count()} agents lose this queue. {obj.entry_points.count()} entry points will also be removed."
+            )
+        return super().delete_view(request, object_id, context)
 
     def delete_model(self, request, obj):
         services.delete_queue(uid=obj.uid)
@@ -162,12 +171,51 @@ class RequirementInline(RbacAdminMixin, admin.TabularInline):
 
 @admin.register(SkillRuleSet)
 class SkillRuleSetAdmin(RbacAdminMixin, admin.ModelAdmin):
+    change_form_template = "admin/rule_set_change_form.html"
     view_permission = VIEW_QUEUES
     manage_permission = EDIT_QUEUES
     fields = ("name", "active")
     inlines = [RequirementInline]
     list_display = ("name", "rules_summary", "active")
     search_fields = ("name",)
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        from apps.agents.models import Agent, Skill
+        from apps.agents.permissions import VIEW_AGENTS
+
+        context = dict(extra_context or {})
+        context["rule_preview_data"] = {"agents": [], "languages": [], "queues": []}
+        context["can_test_agents"] = self._holds(request, VIEW_AGENTS)
+        if context["can_test_agents"]:
+            agents = Agent.objects.filter(active=True).prefetch_related("skills__skill")
+            queues = (
+                Queue.objects.filter(skill_rule_set__pk=object_id, active=True).prefetch_related("agents")
+                if object_id
+                else []
+            )
+            context["rule_preview_data"] = {
+                "agents": [
+                    {
+                        "uid": str(agent.uid),
+                        "number": agent.number,
+                        "name": agent.name,
+                        "skills": {row.skill.name: row.level for row in agent.skills.all()},
+                    }
+                    for agent in agents
+                ],
+                "languages": list(
+                    Skill.objects.filter(kind="language", active=True).values_list("name", flat=True)
+                ),
+                "queues": [
+                    {
+                        "uid": str(queue.uid),
+                        "name": queue.name,
+                        "agents": [str(agent.uid) for agent in queue.agents.all()],
+                    }
+                    for queue in queues
+                ],
+            }
+        return super().changeform_view(request, object_id, form_url, context)
 
     @admin.display(description="Steps")
     def rules_summary(self, obj):

@@ -11,6 +11,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from apps.agentdesk.selectors import screen_data
 from apps.agents.live import LOGGED_OUT, live_state, live_states
 from apps.agents.models import Agent, AgentSession, NotReadyReason, WrapupCode
 from apps.calls import bus
@@ -31,13 +32,19 @@ def agent_of(user) -> Agent:
     return agent
 
 
+# The page sets this itself when the browser phone drops; it is not one of the admin's reasons.
+PHONE_PROBLEM_REASON = "Phone not connected"
+
+
 def desk(user) -> dict[str, Any]:
     agent = agent_of(user)
+    state = live_state(agent)
     return {
+        **screen_data(agent, state),
         "uid": str(agent.uid),
         "number": agent.number,
         "name": agent.name,
-        "state": live_state(agent),
+        "state": state,
         "not_ready_reasons": list(NotReadyReason.objects.filter(active=True).values_list("name", flat=True)),
         "wrapup_codes": list(WrapupCode.objects.filter(active=True).values_list("name", flat=True)),
         "transfer_targets": transfer_targets(agent),
@@ -91,7 +98,7 @@ def set_availability(user, *, ready: bool, reason: str = "") -> dict[str, Any]:
         return {"command_id": bus.send_command(m.AGENT_READY, {"agent": str(agent.uid)})}
     reason = (reason or "").strip()
     reasons = list(NotReadyReason.objects.filter(active=True).values_list("name", flat=True))
-    if reasons and reason not in reasons:
+    if not reason or (reasons and reason not in reasons and reason != PHONE_PROBLEM_REASON):
         raise ValidationError("Pick one of the listed reasons.", code=NOT_LISTED)
     return {"command_id": bus.send_command(m.AGENT_NOT_READY, {"agent": str(agent.uid), "reason": reason})}
 
@@ -101,13 +108,28 @@ def hold(user, *, on: bool) -> dict[str, Any]:
     return {"command_id": bus.send_command(m.CALL_HOLD if on else m.CALL_RESUME, {"agent": str(agent.uid)})}
 
 
-def finish_wrapup(user, *, code: str) -> dict[str, Any]:
+def finish_wrapup(
+    user, *, code: str, notes: str | None = None, ready: bool | None = None, reason: str = ""
+) -> dict[str, Any]:
     agent = agent_of(user)
     code = (code or "").strip()
     codes = list(WrapupCode.objects.filter(active=True).values_list("name", flat=True))
     if codes and code not in codes:
         raise ValidationError("Pick one of the listed wrap-up codes.", code=NOT_LISTED)
-    return {"command_id": bus.send_command(m.AGENT_WRAPUP_DONE, {"agent": str(agent.uid), "code": code})}
+    data: dict[str, Any] = {"agent": str(agent.uid), "code": code}
+    if notes is not None:
+        if len(notes) > 8000:
+            raise ValidationError("Keep notes under 8,000 characters.", code=NOT_LISTED)
+        data["notes"] = notes.strip()
+    if ready is not None:
+        data["ready"] = ready
+        if not ready:
+            reason = (reason or "").strip()
+            reasons = list(NotReadyReason.objects.filter(active=True).values_list("name", flat=True))
+            if not reason or (reasons and reason not in reasons):
+                raise ValidationError("Pick one of the listed reasons.", code=NOT_LISTED)
+            data["reason"] = reason
+    return {"command_id": bus.send_command(m.AGENT_WRAPUP_DONE, data)}
 
 
 # ── transfers and conference (M5) ─────────────────────────────────────────

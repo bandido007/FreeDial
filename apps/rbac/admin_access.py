@@ -6,10 +6,17 @@ that allows a GraphQL mutation also opens the admin page. Superusers keep
 full access.
 """
 
+from typing import TYPE_CHECKING, ClassVar
+
+from apps.core.admin_workspace import WorkspaceAdminMixin
 from apps.core.hooks import resolve_permissions
 
+if TYPE_CHECKING:
+    from django.template.response import _TemplateForResponseT
 
-class RbacAdminMixin:
+
+class RbacAdminMixin(WorkspaceAdminMixin):
+    change_form_template: ClassVar["_TemplateForResponseT | None"] = "admin/workspace_change_form.html"
     view_permission: str = ""
     manage_permission: str = ""
 

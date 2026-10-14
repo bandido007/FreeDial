@@ -1,16 +1,17 @@
 from django.contrib import admin
 
+from apps.core.admin_workspace import WorkspaceModelAdmin
 from apps.rbac.models import Permission, PermissionGroup, Role, RolePermission, UserRole
 
 
 @admin.register(PermissionGroup)
-class PermissionGroupAdmin(admin.ModelAdmin):
+class PermissionGroupAdmin(WorkspaceModelAdmin):
     list_display = ("name", "app_label", "description")
     search_fields = ("name",)
 
 
 @admin.register(Permission)
-class PermissionAdmin(admin.ModelAdmin):
+class PermissionAdmin(WorkspaceModelAdmin):
     """Read-only: permissions are declared in code and written by sync_rbac."""
 
     list_display = ("code", "name", "level", "group")
@@ -35,7 +36,7 @@ class RolePermissionInline(admin.TabularInline):
 
 
 @admin.register(Role)
-class RoleAdmin(admin.ModelAdmin):
+class RoleAdmin(WorkspaceModelAdmin):
     list_display = ("name", "is_system", "active", "created_at")
     list_filter = ("is_system", "active")
     search_fields = ("name",)
@@ -43,7 +44,7 @@ class RoleAdmin(admin.ModelAdmin):
 
 
 @admin.register(UserRole)
-class UserRoleAdmin(admin.ModelAdmin):
+class UserRoleAdmin(WorkspaceModelAdmin):
     list_display = ("user", "role", "source", "expires_at", "created_at")
     list_filter = ("role", "source")
     search_fields = ("user__email", "role__name")

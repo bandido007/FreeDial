@@ -137,3 +137,16 @@ def test_the_relay_sends_each_event_to_the_agent_it_names():
         ("supervisors", m.CALL_OFFERED),  # every supervisor page gets it and keeps what concerns its teams
         ("supervisors", m.CALL_STARTED),
     ]
+
+
+def test_queue_invalidation_uses_the_same_authenticated_socket_without_caller_data(agent_token):
+    token, _ = agent_token()
+
+    async def scenario():
+        socket = await open_socket(token)
+        await socket.receive_json_from(timeout=5)
+        await get_channel_layer().group_send(consumers.AGENT_DESKS_GROUP, {"type": "queues.changed"})
+        assert await socket.receive_json_from(timeout=5) == {"type": "queues.changed"}
+        await socket.disconnect()
+
+    asyncio.run(scenario())

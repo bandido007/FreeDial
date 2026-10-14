@@ -1,0 +1,25 @@
+{% extends "admin/workspace_change_form.html" %}
+{% load i18n %}
+{% block after_related_objects %}
+  {{ block.super }}
+  <section class="rule-preview" aria-label="{% translate 'Skill rule preview' %}">
+    <h2>{% translate "Routing steps" %}</h2>
+    <p id="rule-validation" role="status"></p>
+    <ol id="rule-timeline" class="rule-timeline"></ol>
+    {{ rule_preview_data|json_script:"rule-preview-data" }}
+    {% if can_test_agents %}
+      <h3>{% translate "Test with agent" %}</h3>
+      <p>{% translate "Check configured skills and queue membership against the steps above." %}</p>
+      <div class="rule-test-fields">
+        <label>{% translate "Agent" %}<select id="rule-test-agent"></select></label>
+        <label>{% translate "Caller language" %}<select id="rule-test-language"></select></label>
+        <label>{% translate "Wait in seconds" %}<input id="rule-test-wait" type="number" min="0" value="0"></label>
+        <label>
+          {% translate "Queue" %}
+          <select id="rule-test-queue"><option value="">{% translate "Skills only" %}</option></select>
+        </label>
+      </div>
+      <p id="rule-result" class="rule-result" role="status"></p>
+    {% endif %}
+  </section>
+{% endblock %}

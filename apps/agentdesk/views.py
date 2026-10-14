@@ -5,6 +5,9 @@ from the API and the live WebSocket after sign-in. It sends its own security
 headers: the starter's default Permissions-Policy blocks the microphone.
 """
 
+import json
+from functools import lru_cache
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from django.conf import settings
@@ -17,6 +20,11 @@ def _origin(url: str) -> str:
     return f"{parts.scheme}://{parts.netloc}" if parts.scheme and parts.netloc else ""
 
 
+@lru_cache(maxsize=1)
+def english_messages():
+    return json.loads((Path(__file__).with_name("translations") / "en.json").read_text())
+
+
 def agent_page(request):
     application = get_application_model().objects.filter(name=settings.OAUTH_APP_NAME).first()
     config = {
@@ -25,6 +33,7 @@ def agent_page(request):
         "revokeUrl": "/oauth2/revoke_token",
         "graphqlUrl": "/graphql",
         "liveUrl": "/ws/agent",
+        "messages": english_messages(),
     }
     return page_headers(request, render(request, "agentdesk/index.html", {"config": config}))
 

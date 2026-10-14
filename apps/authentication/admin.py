@@ -10,9 +10,10 @@ from apps.authentication.models import (
     PasswordResetToken,
     UserLoginHistory,
 )
+from apps.core.admin_workspace import WorkspaceModelAdmin
 
 
-class ReadOnlyAdmin(admin.ModelAdmin):
+class ReadOnlyAdmin(WorkspaceModelAdmin):
     """For logs: nothing is added, changed or removed by hand."""
 
     def has_add_permission(self, request):
@@ -64,7 +65,7 @@ class ExternalIdentityAdmin(ReadOnlyAdmin):
 
 
 @admin.register(LdapConfig)
-class LdapConfigAdmin(admin.ModelAdmin):
+class LdapConfigAdmin(WorkspaceModelAdmin):
     list_display = ("name", "ldap_url", "email_domain", "default_role", "is_active")
     list_filter = ("is_active",)
     search_fields = ("name", "ldap_url", "email_domain")

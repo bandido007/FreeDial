@@ -1,0 +1,30 @@
+{% extends "admin/base.html" %}
+{% load static i18n %}
+{% block title %}{{ title }} | AlgoDial{% endblock %}
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'algodial/ui.css' %}">
+  <link rel="stylesheet" href="{% static 'algodial/admin.css' %}">
+{% endblock %}
+{% block extrahead %}
+  {{ block.super }}
+  <script src="{% static 'algodial/ui.js' %}" defer></script>
+  <script src="{% static 'algodial/admin.js' %}" defer></script>
+{% endblock %}
+{% block branding %}
+  <a class="workspace-brand" href="{% url 'admin:index' %}">AlgoDial <span>{% translate "Management workspace" %}</span></a>
+{% endblock %}
+{% block userlinks %}
+  {% for link in workspace_links %}<a href="{{ link.url }}">{{ link.label }}</a> / {% endfor %}
+  {% if user.has_usable_password %}<a href="{% url 'admin:password_change' %}">{% translate "Change password" %}</a> / {% endif %}
+  <form id="logout-form" method="post" action="{% url 'admin:logout' %}">
+    {% csrf_token %}<button type="submit">{% translate "Sign out" %}</button>
+  </form>
+{% endblock %}
+{% block nav-global %}
+  <button class="workspace-theme" type="button" data-ui-theme aria-label="{% translate 'Switch colour theme' %}">
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M12 3v2 M12 19v2 M3 12h2 M19 12h2 M5 5l2 2 M17 17l2 2 M5 19l2-2 M17 7l2-2 M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0"/>
+    </svg>
+  </button>
+{% endblock %}

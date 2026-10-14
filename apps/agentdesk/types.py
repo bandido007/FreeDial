@@ -27,6 +27,36 @@ class TransferTargetsType(graphene.ObjectType):
     queues = graphene.List(graphene.String)
 
 
+class AgentQueueType(graphene.ObjectType):
+    name = graphene.String()
+    waiting = graphene.Int()
+    longest_wait = graphene.Float()
+    ring_timeout = graphene.Int()
+    wrapup_seconds = graphene.Int()
+
+
+class AgentDayType(graphene.ObjectType):
+    calls = graphene.Int()
+    average_talk_seconds = graphene.Float()
+    not_ready_seconds = graphene.Float()
+
+
+class AgentCallType(graphene.ObjectType):
+    call = graphene.String()
+    caller = graphene.String()
+    caller_name = graphene.String()
+    queue = graphene.String()
+    language = graphene.String()
+    summary = graphene.String()
+    ai_reason = graphene.String()
+    connected_at = graphene.Float()
+    ended_at = graphene.Float()
+    offered_at = graphene.Float()
+    wait_seconds = graphene.Float()
+    ring_timeout = graphene.Int()
+    wrapup_seconds = graphene.Int()
+
+
 class AgentDeskType(graphene.ObjectType):
     uid = graphene.String()
     number = graphene.String()
@@ -35,6 +65,10 @@ class AgentDeskType(graphene.ObjectType):
     not_ready_reasons = graphene.List(graphene.String)
     wrapup_codes = graphene.List(graphene.String)
     transfer_targets = graphene.Field(TransferTargetsType)
+    state_since = graphene.DateTime()
+    queues = graphene.List(AgentQueueType)
+    my_day = graphene.Field(AgentDayType)
+    current_call = graphene.Field(AgentCallType)
 
 
 class AgentPhoneType(graphene.ObjectType):

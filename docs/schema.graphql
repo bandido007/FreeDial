@@ -29,6 +29,11 @@ type Query {
   ): ExportFileResponse
 
   """
+  Recent events of an agent in your teams. permissions=['can_monitor_calls', 'can_whisper_calls', 'can_barge_calls', 'can_force_agent_state']
+  """
+  supervisedAgentHistory(agent: String!): AgentHistoryResponse
+
+  """
   Your teams now: agents, live calls, queues. permissions=['can_monitor_calls', 'can_whisper_calls', 'can_barge_calls', 'can_force_agent_state']
   """
   mySupervisorDesk: SupervisorDeskResponse
@@ -396,6 +401,20 @@ enum TableExportFormatChoices {
   WORD
 }
 
+type AgentHistoryResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: AgentHistoryType
+  dataList: [AgentHistoryType]
+}
+
+type AgentHistoryType {
+  at: DateTime
+  type: String
+  description: String
+}
+
 type SupervisorDeskResponse {
   status: Boolean
   code: Int
@@ -407,6 +426,7 @@ type SupervisorDeskResponse {
 type SupervisorDeskType {
   user: String
   name: String
+  canManage: Boolean
 
   """monitor, whisper, barge, force"""
   can: [String]
@@ -416,6 +436,9 @@ type SupervisorDeskType {
   calls: [GenericScalar]
   queues: [QueueNowType]
   notReadyReasons: [String]
+  teams: [GenericScalar]
+  reasonLimits: GenericScalar
+  longCallSeconds: Int
 }
 
 type SupervisedAgentType {
@@ -427,6 +450,8 @@ type SupervisedAgentType {
   reason: String
   call: String
   idleSince: Float
+  stateSince: Float
+  queues: [String]
 }
 
 type QueueNowType {
@@ -460,6 +485,10 @@ type AgentDeskType {
   notReadyReasons: [String]
   wrapupCodes: [String]
   transferTargets: TransferTargetsType
+  stateSince: DateTime
+  queues: [AgentQueueType]
+  myDay: AgentDayType
+  currentCall: AgentCallType
 }
 
 """The agent's state as the brain last saved it."""
@@ -490,6 +519,36 @@ type TransferAgentType {
   name: String
   availability: String
   activity: String
+}
+
+type AgentQueueType {
+  name: String
+  waiting: Int
+  longestWait: Float
+  ringTimeout: Int
+  wrapupSeconds: Int
+}
+
+type AgentDayType {
+  calls: Int
+  averageTalkSeconds: Float
+  notReadySeconds: Float
+}
+
+type AgentCallType {
+  call: String
+  caller: String
+  callerName: String
+  queue: String
+  language: String
+  summary: String
+  aiReason: String
+  connectedAt: Float
+  endedAt: Float
+  offeredAt: Float
+  waitSeconds: Float
+  ringTimeout: Int
+  wrapupSeconds: Int
 }
 
 type QueueStatsResponse {
@@ -1901,6 +1960,17 @@ type Mutation {
   finishMyWrapup(
     """One of myAgentDesk.wrapupCodes"""
     code: String!
+
+    """Call notes, up to 8,000 characters; recorded with wrap-up"""
+    notes: String
+
+    """
+    Next availability, chosen atomically before another call can be offered
+    """
+    ready: Boolean
+
+    """Not Ready reason when ready is false"""
+    reason: String
   ): CommandSentResponse
 
   """Create or update a team. permissions=['can_manage_teams']"""

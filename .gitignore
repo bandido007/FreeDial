@@ -48,3 +48,6 @@ lab/agentpage-stack.log
 lab/calltests-partial.jsonl
 lab/bakeoff/
 lab/voices/
+
+# Browser QA output
+/test-artifacts/

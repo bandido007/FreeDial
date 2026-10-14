@@ -140,3 +140,23 @@ def channel_time(channel):
     from brain.core.brain import parse_time
 
     return parse_time(channel["creationtime"])
+
+
+def test_finishing_wrapup_not_ready_does_not_take_a_waiting_call_and_records_notes():
+    brain = new_brain()
+    ready(brain, A, PHONE_A, now=1)
+    agent = brain.agents[A]
+    agent.activity, agent.wrapup_call = Activity.WRAPUP, "previous"
+    brain.on_ari(stasis_start("waiting", "inbound", "800", "x", "waiting"), now=2)
+    actions = brain.on_command(
+        m.AGENT_WRAPUP_DONE,
+        {"agent": A, "code": "Done", "notes": "Receipt requested", "ready": False, "reason": "Break"},
+        "wrap",
+        now=3,
+    )
+    assert agent.availability is Availability.NOT_READY
+    assert agent.reason == "Break" and agent.activity is Activity.IDLE
+    assert not of(a.Originate, actions)
+    wrapped = next(action for action in of(a.Emit, actions) if action.type == m.AGENT_WRAPPED_UP)
+    assert wrapped.data["notes"] == "Receipt requested"
+    assert brain.on_command(m.AGENT_WRAPUP_DONE, {"agent": A, "code": "Done"}, "again", now=4) == []

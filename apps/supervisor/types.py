@@ -13,6 +13,8 @@ class SupervisedAgentType(graphene.ObjectType):
     reason = graphene.String()
     call = graphene.String()
     idle_since = graphene.Float()
+    state_since = graphene.Float()
+    queues = graphene.List(graphene.String)
 
 
 class QueueNowType(graphene.ObjectType):
@@ -29,8 +31,18 @@ class QueueNowType(graphene.ObjectType):
 class SupervisorDeskType(graphene.ObjectType):
     user = graphene.String()
     name = graphene.String()
+    can_manage = graphene.Boolean()
     can = graphene.List(graphene.String, description="monitor, whisper, barge, force")
     agents = graphene.List(SupervisedAgentType)
     calls = graphene.List(GenericScalar, description="Live calls of your teams, as the brain describes them")
     queues = graphene.List(QueueNowType)
     not_ready_reasons = graphene.List(graphene.String)
+    teams = graphene.List(GenericScalar)
+    reason_limits = graphene.Field(GenericScalar)
+    long_call_seconds = graphene.Int()
+
+
+class AgentHistoryType(graphene.ObjectType):
+    at = graphene.DateTime()
+    type = graphene.String()
+    description = graphene.String()

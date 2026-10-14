@@ -1,40 +1,54 @@
 {% extends "admin/base_site.html" %}
 {% block breadcrumbs %}
-<div class="breadcrumbs"><a href="{% url 'admin:index' %}">Home</a> &rsaquo; Reports</div>
+  <div class="breadcrumbs"><a href="{% url 'admin:index' %}">Home</a> &rsaquo; Reports</div>
 {% endblock %}
 {% block content %}
-<div id="content-main">
-  <form method="get" class="report-period" style="display:flex; gap:12px; align-items:end; flex-wrap:wrap; margin-bottom:16px">
-    <label>Period
-      <select name="period" onchange="document.getElementById('custom').hidden = this.value !== 'custom'">
-        {% for key, label in presets.items %}<option value="{{ key }}"{% if key == preset %} selected{% endif %}>{{ label }}</option>{% endfor %}
-      </select>
-    </label>
-    <span id="custom"{% if preset != "custom" %} hidden{% endif %}>
-      <label>From <input type="date" name="since" value="{{ start }}"></label>
-      <label>To <input type="date" name="until" value="{{ end }}"></label>
-    </span>
-    <button type="submit" class="button">Show</button>
-    <span class="help">{{ since|date:"j M Y H:i" }} to {{ until|date:"j M Y H:i" }}. From the event log; definitions in docs/REPORTS.md.</span>
-  </form>
-  {% for section, table in tables %}
-  <div class="module" style="margin-bottom:24px; overflow-x:auto">
-    <h2>{{ table.title }}
-      <span style="float:right; font-weight:normal">
-        {% for extension, label in formats.items %}<a href="export/{{ section }}.{{ extension }}?{{ query }}" style="margin-left:8px">{{ label }}</a>{% endfor %}
+  <div id="content-main">
+    <form method="get" class="report-period">
+      <label>
+        Period
+        <select name="period" data-report-period>
+          {% for key, label in presets.items %}
+            <option value="{{ key }}"{% if key == preset %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <span id="custom" class="report-custom"{% if preset != "custom" %} hidden{% endif %}>
+        <label>From <input type="date" name="since" value="{{ start }}" /></label>
+        <label>To <input type="date" name="until" value="{{ end }}" /></label>
       </span>
-    </h2>
-    {% if table.rows %}
-    <table style="width:100%">
-      <thead><tr>{% for column in table.columns %}<th scope="col">{{ column }}</th>{% endfor %}</tr></thead>
-      <tbody>
-        {% for row in table.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <p style="padding:8px 12px">Nothing in this period.</p>
-    {% endif %}
+      <button type="submit" class="button">Show</button>
+      <span class="help">{{ since|date:"j M Y H:i" }} to {{ until|date:"j M Y H:i" }}.</span>
+    </form>
+    {% for section, table in tables %}
+      <div class="module report-table">
+        <h2 class="report-heading">
+          {{ table.title }}
+          <span class="report-downloads">
+            {% for extension, label in formats.items %}
+              <a href="export/{{ section }}.{{ extension }}?{{ query }}">{{ label }}</a>
+            {% endfor %}
+          </span>
+        </h2>
+        {% if table.rows %}
+          <table>
+            <thead>
+              <tr>
+                {% for column in table.columns %}<th scope="col">{{ column }}</th>{% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in table.rows %}
+                <tr>
+                  {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="report-empty">Nothing in this period.</p>
+        {% endif %}
+      </div>
+    {% endfor %}
   </div>
-  {% endfor %}
-</div>
 {% endblock %}

@@ -141,9 +141,10 @@ def _project(kind: str, data: dict[str, Any], at: datetime) -> None:
             .order_by("-started_at", "-id")
             .first()
         )
-        if part is not None and data.get("code"):
-            part.wrapup_code = str(data["code"])[:120]
-            part.save(update_fields=["wrapup_code"])
+        if part is not None and (data.get("code") or data.get("notes")):
+            part.wrapup_code = str(data.get("code") or part.wrapup_code)[:120]
+            part.notes = str(data.get("notes") or part.notes)
+            part.save(update_fields=["wrapup_code", "notes"])
     elif kind == m.TRANSFER_STARTED:
         Transfer.objects.get_or_create(
             transfer_id=data["transfer"],

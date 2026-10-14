@@ -235,3 +235,190 @@ def test_transfer_buttons_become_commands_for_the_brain(api, agent_user, command
         (m.CONFERENCE_DROP, {"agent": uid, "who": "other"}),
         (m.CONFERENCE_DROP, {"agent": uid, "who": "me"}),
     ]
+
+
+def test_approved_desk_shows_only_my_queue_counts_and_my_current_call(api, agent_user, commands, settings):
+    from apps.queues.models import Queue, QueueMember
+
+    mine = Queue.objects.create(name="Claims", ring_timeout=15, wrapup_seconds=45)
+    QueueMember.objects.create(queue=mine, agent=agent_user.agent)
+    uid = str(agent_user.agent.uid)
+    settings.BUS_CALLS_KEY = "test:desk:calls"
+    redis = bus.client()
+    redis.delete(settings.BUS_CALLS_KEY)
+    try:
+        redis.hset(
+            settings.BUS_AGENTS_KEY,
+            uid,
+            json.dumps({"availability": "ready", "activity": "talking", "call": "mine"}),
+        )
+        for key, value in {
+            "mine": {
+                "call": "mine",
+                "queue": "Claims",
+                "state": "connected",
+                "agent": uid,
+                "caller": "0700",
+                "language": "swahili",
+                "summary": "Missing receipt",
+                "connected_at": 100,
+            },
+            "waiting": {"call": "waiting", "queue": "Claims", "state": "waiting", "waiting_since": 100},
+            "private": {
+                "call": "private",
+                "queue": "Private",
+                "state": "waiting",
+                "caller": "secret",
+                "waiting_since": 100,
+            },
+        }.items():
+            redis.hset(settings.BUS_CALLS_KEY, key, json.dumps(value))
+        answer = call(
+            api(agent_user),
+            """query { myAgentDesk { data {
+          queues { name waiting longestWait ringTimeout wrapupSeconds }
+          currentCall { call caller language summary connectedAt }
+          myDay { calls averageTalkSeconds notReadySeconds }
+          stateSince
+        } } }""",
+        )
+        data = answer["data"]
+        assert [q["name"] for q in data["queues"]] == ["Claims"]
+        assert data["queues"][0]["waiting"] == 1
+        assert data["queues"][0]["ringTimeout"] == 15
+        assert data["currentCall"] == {
+            "call": "mine",
+            "caller": "0700",
+            "language": "swahili",
+            "summary": "Missing receipt",
+            "connectedAt": 100.0,
+        }
+        assert data["myDay"]["calls"] == 0
+        assert "secret" not in json.dumps(data)
+    finally:
+        redis.delete(settings.BUS_CALLS_KEY)
+
+
+def test_wrapup_sends_notes_and_next_availability_in_one_command(api, agent_user, commands):
+    NotReadyReason.objects.create(name="Break")
+    WrapupCode.objects.create(name="Information given")
+    result = call(
+        api(agent_user),
+        """mutation {
+      finishMyWrapup(code: "Information given", notes: "Receipt requested", ready: false, reason: "Break") { code }
+    }""",
+    )
+    assert result["code"] == 9001
+    assert commands()[-1].data == {
+        "agent": str(agent_user.agent.uid),
+        "code": "Information given",
+        "notes": "Receipt requested",
+        "ready": False,
+        "reason": "Break",
+    }
+    assert (
+        call(
+            api(agent_user), 'mutation { finishMyWrapup(code: "Information given", ready: false) { code } }'
+        )["code"]
+        == 10206
+    )
+
+
+def test_my_day_uses_only_this_agents_legs_and_counts_not_ready_across_midnight(agent_user):
+    from datetime import datetime, timedelta
+    from uuid import uuid4
+
+    from django.utils import timezone
+
+    from apps.agentdesk.selectors import my_day
+    from apps.calls.models import Call, Event, Leg
+    from contracts import messages as m
+
+    start = timezone.make_aware(datetime(2026, 10, 15))
+    uid = str(agent_user.agent.uid)
+    call_row = Call.objects.create(linkedid="my-day")
+    Leg.objects.create(
+        call=call_row,
+        uniqueid="mine",
+        role="agent",
+        agent_uid=uid,
+        answered_at=start + timedelta(minutes=2),
+        ended_at=start + timedelta(minutes=5),
+    )
+    Leg.objects.create(
+        call=call_row,
+        uniqueid="other",
+        role="agent",
+        agent_uid="someone-else",
+        answered_at=start,
+        ended_at=start + timedelta(minutes=10),
+    )
+    for minute, availability in [(-5, "not_ready"), (1, "ready"), (7, "not_ready")]:
+        Event.objects.create(
+            event_id=uuid4(),
+            type=m.AGENT_STATE,
+            at=start + timedelta(minutes=minute),
+            agent_uid=uid,
+            data={"availability": availability, "activity": "idle"},
+        )
+    assert my_day(uid, start, start + timedelta(minutes=10)) == {
+        "calls": 1,
+        "average_talk_seconds": 180,
+        "not_ready_seconds": 240,
+    }
+
+
+def test_oversized_notes_are_rejected_before_sending_a_command(api, agent_user, commands):
+    answer = call(
+        api(agent_user),
+        'mutation W($notes: String) { finishMyWrapup(code: "", notes: $notes) { code } }',
+        {"notes": "x" * 8001},
+    )
+    assert answer["code"] == 10206 and commands() == []
+
+
+def test_wrapup_context_survives_reload_with_language_wait_and_a_frozen_talk_timer(
+    agent_user, commands, settings
+):
+    from datetime import timedelta
+    from uuid import uuid4
+
+    from django.utils import timezone
+
+    from apps.calls.models import Call, Event, Leg
+    from apps.queues.models import Queue
+
+    uid = str(agent_user.agent.uid)
+    now = timezone.now()
+    Queue.objects.create(name="Claims", wrapup_seconds=60)
+    call_row = Call.objects.create(linkedid="wrapped", caller="0700", queue="Claims")
+    Leg.objects.create(
+        call=call_row,
+        uniqueid="leg",
+        role="agent",
+        agent_uid=uid,
+        answered_at=now - timedelta(seconds=40),
+        ended_at=now,
+    )
+    for kind, seconds, data in [
+        (m.CALL_OFFERED, 45, {"queue": "Claims", "summary": "Missing receipt"}),
+        (m.ROUTING_TICKET, 70, {"language": "swahili"}),
+        (m.CALL_QUEUED, 70, {}),
+    ]:
+        Event.objects.create(
+            event_id=uuid4(),
+            type=kind,
+            at=now - timedelta(seconds=seconds),
+            call_id="wrapped",
+            agent_uid=uid,
+            data=data,
+        )
+    bus.client().hset(
+        settings.BUS_AGENTS_KEY,
+        uid,
+        json.dumps({"availability": "ready", "activity": "wrapup", "wrapup_call": "wrapped"}),
+    )
+    data = desk.desk(agent_user)["current_call"]
+    assert data["language"] == "swahili" and data["summary"] == "Missing receipt"
+    assert data["wait_seconds"] == 30 and data["wrapup_seconds"] == 60
+    assert data["ended_at"] - data["connected_at"] == 40

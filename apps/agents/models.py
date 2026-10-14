@@ -42,6 +42,9 @@ class NotReadyReason(BaseModel):
     """Why an agent is Not Ready (break, lunch, training…), picked on the agent page."""
 
     name = models.CharField(max_length=60)
+    max_seconds = models.PositiveIntegerField(
+        default=0, help_text="Show an attention message after this many seconds (0 = no limit)"
+    )
 
     class Meta:
         db_table = "agents_not_ready_reasons"

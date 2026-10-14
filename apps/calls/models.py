@@ -205,6 +205,10 @@ class InteractionPart(models.Model):
         default=list, blank=True, help_text='[{"who": "caller" | "ai", "text", "at"}]'
     )
     wrapup_code = models.CharField(max_length=120, blank=True)
+    # db_default: a writer still running older code (a rolling restart) can keep inserting rows.
+    notes = models.TextField(
+        blank=True, default="", db_default="", help_text="The agent's notes, saved with their wrap-up"
+    )
 
     class Meta:
         db_table = "calls_interaction_parts"

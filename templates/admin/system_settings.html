@@ -1,0 +1,37 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate "Home" %}</a> / {% translate "System settings" %}
+  </div>
+{% endblock %}
+{% block content %}
+  <div class="workspace-editor">
+    {% include "admin/workspace_records.html" %}
+    <section class="workspace-form">
+      {% if selected_setting %}
+        <h2>{{ selected_setting.name }}</h2>
+        <p>{{ selected_setting.group }}</p>
+        <form method="post">
+          {% csrf_token %}
+          {{ setting_form.as_p }}
+          <p>
+            {% translate "Default" %}: {{ selected_setting.default_value }} /
+            {% if selected_setting.is_changed %}{% translate "Custom value" %}{% else %}{% translate "Using default" %}{% endif %}
+          </p>
+          {% if can_change_setting %}
+            <div class="submit-row">
+              <button type="submit" class="button">{% translate "Save" %}</button>
+              {% if selected_setting.is_changed %}
+                <button type="submit" name="action" value="reset" formnovalidate>{% translate "Restore default" %}</button>
+              {% endif %}
+            </div>
+          {% endif %}
+        </form>
+      {% else %}
+        <h2>{% translate "Select a setting" %}</h2>
+        <p>{% translate "Choose a setting to see its current value and default." %}</p>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

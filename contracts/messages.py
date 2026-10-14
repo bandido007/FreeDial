@@ -20,6 +20,8 @@ CONFIG_CHANGED = "config.changed"  # reload agents, queues and entry points
 CALL_HOLD = "call.hold"  # the agent puts the customer on hold (music); the agent leaves the bridge
 CALL_RESUME = "call.resume"
 AGENT_WRAPUP_DONE = "agent.wrapup_done"  # the agent finished the after-call work, with a wrap-up code
+# Optional notes are archived with agent.wrapped_up. Optional ready/reason choose the next
+# availability atomically, before the brain offers another waiting call. Older clients omit them.
 # The AI agent (M8) or a transfer changes a waiting call's routing ticket. Only configured queues and
 # skills are accepted; anything else sends the call to its entry point's fallback queue.
 ROUTING_UPDATE = "routing.update"  # call, source; optional queue (name), language, skills {name: min level}

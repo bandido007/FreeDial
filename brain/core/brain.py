@@ -244,7 +244,10 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
         if kind == m.AGENT_WRAPUP_DONE:
             if agent.activity is not Activity.WRAPUP:
                 return []  # already finished (or a repeat)
-            return self._wrapped_up(agent, str(data.get("code") or ""), "agent", now)
+            if "ready" in data:
+                agent.availability = Availability.READY if data["ready"] else Availability.NOT_READY
+                agent.reason = "" if data["ready"] else str(data.get("reason") or "")
+            return self._wrapped_up(agent, str(data.get("code") or ""), "agent", now, notes=data.get("notes"))
 
         if kind in (m.CALL_HOLD, m.CALL_RESUME):
             call = self.calls.get(agent.call or "")
@@ -730,6 +733,7 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
                 "agent": call.agent,
                 "held": call.held,
                 "waiting_since": call.queued_at,
+                "queue_entered_at": call.queue_entered_at,
                 "connected_at": call.connected_at,
                 "ringing": sorted(call.offers.values()),
                 "transfer": None
@@ -1049,14 +1053,19 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
         event = a.Emit(m.CALL_HELD if hold else m.CALL_RESUMED, {"call": call.id, "agent": agent.uid})
         return [event, *ari, *self._changed(agent)]
 
-    def _wrapped_up(self, agent: Agent, code: str, by: str, now: float) -> list[a.Action]:
+    def _wrapped_up(
+        self, agent: Agent, code: str, by: str, now: float, notes: str | None = None
+    ) -> list[a.Action]:
         if agent.activity is not Activity.WRAPUP:
             return []
         call, agent.wrapup_call = agent.wrapup_call, None
         agent.activity, agent.idle_since = Activity.IDLE, now
+        data = {"agent": agent.uid, "call": call, "code": code, "by": by}
+        if notes is not None:
+            data["notes"] = str(notes)[:8000]
         return [
             a.CancelTimer(wrapup_timer(agent)),
-            a.Emit(m.AGENT_WRAPPED_UP, {"agent": agent.uid, "call": call, "code": code, "by": by}),
+            a.Emit(m.AGENT_WRAPPED_UP, data),
             *self._changed(agent),
             *self._offer_waiting(now),
         ]

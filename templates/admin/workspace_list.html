@@ -1,0 +1,19 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate "Home" %}</a> / {{ workspace_title|capfirst }}
+  </div>
+{% endblock %}
+{% block content %}
+  <div class="workspace-editor">
+    {% include "admin/workspace_records.html" %}
+    <section class="workspace-form workspace-selection">
+      <h2>{% translate "Select a record" %}</h2>
+      <p>{% translate "Choose a record from the list to view or edit its details." %}</p>
+      {% if workspace_add_url %}
+        <a class="button" href="{{ workspace_add_url }}">{% translate "Add" %} {{ opts.verbose_name }}</a>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

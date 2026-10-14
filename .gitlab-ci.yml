@@ -52,7 +52,9 @@ test:
     - name: redis:7-alpine
       alias: redis
   script:
+    - venv/bin/playwright install --with-deps chromium
     - venv/bin/python -m pytest --cov-report=xml --cov-report=term --junitxml=report.xml
+    - venv/bin/python scripts/ui_gallery.py
   coverage: '/TOTAL.*\s+(\d+%)$/'
   artifacts:
     when: always
@@ -61,6 +63,7 @@ test:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
+    paths: [test-artifacts/]
     expire_in: 1 week
 
 # ── 3. Checks: generated files current, migrations written, deps clean ─────

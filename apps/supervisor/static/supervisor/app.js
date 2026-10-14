@@ -8,10 +8,53 @@
 
   const config = JSON.parse(document.getElementById("desk-config").textContent);
   const $ = (id) => document.getElementById(id);
+  const t = (key, values = {}) =>
+    Object.entries(values).reduce(
+      (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
+      config.messages[key] || key,
+    );
+  const ui = window.AlgoDialUI;
+  document.querySelectorAll("[data-i18n]").forEach((node) => {
+    node.textContent = t(node.dataset.i18n);
+  });
+  let phoneReady = false,
+    liveReady = false,
+    selectedTeam = "",
+    actionAgent = null,
+    retryTimer = null,
+    deskEpoch = 0,
+    refreshPending = null,
+    revision = 0;
+  const age = (since) => (since ? Math.max(0, Date.now() / 1000 - since) : 0);
+  function timeNode(since) {
+    const node = document.createElement("time");
+    if (since) node.dataset.since = since;
+    node.textContent = since ? ui.duration(age(since)) : "—";
+    return node;
+  }
+
   const store = {
-    get(key) { try { return JSON.parse(sessionStorage.getItem(key)); } catch { return null; } },
-    set(key, value) { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode */ } },
-    drop(key) { try { sessionStorage.removeItem(key); } catch { /* private mode */ } },
+    get(key) {
+      try {
+        return JSON.parse(sessionStorage.getItem(key));
+      } catch {
+        return null;
+      }
+    },
+    set(key, value) {
+      try {
+        sessionStorage.setItem(key, JSON.stringify(value));
+      } catch {
+        /* private mode */
+      }
+    },
+    drop(key) {
+      try {
+        sessionStorage.removeItem(key);
+      } catch {
+        /* private mode */
+      }
+    },
   };
   const MODE_HELP = {
     monitor: "You hear the customer and the agent. Nobody hears you.",
@@ -25,19 +68,29 @@
   let session = null;
   let live = null;
   let liveRetry = 1000;
-  let listening = null;   // { call, mode } as the brain confirmed it
-  let wanted = null;      // the call we asked to listen to: its phone call is answered automatically
+  let listening = null; // { call, mode } as the brain confirmed it
+  let wanted = null; // the call we asked to listen to: its phone call is answered automatically
   const agents = new Map();
   const calls = new Map();
   let signingOut = false;
   let refreshTimer = null;
+  let refreshFlight = null;
 
   class DeskError extends Error {
-    constructor(code, message) { super(message); this.code = code; }
+    constructor(code, message) {
+      super(message);
+      this.code = code;
+    }
   }
 
-  function notice(text) { $("notice").textContent = text || ""; }
-  function chip(id, text, kind) { $(id).textContent = text; $(id).className = `chip ${kind || ""}`; }
+  function notice(text) {
+    $("notice").textContent = text || "";
+    $("notice").hidden = !text;
+  }
+  function chip(id, text, kind) {
+    $(id).textContent = text;
+    $(id).className = `chip ${kind || ""}`;
+  }
   function clock(since) {
     if (!since) return "";
     const seconds = Math.max(0, Math.floor(Date.now() / 1000 - since));
@@ -45,21 +98,26 @@
   }
   function button(text, onClick, kind = "secondary") {
     const element = document.createElement("button");
-    element.textContent = text;
+    element.textContent = t(text);
     element.className = kind;
     element.addEventListener("click", onClick);
     return element;
   }
   function cell(row, content) {
     const td = document.createElement("td");
-    if (content instanceof Node) td.append(content); else td.textContent = content ?? "";
+    if (content instanceof Node) td.append(content);
+    else td.textContent = content ?? "";
     row.append(td);
     return td;
   }
 
   // ── sign in and API ──────────────────────────────────────────────────────
   function keepTokens(reply) {
-    tokens = { access: reply.access_token, refresh: reply.refresh_token, expiresAt: Date.now() + (reply.expires_in || 3600) * 1000 };
+    tokens = {
+      access: reply.access_token,
+      refresh: reply.refresh_token,
+      expiresAt: Date.now() + (reply.expires_in || 3600) * 1000,
+    };
     store.set("algodial.supervisor.tokens", tokens);
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(refresh, Math.max(30000, tokens.expiresAt - Date.now() - 60000));
@@ -70,103 +128,237 @@
   }
   async function refresh() {
     if (!tokens || !tokens.refresh) return false;
-    const reply = await tokenRequest({ grant_type: "refresh_token", refresh_token: tokens.refresh });
-    if (!reply.success) return false;
-    keepTokens(reply);
-    return true;
+    if (refreshFlight) return refreshFlight;
+    const previous = tokens,
+      epoch = deskEpoch;
+    refreshFlight = (async () => {
+      try {
+        const reply = await tokenRequest({ grant_type: "refresh_token", refresh_token: previous.refresh });
+        if (!reply.success || tokens !== previous || epoch !== deskEpoch) return false;
+        keepTokens(reply);
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshFlight = null;
+      }
+    })();
+    return refreshFlight;
   }
   async function api(query, variables = {}) {
     if (!tokens) throw new DeskError(0, "Not signed in.");
+    const epoch = deskEpoch;
     if (Date.now() > tokens.expiresAt - 30000 && !(await refresh())) {
+      if (epoch !== deskEpoch) throw new DeskError(0, "Session changed.");
       showSignIn("Your session ended. Please sign in again.");
       throw new DeskError(0, "Session ended.");
     }
+    if (epoch !== deskEpoch || !tokens) throw new DeskError(0, "Session changed.");
+    const access = tokens.access;
     const reply = await fetch(config.graphqlUrl, {
       method: "POST",
       credentials: "omit",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokens.access}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${access}` },
       body: JSON.stringify({ query, variables }),
     });
     const body = await reply.json();
+    if (epoch !== deskEpoch || !tokens) throw new DeskError(0, "Session changed.");
     if (body.errors && body.errors.length) throw new DeskError(0, body.errors[0].message);
     const answer = Object.values(body.data)[0];
     if (!answer.status) throw new DeskError(answer.code, answer.message);
-    return answer.data;
+    return answer.data ?? answer.dataList;
   }
   async function command(query, variables) {
     notice("");
-    try { await api(query, variables); } catch (error) { notice(error.message); }
+    $("update-status").textContent = t("Waiting for confirmation…");
+    try {
+      await api(query, variables);
+      return true;
+    } catch (error) {
+      notice(error.message);
+      $("update-status").textContent = "";
+      return false;
+    }
   }
 
   async function signIn(event) {
     event.preventDefault();
+    const submit = $("signin-form").querySelector("button[type=submit]");
+    if (submit.disabled) return;
+    submit.disabled = true;
     $("signin-error").textContent = "";
-    const fields = { grant_type: "password", username: $("email").value.trim(), password: $("password").value };
+    const fields = {
+      grant_type: "password",
+      username: $("email").value.trim(),
+      password: $("password").value,
+    };
     if ($("otp").value.trim()) fields.otp = $("otp").value.trim();
-    const reply = await tokenRequest(fields);
-    if (!reply.success) {
-      if (reply.code === 8014) $("otp-row").hidden = false;
-      $("signin-error").textContent = reply.message || reply.error_description || "Sign-in failed.";
-      return;
+    try {
+      const reply = await tokenRequest(fields);
+      if (!reply.success) {
+        if (reply.code === 8014) $("otp-row").hidden = false;
+        $("signin-error").textContent = reply.message || reply.error_description || "Sign-in failed.";
+        return;
+      }
+      keepTokens(reply);
+      $("password").value = "";
+      await openDesk();
+    } catch {
+      $("signin-error").textContent = t("Could not connect. Please try again.");
+    } finally {
+      submit.disabled = false;
     }
-    keepTokens(reply);
-    $("password").value = "";
-    await openDesk();
   }
 
   // ── the desk ─────────────────────────────────────────────────────────────
   const DESK = `query { mySupervisorDesk { status code message data {
-    user name can notReadyReasons calls
-    agents { uid number name availability activity reason call idleSince }
+    user name can canManage teams reasonLimits longCallSeconds notReadyReasons calls
+    agents { uid number name availability activity reason call idleSince stateSince queues }
     queues { name waiting longestWait serviceLevelPercent targetPercent targetSeconds offered answered } } } }`;
 
   async function openDesk() {
+    const epoch = deskEpoch;
     try {
       desk = await api(DESK);
     } catch (error) {
-      showSignIn(error.message);
+      if (epoch === deskEpoch) showSignIn(error.message);
       return;
     }
+    if (epoch !== deskEpoch) return;
     $("signin").hidden = true;
     $("desk").hidden = false;
     $("me").textContent = desk.name;
+    $("management-link").hidden = !desk.canManage;
+    const filter = $("team-filter");
+    filter.replaceChildren(new Option(t("All my teams"), ""));
+    for (const team of desk.teams || []) filter.append(new Option(team.name, team.uid));
+    filter.value = selectedTeam;
+    $("agent-reason").replaceChildren(new Option(t("Choose a reason"), ""));
+    for (const reason of desk.notReadyReasons || []) $("agent-reason").append(new Option(reason, reason));
     take(desk);
     connectLive();
     await startPhone();
   }
 
   function take(state) {
-    desk = { ...desk, ...state, agents: undefined, calls: undefined };
+    desk = {
+      ...desk,
+      ...state,
+      agents: undefined,
+      calls: undefined,
+      reasonLimits: state.reasonLimits ?? state.reason_limits,
+      longCallSeconds: state.longCallSeconds ?? state.long_call_seconds,
+      canManage: state.canManage ?? state.can_manage,
+      notReadyReasons: state.notReadyReasons ?? state.not_ready_reasons,
+    };
     agents.clear();
-    for (const agent of state.agents) agents.set(agent.uid, { ...agent, since: agent.idle_since ?? agent.idleSince });
+    for (const agent of state.agents)
+      agents.set(agent.uid, { ...agent, since: agent.state_since ?? agent.stateSince ?? null });
     calls.clear();
     for (const call of state.calls) calls.set(call.call, call);
     render();
   }
 
   function render() {
+    if (!desk) return;
     renderQueues();
     renderCalls();
     renderAgents();
     renderListening();
   }
 
+  function activeAgents() {
+    const team = (desk.teams || []).find((team) => team.uid === selectedTeam);
+    return [...agents.values()].filter((agent) => !team || team.agents.includes(agent.uid));
+  }
+  function activeQueues() {
+    const team = (desk.teams || []).find((team) => team.uid === selectedTeam);
+    return (desk.queues || []).filter((queue) => !team || team.queues.includes(queue.name));
+  }
+  function activeCalls() {
+    const names = new Set(activeQueues().map((queue) => queue.name)),
+      uids = new Set(activeAgents().map((agent) => agent.uid));
+    return [...calls.values()].filter(
+      (call) =>
+        !selectedTeam ||
+        names.has(call.queue) ||
+        uids.has(call.agent) ||
+        (call.ringing || []).some((uid) => uids.has(uid)),
+    );
+  }
   function renderQueues() {
     const body = $("queues");
     body.replaceChildren();
-    for (const queue of desk.queues || []) {
-      const row = document.createElement("tr");
-      const waiting = [...calls.values()].filter((c) => c.queue === queue.name && (c.state === "waiting" || c.state === "offering"));
-      const oldest = waiting.length ? Math.min(...waiting.map((c) => c.waiting_since)) : null;
-      cell(row, queue.name);
-      cell(row, String(waiting.length));
-      cell(row, oldest ? clock(oldest) : "");
-      const level = queue.serviceLevelPercent ?? queue.service_level_percent;
-      const target = queue.targetPercent ?? queue.target_percent;
-      const today = cell(row, level == null ? "no calls yet" : `${Math.round(level)}% in ${queue.targetSeconds ?? queue.target_seconds}s (target ${target}%)`);
-      if (level != null) today.className = level >= target ? "good" : "bad";
-      body.append(row);
+    let total = 0,
+      longest = 0,
+      offered = 0,
+      within = 0;
+    for (const queue of activeQueues()) {
+      const waiting = activeCalls().filter(
+        (call) => call.queue === queue.name && ["waiting", "offering"].includes(call.state),
+      );
+      const oldest = waiting.length
+        ? Math.min(...waiting.map((call) => call.queue_entered_at || call.waiting_since || Date.now() / 1000))
+        : null;
+      const seconds = age(oldest),
+        target = queue.targetSeconds ?? queue.target_seconds;
+      total += waiting.length;
+      longest = Math.max(longest, seconds);
+      const level = queue.serviceLevelPercent ?? queue.service_level_percent,
+        count = queue.offered || 0;
+      offered += count;
+      within += ((level || 0) * count) / 100;
+      const section = document.createElement("section"),
+        heading = document.createElement("h2"),
+        metrics = document.createElement("p"),
+        targetLine = document.createElement("p"),
+        counts = document.createElement("p");
+      heading.textContent = queue.name;
+      metrics.className = "queue-metrics";
+      const load = document.createElement("span"),
+        wait = document.createElement("span");
+      load.textContent = t("{count} waiting", { count: waiting.length });
+      wait.append(document.createTextNode(t("Longest ")), timeNode(oldest));
+      metrics.append(load, wait);
+      targetLine.className = "queue-target";
+      if (waiting.length && seconds > target) {
+        targetLine.classList.add("over");
+        targetLine.append(ui.icon("warning"));
+        targetLine.append(
+          document.createTextNode(t("Over target / answer within {seconds} s", { seconds: target })),
+        );
+      } else
+        targetLine.textContent = t("Target: {percent}% answered within {seconds} s", {
+          percent: queue.targetPercent ?? queue.target_percent,
+          seconds: target,
+        });
+      counts.className = "queue-agents";
+      const eligible = activeAgents().filter((agent) => (agent.queues || []).includes(queue.name));
+      const countState = (availability, activity) =>
+        eligible.filter(
+          (agent) =>
+            (!availability || agent.availability === availability) &&
+            (!activity || agent.activity === activity),
+        ).length;
+      counts.textContent = t(
+        "Ready {ready} / Ringing {ringing} / Talking {talking} / Not ready {notReady} / Wrap-up {wrapup}",
+        {
+          ready: countState("ready", "idle"),
+          talking: countState(null, "talking") + countState(null, "on_hold"),
+          notReady: eligible.filter(
+            (agent) =>
+              agent.availability === "not_ready" && ["idle", "not_responding"].includes(agent.activity),
+          ).length,
+          wrapup: countState(null, "wrapup"),
+          ringing: countState(null, "offered"), // Finesse's "reserved": a call is ringing for them
+        },
+      );
+      section.append(heading, metrics, targetLine, counts);
+      body.append(section);
     }
+    $("service-level").textContent = offered ? `${Math.round((100 * within) / offered)}%` : "—";
+    $("waiting-count").textContent = total;
+    $("longest-wait").textContent = ui.duration(longest);
   }
 
   function agentName(uid) {
@@ -177,11 +369,17 @@
   function renderCalls() {
     const body = $("calls");
     body.replaceChildren();
-    for (const call of calls.values()) {
+    for (const call of activeCalls()) {
       const row = document.createElement("tr");
       cell(row, `${call.caller_name || call.caller}${call.language ? ` (${call.language})` : ""}`);
       cell(row, call.queue);
-      const extra = call.held ? " · on hold" : call.transfer ? ` · ${call.transfer.kind} transfer` : call.conference ? " · conference" : "";
+      const extra = call.held
+        ? " / on hold"
+        : call.transfer
+          ? ` / ${call.transfer.kind} transfer`
+          : call.conference
+            ? " / conference"
+            : "";
       cell(row, (call.state === "ai" ? "with the AI" : call.state) + extra);
       cell(row, call.agent ? agentName(call.agent) : (call.ringing || []).map(agentName).join(", "));
       cell(row, clock(call.state === "connected" ? call.connected_at : call.waiting_since));
@@ -189,7 +387,8 @@
       actions.className = "row";
       if (call.state === "connected" && call.agent) {
         for (const mode of ["monitor", "whisper", "barge"]) {
-          if (desk.can.includes(mode)) actions.append(button(mode[0].toUpperCase() + mode.slice(1), () => supervise(call.call, mode)));
+          if (desk.can.includes(mode))
+            actions.append(button(mode[0].toUpperCase() + mode.slice(1), () => supervise(call.call, mode)));
         }
       }
       for (const watcher of call.supervisors || []) {
@@ -203,27 +402,179 @@
     }
   }
 
+  function attention(agent) {
+    const limit = (desk.reasonLimits || desk.reason_limits || {})[agent.reason] || 0;
+    const elapsed = age(agent.since),
+      call = calls.get(agent.call);
+    if (
+      agent.availability === "not_ready" &&
+      ["idle", "not_responding"].includes(agent.activity) &&
+      limit &&
+      elapsed > limit
+    )
+      return { rank: 0, reason: t("Over {minutes}-minute limit", { minutes: Math.round(limit / 60) }) };
+    if (
+      ["talking", "on_hold"].includes(agent.activity) &&
+      (desk.longCallSeconds || desk.long_call_seconds) &&
+      age(call?.connected_at) > (desk.longCallSeconds || desk.long_call_seconds)
+    )
+      return {
+        rank: 1,
+        reason: t("Over {minutes}-minute call threshold", {
+          minutes: Math.round((desk.longCallSeconds || desk.long_call_seconds) / 60),
+        }),
+      };
+    if (agent.activity === "not_responding") return { rank: 2, reason: t("Missed a call") };
+    return { rank: 3, reason: "" };
+  }
   function renderAgents() {
     const body = $("agents");
+    const focused = body.contains(document.activeElement)
+      ? {
+          agent: document.activeElement.closest("tr")?.dataset.agent,
+          action: document.activeElement.textContent,
+        }
+      : null;
     body.replaceChildren();
-    for (const agent of agents.values()) {
+    const rows = activeAgents().sort(
+      (a, b) =>
+        attention(a).rank - attention(b).rank ||
+        a.activity.localeCompare(b.activity) ||
+        a.name.localeCompare(b.name),
+    );
+    $("team-summary").textContent = t("{count} agents / sorted by attention needed", { count: rows.length });
+    $("no-agents").hidden = Boolean(rows.length);
+    for (const agent of rows) {
       const row = document.createElement("tr");
-      cell(row, `${agent.number} ${agent.name}`);
-      const state = cell(row, `${agent.availability.replace("_", " ")}${agent.activity !== "idle" ? ` · ${agent.activity.replace("_", " ")}` : ""}${agent.reason ? ` (${agent.reason})` : ""}`);
-      state.className = `state-${agent.availability}`;
-      cell(row, agent.availability === "logged_out" ? "" : clock(agent.since));
-      const actions = document.createElement("div");
-      actions.className = "row";
-      if (desk.can.includes("force") && agent.availability !== "logged_out") {
-        if (agent.availability !== "ready") actions.append(button("Ready", () => force(agent.uid, "ready")));
-        const reason = document.createElement("select");
-        reason.setAttribute("aria-label", "Not Ready reason");
-        for (const name of desk.notReadyReasons || desk.not_ready_reasons || []) reason.append(new Option(name, name));
-        actions.append(reason, button("Not Ready", () => force(agent.uid, "not_ready", reason.value)));
-        actions.append(button("Log out", () => force(agent.uid, "logged_out"), "danger"));
+      row.dataset.agent = agent.uid;
+      cell(row, agent.name);
+      const stateCell = document.createElement("div"),
+        label = document.createElement("span");
+      let kind =
+        agent.availability === "logged_out"
+          ? "logged_out"
+          : agent.activity === "idle"
+            ? agent.availability
+            : agent.activity;
+      const words = {
+        ready: "Ready",
+        not_ready: "Not ready",
+        logged_out: "Logged out",
+        offered: "Incoming call",
+        talking: "On a call",
+        on_hold: "On hold",
+        wrapup: "Wrap-up",
+        not_responding: "Not responding",
+      };
+      label.className = `state-label state-${kind}`;
+      label.append(
+        ui.icon(
+          {
+            ready: "check",
+            not_ready: "minus",
+            logged_out: "plug",
+            offered: "ring",
+            talking: "phone",
+            on_hold: "pause",
+            wrapup: "clipboard",
+            not_responding: "minus",
+          }[kind],
+        ),
+        document.createTextNode(
+          t(words[kind] || kind) +
+            (agent.reason && agent.availability === "not_ready" ? `: ${agent.reason}` : ""),
+        ),
+      );
+      stateCell.append(label);
+      const important = attention(agent);
+      row.dataset.attention = important.rank;
+      if (important.reason) {
+        const reason = document.createElement("small");
+        reason.textContent = important.reason;
+        stateCell.append(reason);
       }
+      cell(row, stateCell);
+      cell(row, timeNode(agent.availability === "logged_out" ? null : agent.since));
+      const call = calls.get(agent.call),
+        current = document.createElement("div");
+      if (call) {
+        current.append(
+          document.createTextNode(
+            `${call.queue || t("Direct call")} / ${call.language || t("Language unknown")}`,
+          ),
+        );
+        if (call.connected_at) {
+          const duration = document.createElement("small");
+          duration.append(document.createTextNode(t("Duration ")), timeNode(call.connected_at));
+          current.append(duration);
+        }
+      } else current.textContent = "—";
+      cell(row, current);
+      const actions = document.createElement("div");
+      actions.className = "row-actions";
+      if (call?.state === "connected")
+        for (const mode of ["monitor", "whisper", "barge"])
+          if (desk.can.includes(mode)) {
+            const action = button({ monitor: "Monitor", whisper: "Whisper", barge: "Barge" }[mode], () =>
+              supervise(call.call, mode),
+            );
+            action.disabled = !phoneReady || !liveReady;
+            actions.append(action);
+          }
+      if (desk.can.includes("force") && agent.availability !== "logged_out")
+        actions.append(button("Change state", () => openAgentAction(agent)));
+      actions.append(button("View history", () => showHistory(agent)));
+
       cell(row, actions);
       body.append(row);
+    }
+    if (focused) {
+      const row = [...body.rows].find((row) => row.dataset.agent === focused.agent);
+      const actions = [...(row?.querySelectorAll("button") || [])];
+      const next =
+        actions.find((action) => action.textContent === focused.action && !action.disabled) ||
+        actions.find((action) => !action.disabled);
+      next?.focus({ preventScroll: true });
+    }
+  }
+  function openAgentAction(agent, state = "not_ready") {
+    actionAgent = agent;
+    $("agent-action-title").textContent = t("Change {name}’s state", { name: agent.name });
+    $("agent-next-state").value = state;
+    $("agent-action-error").textContent = "";
+    toggleReason();
+    $("agent-action").showModal();
+  }
+  function toggleReason() {
+    const hidden = $("agent-next-state").value !== "not_ready";
+    $("agent-reason").hidden = $("action-reason-label").hidden = hidden;
+  }
+  async function showHistory(agent) {
+    $("history-title").textContent = t("{name}’s history", { name: agent.name });
+    $("agent-history").replaceChildren();
+    $("history-dialog").showModal();
+    const epoch = deskEpoch;
+    try {
+      const rows = await api(
+        "query H($agent: String!) { supervisedAgentHistory(agent: $agent) { status code message dataList { at type description } } }",
+        { agent: agent.uid },
+      );
+      if (epoch !== deskEpoch) return;
+      for (const item of rows || []) {
+        const li = document.createElement("li"),
+          time = document.createElement("time");
+        time.textContent = new Date(item.at).toLocaleString();
+        li.append(time, document.createTextNode(item.description));
+        $("agent-history").append(li);
+      }
+      if (!rows?.length) {
+        const li = document.createElement("li");
+        li.textContent = t("No recorded events yet.");
+        $("agent-history").append(li);
+      }
+    } catch (error) {
+      notice(error.message);
+      $("history-dialog").close();
     }
   }
 
@@ -231,8 +582,10 @@
     $("listening").hidden = !listening;
     if (!listening) return;
     const call = calls.get(listening.call);
-    $("listening-caller").textContent = call ? `${call.caller_name || call.caller} and ${agentName(call.agent)}` : "a call";
-    $("listening-mode-help").textContent = MODE_HELP[listening.mode];
+    $("listening-caller").textContent = call
+      ? t("Monitoring {name}", { name: agents.get(call.agent)?.name || t("a call") })
+      : t("Supervising a call");
+    $("listening-mode-help").textContent = t(MODE_HELP[listening.mode]);
     for (const mode of ["monitor", "whisper", "barge"]) {
       const element = $(`mode-${mode}`);
       element.hidden = !desk.can.includes(mode);
@@ -240,58 +593,139 @@
     }
   }
 
-  setInterval(() => { if (desk) { renderCalls(); renderAgents(); renderQueues(); } }, 1000);
+  setInterval(() => {
+    if (!desk) return;
+    document.querySelectorAll("time[data-since]").forEach((node) => {
+      node.textContent = ui.duration(age(Number(node.dataset.since)));
+    });
+    renderQueues();
+    if (
+      activeAgents().some(
+        (agent) =>
+          String(attention(agent).rank) !==
+          document.querySelector(`[data-agent="${agent.uid}"]`)?.dataset.attention,
+      )
+    )
+      renderAgents();
+  }, 1000);
+  $("team-filter").addEventListener("change", () => {
+    selectedTeam = $("team-filter").value;
+    render();
+  });
+  $("agent-next-state").addEventListener("change", toggleReason);
+  $("agent-action-cancel").addEventListener("click", () => $("agent-action").close());
+  $("history-close").addEventListener("click", () => $("history-dialog").close());
+  $("agent-action-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const next = $("agent-next-state").value,
+      reason = $("agent-reason").value;
+    if (next === "not_ready" && !reason) {
+      $("agent-action-error").textContent = t("Choose a reason before going Not Ready.");
+      $("agent-reason").focus();
+      return;
+    }
+    if (await force(actionAgent.uid, next, reason)) $("agent-action").close();
+  });
 
   function supervise(call, mode) {
+    if (!phoneReady || !liveReady) {
+      notice(t("Reconnect your phone and live updates before supervising a call."));
+      return;
+    }
     wanted = call;
-    command("mutation S($call: String!, $mode: String!) { superviseCall(call: $call, mode: $mode) { status code message } }", { call, mode });
+    command(
+      "mutation S($call: String!, $mode: String!) { superviseCall(call: $call, mode: $mode) { status code message } }",
+      { call, mode },
+    );
   }
   function force(agent, state, reason = "") {
-    command("mutation F($agent: String!, $state: String!, $reason: String) { forceAgentState(agent: $agent, state: $state, reason: $reason) { status code message } }", { agent, state, reason });
+    return command(
+      "mutation F($agent: String!, $state: String!, $reason: String) { forceAgentState(agent: $agent, state: $state, reason: $reason) { status code message } }",
+      { agent, state, reason },
+    );
   }
 
   // ── live ─────────────────────────────────────────────────────────────────
   function connectLive() {
     if (live || !tokens) return;
-    live = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${config.liveUrl}`);
+    live = new WebSocket(
+      `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${config.liveUrl}`,
+    );
     live.onopen = () => live.send(JSON.stringify({ type: "auth", token: tokens.access }));
     live.onmessage = (message) => {
       const data = JSON.parse(message.data);
       if (data.type === "hello") {
         liveRetry = 1000;
+        liveReady = true;
         chip("live-chip", "Live: on", "on");
-        take(data.desk);  // a reconnect re-reads everything
+        take(data.desk); // a reconnect re-reads everything
       } else if (data.type === "call") {
-        if (data.snapshot) calls.set(data.call, data.snapshot); else calls.delete(data.call);
+        revision++;
+        if (data.snapshot) calls.set(data.call, data.snapshot);
+        else calls.delete(data.call);
         render();
       } else if (data.type === "event") {
+        revision++;
         onEvent(data.event);
       }
     };
     live.onclose = async (event) => {
       live = null;
+      liveReady = false;
+      render();
       chip("live-chip", "Live: off", "bad");
       if (signingOut || !tokens) return;
-      if (event.code === 4401 && !(await refresh())) { showSignIn("Your session ended. Please sign in again."); return; }
-      setTimeout(connectLive, liveRetry);
+      if (event.code === 4401 && !(await refresh())) {
+        showSignIn("Your session ended. Please sign in again.");
+        return;
+      }
+      retryTimer = setTimeout(connectLive, liveRetry);
       liveRetry = Math.min(liveRetry * 2, 15000);
     };
   }
 
   function onEvent(event) {
+    $("update-status").textContent = "";
     const data = event.data;
     if (event.type === "agent.state" && agents.has(data.agent)) {
       const before = agents.get(data.agent);
-      const changed = before.availability !== data.availability || before.activity !== data.activity;
-      agents.set(data.agent, { ...before, ...data, since: changed ? Date.now() / 1000 : before.since });
+      const changed =
+        before.availability !== data.availability ||
+        before.activity !== data.activity ||
+        before.reason !== data.reason;
+      agents.set(data.agent, {
+        ...before,
+        ...data,
+        since: changed ? Date.parse(event.at) / 1000 || Date.now() / 1000 : before.since,
+      });
     } else if (event.type === "supervise.started" || event.type === "supervise.changed") {
       if (data.supervisor === desk.user) listening = { call: data.call, mode: data.mode };
     } else if (event.type === "supervise.stopped") {
-      if (data.supervisor === desk.user) { listening = null; wanted = null; }
+      if (data.supervisor === desk.user) {
+        listening = null;
+        wanted = null;
+      }
     } else if (event.type === "command.rejected") {
       notice(`Not done: ${data.reason}`);
     }
     render();
+    if (["call.ended", "agent.state", "agent.wrapped_up"].includes(event.type)) refreshDesk();
+  }
+  async function refreshDesk() {
+    if (refreshPending || !tokens) return;
+    const epoch = deskEpoch,
+      version = revision;
+    refreshPending = (async () => {
+      try {
+        const data = await api(DESK);
+        if (epoch === deskEpoch && version === revision && tokens) take(data);
+      } catch {
+        /* live state stays visible; the socket resynchronizes on reconnect */
+      } finally {
+        refreshPending = null;
+      }
+    })();
+    await refreshPending;
   }
 
   // ── the browser phone ────────────────────────────────────────────────────
@@ -299,7 +733,9 @@
     if (ua) return;
     let phone;
     try {
-      phone = await api("mutation { startSupervisorSession { status code message data { sipId password wsUrl domain } } }");
+      phone = await api(
+        "mutation { startSupervisorSession { status code message data { sipId password wsUrl domain } } }",
+      );
     } catch (error) {
       notice(`Phone not started: ${error.message}`);
       return;
@@ -316,26 +752,53 @@
       session_timers: false,
       user_agent: "AlgoDial supervisor page",
     });
-    ua.on("registered", () => chip("phone-chip", `Phone: ${phone.sipId}`, "on"));
-    ua.on("registrationFailed", (event) => chip("phone-chip", `Phone: ${event.cause}`, "bad"));
-    ua.on("disconnected", () => chip("phone-chip", "Phone: no connection", "bad"));
+    ua.on("registered", () => {
+      phoneReady = true;
+      chip("phone-chip", t("Phone connected"), "on"); // plain words; the account is for support
+      $("phone-chip").dataset.sipId = phone.sipId;
+      $("phone-chip").title = `Phone: ${phone.sipId}`;
+      $("reconnect").hidden = true;
+      render();
+    });
+    ua.on("registrationFailed", () => phoneFailed());
+    ua.on("disconnected", () => phoneFailed());
     ua.on("newRTCSession", ({ session: incoming, originator }) => {
       if (originator !== "remote") return;
-      if (session || !wanted) {  // only the supervision we asked for is answered
+      if (session || !wanted) {
+        // only the supervision we asked for is answered
         incoming.terminate({ status_code: 486, reason_phrase: "Busy Here" });
         return;
       }
       session = incoming;
       incoming.on("peerconnection", ({ peerconnection }) => {
-        peerconnection.addEventListener("track", (track) => { $("remote-audio").srcObject = track.streams[0]; });
+        peerconnection.addEventListener("track", (track) => {
+          $("remote-audio").srcObject = track.streams[0];
+        });
       });
-      const gone = () => { session = null; $("remote-audio").srcObject = null; };
+      const gone = () => {
+        session = null;
+        $("remote-audio").srcObject = null;
+      };
       incoming.on("ended", gone);
       incoming.on("failed", gone);
       incoming.answer({ mediaConstraints: { audio: true, video: false }, pcConfig: { iceServers: [] } });
     });
     ua.start();
   }
+
+  function phoneFailed() {
+    phoneReady = false;
+    chip("phone-chip", t("Phone not connected"), "bad");
+    $("reconnect").hidden = false;
+    render();
+  }
+  $("reconnect").addEventListener("click", async () => {
+    if (ua) {
+      ua.stop();
+      ua = null;
+    }
+    await startPhone();
+  });
 
   // ── buttons ──────────────────────────────────────────────────────────────
   $("signin-form").addEventListener("submit", signIn);
@@ -345,8 +808,17 @@
   $("stop").addEventListener("click", () => command("mutation { stopSupervising { status code message } }"));
   $("signout").addEventListener("click", async () => {
     signingOut = true;
-    try { await api("mutation { endSupervisorSession { status code message } }"); } catch { /* signing out anyway */ }
-    if (tokens) fetch(config.revokeUrl, { method: "POST", body: new URLSearchParams({ token: tokens.access, client_id: config.clientId }), credentials: "omit" }).catch(() => {});
+    try {
+      await api("mutation { endSupervisorSession { status code message } }");
+    } catch {
+      /* signing out anyway */
+    }
+    if (tokens)
+      fetch(config.revokeUrl, {
+        method: "POST",
+        body: new URLSearchParams({ token: tokens.access, client_id: config.clientId }),
+        credentials: "omit",
+      }).catch(() => {});
     tokens = null;
     store.drop("algodial.supervisor.tokens");
     showSignIn("Signed out.");
@@ -354,21 +826,50 @@
   });
 
   function showSignIn(message) {
+    tokens = null;
+    store.drop("algodial.supervisor.tokens");
+    deskEpoch++;
     clearTimeout(refreshTimer);
-    if (ua) { ua.stop(); ua = null; }
-    if (live) { live.onclose = null; live.close(); live = null; }
+    clearTimeout(retryTimer);
+    phoneReady = liveReady = false;
+    listening = wanted = null;
+    desk = null;
+    agents.clear();
+    calls.clear();
+    $("agent-action").close();
+    $("history-dialog").close();
+    if (ua) {
+      ua.stop();
+      ua = null;
+    }
+    if (live) {
+      live.onclose = null;
+      live.close();
+      live = null;
+    }
     $("desk").hidden = true;
     $("signin").hidden = false;
     $("signin-error").textContent = message || "";
   }
 
-  window.addEventListener("beforeunload", () => { if (ua) ua.stop(); });
+  window.addEventListener("beforeunload", () => {
+    if (ua) ua.stop();
+  });
   window.supervisorDesk = Object.freeze({
-    get listening() { return listening; },
-    get session() { return session; },
-    get calls() { return [...calls.values()]; },
-    get agents() { return [...agents.values()]; },
+    get listening() {
+      return listening;
+    },
+    get session() {
+      return session;
+    },
+    get calls() {
+      return [...calls.values()];
+    },
+    get agents() {
+      return [...agents.values()];
+    },
   });
 
-  if (tokens) openDesk(); else showSignIn("");
+  if (tokens) openDesk();
+  else showSignIn("");
 })();

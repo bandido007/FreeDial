@@ -1,111 +1,317 @@
 {% load static %}<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AlgoDial agent</title>
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="{% static 'agentdesk/app.css' %}">
-  {{ config|json_script:"desk-config" }}
-  <script src="{% static 'agentdesk/vendor/jssip-3.12.0.min.js' %}" defer></script>
-  <script src="{% static 'agentdesk/app.js' %}" defer></script>
-</head>
-<body>
-  <main>
-    <section id="signin" class="card" hidden>
-      <h1>AlgoDial agent</h1>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AlgoDial agent</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="{% static 'agentdesk/app.css' %}" />
+    {{ config|json_script:"desk-config" }}
+    <script src="{% static 'agentdesk/vendor/jssip-3.12.0.min.js' %}" defer></script>
+    <script src="{% static 'agentdesk/app.js' %}" defer></script>
+  </head>
+  <body>
+    <svg class="icon-definitions" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <symbol id="i-phone" viewBox="0 0 24 24">
+          <path d="M8 3H4a1 1 0 0 0-1 1c0 9 8 17 17 17a1 1 0 0 0 1-1v-4l-5-2-2 3a14 14 0 0 1-7-7l3-2Z" />
+        </symbol>
+        <symbol id="i-check" viewBox="0 0 24 24">
+          <path d="M9 12l2 2 4-5 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0" />
+        </symbol>
+        <symbol id="i-pause" viewBox="0 0 24 24">
+          <path d="M9 8v8 M15 8v8 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0" />
+        </symbol>
+        <symbol id="i-minus" viewBox="0 0 24 24">
+          <path d="M8 12h8 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0" />
+        </symbol>
+        <symbol id="i-clipboard" viewBox="0 0 24 24">
+          <path d="M9 4H5v17h14V4h-4 M9 2h6v5H9Z M8 12h8 M8 16h5" />
+        </symbol>
+        <symbol id="i-plug" viewBox="0 0 24 24">
+          <path d="M7 3v5 M17 3v5 M5 8h14v4a7 7 0 0 1-7 7v3 M3 3l18 18" />
+        </symbol>
+        <symbol id="i-ring" viewBox="0 0 24 24">
+          <path d="M8 6H5v4 M16 6h3v4 M8 14c2-3 6-3 8 0l3-1 2 4-4 2-2-3H9l-2 3-4-2 2-4Z" />
+        </symbol>
+        <symbol id="i-transfer" viewBox="0 0 24 24">
+          <path d="M4 7h14l-4-4 M18 7l-4 4 M20 17H6l4-4 M6 17l4 4" />
+        </symbol>
+        <symbol id="i-mic" viewBox="0 0 24 24">
+          <path d="M9 4a3 3 0 0 1 6 0v8a3 3 0 0 1-6 0Z M5 10v2a7 7 0 0 0 14 0v-2 M12 19v3 M8 22h8" />
+        </symbol>
+        <symbol id="i-keypad" viewBox="0 0 24 24">
+          <path d="M5 4h1 M11 4h1 M17 4h1 M5 10h1 M11 10h1 M17 10h1 M5 16h1 M11 16h1 M17 16h1 M11 22h1" />
+        </symbol>
+        <symbol id="i-sun" viewBox="0 0 24 24">
+          <path
+            d="M12 3v2 M12 19v2 M3 12h2 M19 12h2 M5 5l2 2 M17 17l2 2 M5 19l2-2 M17 7l2-2 M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0"
+          />
+        </symbol>
+      </defs>
+    </svg>
+    <section id="signin" class="signin-panel" hidden>
+      <h1>AlgoDial</h1>
+      <p class="muted" data-i18n="Sign in to your agent workspace"></p>
       <form id="signin-form" autocomplete="on">
-        <label>Email <input id="email" type="email" autocomplete="username" required></label>
-        <label>Password <input id="password" type="password" autocomplete="current-password" required></label>
-        <label id="otp-row" hidden>Two-factor code <input id="otp" inputmode="numeric" autocomplete="one-time-code"></label>
-        <button type="submit">Sign in</button>
+        <label class="field" for="email"
+          ><span data-i18n="Email"></span><input id="email" type="email" autocomplete="username" required
+        /></label>
+        <label class="field" for="password"
+          ><span data-i18n="Password"></span
+          ><input id="password" type="password" autocomplete="current-password" required
+        /></label>
+        <label id="otp-row" class="field" for="otp" hidden
+          ><span data-i18n="Two-factor code"></span
+          ><input id="otp" inputmode="numeric" autocomplete="one-time-code"
+        /></label>
+        <button type="submit" class="primary" data-i18n="Sign in"></button>
         <p id="signin-error" class="error" role="alert"></p>
       </form>
     </section>
-
     <section id="desk" hidden>
-      <header class="card bar">
-        <div>
-          <strong id="agent-name"></strong> <span id="agent-number" class="muted"></span>
+      <header class="top">
+        <div class="brand">
+          <svg aria-hidden="true"><use href="#i-phone" /></svg><strong>AlgoDial</strong
+          ><small data-i18n="Agent workspace"></small>
         </div>
-        <div class="chips">
-          <span id="phone-chip" class="chip">Phone: off</span>
-          <span id="live-chip" class="chip">Live: off</span>
-          <button id="signout" class="quiet">Sign out</button>
+        <div class="top-actions">
+          <span><span id="agent-name"></span> <small id="agent-number"></small></span>
+          <div class="language" role="group" aria-label="Language">
+            <button class="selected" aria-pressed="true">EN</button
+            ><button disabled aria-pressed="false" title="Swahili labels await Tostao’s review">SW</button>
+          </div>
+          <button id="theme-toggle" aria-label="Switch colour theme">
+            <svg aria-hidden="true"><use href="#i-sun" /></svg>
+          </button>
+          <button id="signout" data-i18n="Sign out"></button>
         </div>
       </header>
-
-      <section class="card">
-        <div class="status">
-          <span id="availability" class="badge">Logged out</span>
-          <span id="activity" class="muted"></span>
-          <span id="since" class="muted"></span>
+      <section class="statebar" aria-label="Agent status">
+        <div class="state-main">
+          <svg aria-hidden="true"><use id="state-icon" href="#i-minus" /></svg>
+          <div>
+            <div id="state-title" class="state-title" role="status"></div>
+            <small id="activity"></small><span id="availability" class="sr-only"></span>
+          </div>
+          <time id="since" class="state-time">00:00</time>
         </div>
-        <div class="row">
-          <button id="ready">Ready</button>
-          <select id="reason" aria-label="Not Ready reason"></select>
-          <button id="not-ready" class="secondary">Not Ready</button>
+        <button id="state-menu-toggle" aria-expanded="false" aria-controls="state-menu">
+          <span data-i18n="Change state"></span><kbd>R</kbd>
+        </button>
+        <div class="state-load">
+          <p id="queue-load"></p>
+          <span id="longest-wait"></span>
         </div>
+        <div class="health"><span id="phone-chip"></span><small id="live-chip"></small></div>
       </section>
-
-      <section id="call" class="card call" hidden>
-        <h2 id="call-title">Incoming call</h2>
-        <p><span id="caller" class="big"></span> <span id="caller-queue" class="muted"></span></p>
-        <div id="ai-summary" class="ai-summary" hidden>
-          <p><b>From the AI</b> <span id="ai-reason" class="chip"></span></p>
-          <p id="ai-summary-text"></p>
-        </div>
-        <div class="row">
-          <button id="answer">Answer</button>
-          <button id="reject" class="danger">Reject</button>
-          <button id="hold" class="secondary" hidden>Hold</button>
-          <button id="resume" class="secondary" hidden>Resume</button>
-          <button id="hangup" class="danger" hidden>Hang up</button>
-        </div>
-        <div id="transfer" class="row" hidden>
-          <select id="transfer-kind" aria-label="Transfer kind">
-            <option value="blind">Blind transfer</option>
-            <option value="consult">Consult first</option>
-          </select>
-          <select id="transfer-target-kind" aria-label="Transfer to">
-            <option value="agent">to an agent</option>
-            <option value="queue">to a queue</option>
-            <option value="number">to a number</option>
-          </select>
-          <select id="transfer-agent" aria-label="Agent"></select>
-          <select id="transfer-queue" aria-label="Queue" hidden></select>
-          <input id="transfer-number" aria-label="Number" placeholder="Number" hidden>
-          <button id="transfer-go" class="secondary">Transfer</button>
-        </div>
-        <div id="consult" class="row" hidden>
-          <span id="consult-status" class="muted"></span>
-          <button id="consult-complete">Complete transfer</button>
-          <button id="consult-conference" class="secondary">Conference</button>
-          <button id="consult-cancel" class="danger">Cancel</button>
-        </div>
-        <div id="conference" class="row" hidden>
-          <span class="muted">Conference: you, the customer and the other party</span>
-          <button id="conference-drop" class="secondary">Drop the other party</button>
-          <button id="conference-leave" class="danger">Leave</button>
-        </div>
+      <section id="state-menu" class="state-menu" hidden>
+        <button id="ready" class="primary">
+          <svg aria-hidden="true"><use href="#i-check" /></svg><span data-i18n="Go Ready"></span>
+        </button>
+        <label for="reason" data-i18n="Not Ready reason"></label
+        ><select id="reason"></select>
+        <button id="not-ready" data-i18n="Not Ready"></button>
+        <button id="enable-notifications" data-i18n="Enable call notifications"></button>
       </section>
-
-      <section id="wrapup" class="card" hidden>
-        <h2>Wrap-up</h2>
-        <div class="row">
-          <select id="wrapup-code" aria-label="Wrap-up code"></select>
-          <button id="wrapup-done">Done</button>
+      <p id="notice" class="notice error" role="alert" hidden></p>
+      <section id="incoming-offer" class="offer" aria-label="Incoming call offer" hidden>
+        <div>
+          <h2 data-i18n="Incoming call"></h2>
+          <h1 id="offer-caller"></h1>
+          <small id="offer-meta"></small>
         </div>
+        <div>
+          <h3 data-i18n="Why they called (AI)"></h3>
+          <p id="offer-summary"></p>
+          <small id="offer-timeout"></small>
+        </div>
+        <div class="offer-actions">
+          <button id="answer" class="primary">
+            <svg aria-hidden="true"><use href="#i-phone" /></svg><span data-i18n="Answer"></span
+            ><kbd>Enter</kbd></button
+          ><button id="reject" data-i18n="Decline"></button>
+        </div>
+        <progress
+          id="ring-progress"
+          class="ring-progress"
+          max="20"
+          value="20"
+          aria-label="Time remaining to answer"
+        ></progress>
       </section>
-
-      <p id="notice" class="error" role="alert"></p>
-
-      <section class="card">
-        <h2>What happened</h2>
-        <ol id="log" class="log"></ol>
-      </section>
+      <main class="workspace">
+        <section class="zone">
+          <h2 data-i18n="The call"></h2>
+          <div id="empty-call" class="empty">
+            <svg aria-hidden="true"><use id="empty-icon" href="#i-minus" /></svg>
+            <h1 id="empty-title"></h1>
+            <p id="empty-description" class="muted"></p>
+            <button id="empty-ready" class="primary" data-i18n="Go Ready" hidden></button
+            ><button id="reconnect" class="primary" data-i18n="Reconnect" hidden></button>
+          </div>
+          <div id="call" hidden>
+            <h1 id="caller" class="caller"></h1>
+            <small id="caller-name"></small>
+            <div class="metadata">
+              <span id="caller-language" class="tag"></span><span id="caller-queue" class="tag"></span
+              ><span id="caller-wait" class="tag"></span>
+            </div>
+            <div id="call-time" class="call-time">
+              <svg aria-hidden="true"><use href="#i-phone" /></svg><time id="call-timer">00:00</time
+              ><span id="call-title" class="muted"></span>
+            </div>
+            <div id="call-controls" class="controls">
+              <button id="hold">
+                <svg aria-hidden="true"><use href="#i-pause" /></svg><span data-i18n="Hold"></span
+                ><kbd>H</kbd></button
+              ><button id="resume" hidden>
+                <svg aria-hidden="true"><use href="#i-phone" /></svg><span data-i18n="Resume"></span
+                ><kbd>H</kbd></button
+              ><button id="mute" aria-pressed="false">
+                <svg aria-hidden="true"><use href="#i-mic" /></svg
+                ><span id="mute-label" data-i18n="Mute"></span><kbd>M</kbd></button
+              ><button id="transfer-toggle" aria-expanded="false" aria-controls="transfer">
+                <svg aria-hidden="true"><use href="#i-transfer" /></svg><span data-i18n="Transfer"></span
+                ><kbd>T</kbd></button
+              ><button id="keypad-toggle" aria-expanded="false" aria-controls="keypad">
+                <svg aria-hidden="true"><use href="#i-keypad" /></svg><span data-i18n="Keypad"></span
+                ><kbd>K</kbd></button
+              ><button id="hangup" class="danger">
+                <svg aria-hidden="true"><use href="#i-phone" /></svg><span data-i18n="Hang up"></span
+                ><kbd>E</kbd>
+              </button>
+            </div>
+            <div id="transfer" class="transfer-form" hidden>
+              <label for="transfer-kind" data-i18n="Transfer kind"></label
+              ><select id="transfer-kind">
+                <option value="blind" data-i18n="Blind transfer"></option>
+                <option value="consult" data-i18n="Consult first"></option>
+              </select>
+              <label for="transfer-target-kind" data-i18n="Transfer to"></label
+              ><select id="transfer-target-kind">
+                <option value="agent" data-i18n="Agent"></option>
+                <option value="queue" data-i18n="Queue"></option>
+                <option value="number" data-i18n="Number"></option>
+              </select>
+              <select id="transfer-agent" aria-label="Agent"></select
+              ><select id="transfer-queue" aria-label="Queue" hidden></select
+              ><input id="transfer-number" aria-label="Number" hidden />
+              <button id="transfer-go" class="primary" data-i18n="Transfer"></button>
+            </div>
+            <div id="consult" class="transfer-leg" hidden>
+              <h3 data-i18n="Caller on hold"></h3>
+              <p id="consult-status"></p>
+              <div class="transfer-actions">
+                <button id="consult-complete" class="primary" data-i18n="Complete"></button
+                ><button id="consult-cancel" data-i18n="Cancel"></button
+                ><button id="consult-conference" data-i18n="Conference"></button>
+              </div>
+            </div>
+            <div id="conference" class="transfer-leg" hidden>
+              <p data-i18n="Conference: you, the caller and the other party"></p>
+              <div class="transfer-actions">
+                <button id="conference-drop" data-i18n="Drop the other party"></button
+                ><button id="conference-leave" class="danger" data-i18n="Leave"></button>
+              </div>
+            </div>
+            <div id="keypad" class="keypad" hidden>
+              <label for="digits" data-i18n="Digits"></label
+              ><input id="digits" inputmode="tel" pattern="[0-9*#]+" /><button
+                id="send-digits"
+                data-i18n="Send digits"
+              ></button>
+            </div>
+          </div>
+        </section>
+        <section class="zone">
+          <h2 id="context-heading" data-i18n="Context"></h2>
+          <div id="context-empty" class="quiet-context">
+            <h3 data-i18n="Everything you need for the next call"></h3>
+            <p
+              class="muted"
+              data-i18n="The caller’s language, topic and AI summary will appear here when a call arrives."
+            ></p>
+            <p class="muted" data-i18n="Your notes stay alongside the call."></p>
+          </div>
+          <div id="ai-summary" hidden>
+            <h3 data-i18n="Why they called (AI)"></h3>
+            <p id="ai-summary-text" class="summary"></p>
+            <small id="ai-reason"></small>
+          </div>
+          <div id="context-meta" class="context-meta" hidden>
+            <div><small data-i18n="Language"></small><strong id="context-language"></strong></div>
+            <div><small data-i18n="Topic"></small><strong id="context-topic"></strong></div>
+          </div>
+          <section id="wrapup" hidden>
+            <label class="field" for="wrapup-code"
+              ><span data-i18n="Wrap-up code"></span
+              ><small
+                id="code-required"
+                data-i18n="Choose a wrap-up code to finish this call."
+              ></small></label
+            ><input
+              id="wrapup-search"
+              type="search"
+              data-placeholder="Search wrap-up codes"
+              aria-label="Search wrap-up codes"
+            /><select id="wrapup-code"></select>
+          </section>
+          <div id="notes-zone" hidden>
+            <label class="field" for="notes" data-i18n="Notes"></label
+            ><textarea id="notes" maxlength="8000"></textarea>
+            <div class="note-hint">
+              <small data-i18n="Keep notes factual and relevant."></small><small id="note-status"></small>
+            </div>
+          </div>
+          <div id="wrapup-actions" class="wrapup-actions" hidden>
+            <button id="wrapup-done" class="primary" data-i18n="Finish and go Ready"></button
+            ><button id="wrapup-not-ready" data-i18n="Finish and stay Not Ready"></button
+            ><label for="wrapup-reason" data-i18n="Not Ready reason"></label
+            ><select id="wrapup-reason"></select
+            ><small id="wrapup-time"></small>
+          </div>
+        </section>
+        <aside class="zone">
+          <details open>
+            <summary><strong data-i18n="My queues"></strong></summary>
+            <table class="queues">
+              <thead>
+                <tr>
+                  <th scope="col" data-i18n="Queue"></th>
+                  <th scope="col" data-i18n="Waiting"></th>
+                  <th scope="col" data-i18n="Longest"></th>
+                </tr>
+              </thead>
+              <tbody id="my-queues"></tbody>
+            </table>
+          </details>
+          <section class="day">
+            <h2 data-i18n="My day"></h2>
+            <div><span data-i18n="Calls handled"></span><strong id="day-calls" class="num">0</strong></div>
+            <div><span data-i18n="Average talk time"></span><strong id="day-talk" class="num">—</strong></div>
+            <div>
+              <span data-i18n="Not ready"></span><strong id="day-not-ready" class="num">00:00</strong>
+            </div>
+          </section>
+        </aside>
+      </main>
+      <footer class="bottom">
+        <span id="action-feedback" role="status"></span>
+        <details id="unsaved-notes" class="diagnostics" hidden>
+          <summary data-i18n="Unsaved notes from last call"></summary>
+          <div class="recovery">
+            <label for="recovery-notes" data-i18n="Copy these notes before closing this tab."></label
+            ><textarea id="recovery-notes" readonly></textarea
+            ><button id="discard-draft" data-i18n="Discard draft"></button>
+          </div>
+        </details>
+        <details class="diagnostics">
+          <summary data-i18n="Connection history"></summary>
+          <ol id="log"></ol>
+        </details>
+      </footer>
     </section>
-  </main>
-  <audio id="remote-audio" autoplay></audio>
-</body>
+    <audio id="remote-audio" autoplay></audio>
+  </body>
 </html>

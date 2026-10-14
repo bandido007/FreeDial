@@ -1,0 +1,290 @@
+[
+  {
+    "file": "not-ready-light-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "light",
+    "state": "not-ready",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "ready-light-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "light",
+    "state": "ready",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "incoming-light-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "light",
+    "state": "incoming",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "talking-light-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "light",
+    "state": "talking",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "transfer-light-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "light",
+    "state": "transfer",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "wrap-up-light-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "light",
+    "state": "wrap-up",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "phone-problem-light-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "light",
+    "state": "phone-problem",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "supervisor-light-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "light",
+    "state": "supervisor",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "not-ready-light-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "light",
+    "state": "not-ready",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "ready-light-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "light",
+    "state": "ready",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "incoming-light-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "light",
+    "state": "incoming",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "talking-light-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "light",
+    "state": "talking",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "transfer-light-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "light",
+    "state": "transfer",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "wrap-up-light-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "light",
+    "state": "wrap-up",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "phone-problem-light-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "light",
+    "state": "phone-problem",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "supervisor-light-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "light",
+    "state": "supervisor",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "not-ready-dark-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "dark",
+    "state": "not-ready",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "ready-dark-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "dark",
+    "state": "ready",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "incoming-dark-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "dark",
+    "state": "incoming",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "talking-dark-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "dark",
+    "state": "talking",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "transfer-dark-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "dark",
+    "state": "transfer",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "wrap-up-dark-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "dark",
+    "state": "wrap-up",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "phone-problem-dark-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "dark",
+    "state": "phone-problem",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "supervisor-dark-1366x768.png",
+    "width": 1366,
+    "height": 768,
+    "theme": "dark",
+    "state": "supervisor",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "not-ready-dark-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "dark",
+    "state": "not-ready",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "ready-dark-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "dark",
+    "state": "ready",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "incoming-dark-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "dark",
+    "state": "incoming",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "talking-dark-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "dark",
+    "state": "talking",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "transfer-dark-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "dark",
+    "state": "transfer",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "wrap-up-dark-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "dark",
+    "state": "wrap-up",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "phone-problem-dark-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "dark",
+    "state": "phone-problem",
+    "overflow": false,
+    "script_errors": []
+  },
+  {
+    "file": "supervisor-dark-1920x1080.png",
+    "width": 1920,
+    "height": 1080,
+    "theme": "dark",
+    "state": "supervisor",
+    "overflow": false,
+    "script_errors": []
+  }
+]

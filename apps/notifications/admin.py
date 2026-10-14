@@ -2,6 +2,7 @@
 
 from django.contrib import admin
 
+from apps.core.admin_workspace import WorkspaceModelAdmin
 from apps.notifications.models import (
     EmailConfiguration,
     Notification,
@@ -12,7 +13,7 @@ from apps.notifications.models import (
 
 
 @admin.register(Notification)
-class NotificationAdmin(admin.ModelAdmin):
+class NotificationAdmin(WorkspaceModelAdmin):
     list_display = (
         "channel",
         "category",
@@ -33,7 +34,7 @@ class NotificationAdmin(admin.ModelAdmin):
 
 
 @admin.register(EmailConfiguration)
-class EmailConfigurationAdmin(admin.ModelAdmin):
+class EmailConfigurationAdmin(WorkspaceModelAdmin):
     list_display = ("name", "host", "port", "from_email", "use_tls", "verify_tls", "is_default", "active")
     list_filter = ("is_default", "use_tls", "use_ssl", "active")
     search_fields = ("name", "host", "from_email")
@@ -42,7 +43,7 @@ class EmailConfigurationAdmin(admin.ModelAdmin):
 
 
 @admin.register(SmsConfiguration)
-class SmsConfigurationAdmin(admin.ModelAdmin):
+class SmsConfigurationAdmin(WorkspaceModelAdmin):
     list_display = ("name", "provider", "api_url", "sender_id", "is_default", "active")
     list_filter = ("provider", "is_default", "active")
     search_fields = ("name", "api_url", "sender_id")
@@ -50,14 +51,14 @@ class SmsConfigurationAdmin(admin.ModelAdmin):
 
 
 @admin.register(NotificationTemplate)
-class NotificationTemplateAdmin(admin.ModelAdmin):
+class NotificationTemplateAdmin(WorkspaceModelAdmin):
     list_display = ("name", "category", "channel", "is_active", "active")
     list_filter = ("category", "channel", "is_active")
     search_fields = ("name", "subject", "body")
 
 
 @admin.register(NotificationPreference)
-class NotificationPreferenceAdmin(admin.ModelAdmin):
+class NotificationPreferenceAdmin(WorkspaceModelAdmin):
     list_display = ("user", "category", "channel", "enabled")
     list_filter = ("channel", "enabled")
     search_fields = ("user__email", "category")

@@ -93,6 +93,7 @@ class InteractionPartInline(admin.StackedInline):
         "summary",
         "conversation",
         "wrapup_code",
+        "notes",
     )
     readonly_fields = fields
 

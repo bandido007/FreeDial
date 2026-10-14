@@ -191,3 +191,74 @@ def test_the_live_socket_passes_on_only_ones_teams(make_user, grant, oauth_app, 
     from django.db import connections
 
     asyncio.run(database_sync_to_async(connections.close_all)())
+
+
+def test_supervisor_receives_team_filter_state_timestamps_and_reason_limits(api, centre, redis_keys):
+    from uuid import uuid4
+
+    from apps.agents.models import NotReadyReason
+    from apps.calls.models import Event
+
+    centre["grant"](centre["asha"], "can_monitor_calls")
+    NotReadyReason.objects.create(name="Break", max_seconds=900)
+    uid = str(centre["juma"].uid)
+    Event.objects.create(
+        event_id=uuid4(),
+        type=m.AGENT_STATE,
+        at=timezone.now(),
+        agent_uid=uid,
+        data={"availability": "ready", "activity": "talking", "call": "c-juma"},
+    )
+    bus.client().hset(
+        settings.BUS_AGENTS_KEY,
+        uid,
+        json.dumps({"availability": "ready", "activity": "talking", "call": "c-juma"}),
+    )
+    data = gql_as(
+        api,
+        centre["asha"],
+        """query { mySupervisorDesk { data {
+      teams reasonLimits longCallSeconds agents { name stateSince }
+    } } }""",
+    )["data"]
+    assert [team["name"] for team in data["teams"]] == ["Front Desk"]
+    assert data["reasonLimits"]["Break"] == 900 and data["longCallSeconds"] == 600
+    assert data["agents"][0]["stateSince"] is not None
+
+
+def test_history_is_team_scoped_and_does_not_expose_event_payloads(api, centre, redis_keys):
+    from uuid import uuid4
+
+    from apps.calls.models import Event
+
+    asha = centre["asha"]
+    centre["grant"](asha, "can_monitor_calls")
+    Event.objects.create(
+        event_id=uuid4(),
+        type=m.AGENT_STATE,
+        at=timezone.now(),
+        agent_uid=str(centre["juma"].uid),
+        data={
+            "availability": "not_ready",
+            "activity": "idle",
+            "reason": "Break",
+            "notes": "private caller notes",
+        },
+    )
+    query = "query H($a: String!) { supervisedAgentHistory(agent: $a) { code dataList { description } } }"
+    own = gql_as(api, asha, query, {"a": str(centre["juma"].uid)})
+    assert own["code"] == 9001 and "Break" in own["dataList"][0]["description"]
+    assert "private caller notes" not in str(own)
+    assert gql_as(api, asha, query, {"a": str(centre["halima"].uid)})["code"] == 10700
+
+
+def test_force_not_ready_requires_a_configured_reason(api, centre, redis_keys):
+    from apps.agents.models import NotReadyReason
+
+    asha = centre["asha"]
+    centre["grant"](asha, "can_force_agent_state")
+    NotReadyReason.objects.create(name="Break")
+    query = 'mutation F($a: String!, $r: String) { forceAgentState(agent: $a, state: "not_ready", reason: $r) { code } }'
+    for reason in ("", "Unconfigured reason"):
+        assert gql_as(api, asha, query, {"a": str(centre["juma"].uid), "r": reason})["code"] == 10702
+    assert redis_keys() == []

@@ -92,6 +92,9 @@ class PickListAdmin(RbacAdminMixin, admin.ModelAdmin):
     list_display = ("name", "active")
     search_fields = ("name",)
 
+    def get_fields(self, request, obj=None):
+        return ("name", "max_seconds", "active") if self.model is NotReadyReason else self.fields
+
     def delete_queryset(self, request, queryset):
         for row in queryset:
             row.delete()  # soft delete, one by one

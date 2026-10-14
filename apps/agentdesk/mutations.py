@@ -68,14 +68,19 @@ class HoldMyCall(graphene.Mutation):
 class FinishMyWrapup(graphene.Mutation):
     class Arguments:
         code = graphene.String(required=True, description="One of myAgentDesk.wrapupCodes")
+        notes = graphene.String(description="Call notes, up to 8,000 characters; recorded with wrap-up")
+        ready = graphene.Boolean(
+            description="Next availability, chosen atomically before another call can be offered"
+        )
+        reason = graphene.String(description="Not Ready reason when ready is false")
 
     Output = Response.get_response_type(CommandSentType)
 
     @classmethod
     @has_permission(permissions=[TAKE_CALLS])
     @log_errors_and_warnings
-    def mutate(cls, root, info, code):
-        data = desk.finish_wrapup(current_user(info), code=code)
+    def mutate(cls, root, info, code, notes=None, ready=None, reason=""):
+        data = desk.finish_wrapup(current_user(info), code=code, notes=notes, ready=ready, reason=reason)
         return Response.build_response(code=9001, info=info, data=data)
 
 

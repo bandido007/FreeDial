@@ -21,6 +21,7 @@ from apps.realtime.auth import agent_for_token
 
 AUTH_TIMEOUT = 10  # seconds a connection may stay open without a valid token
 UNAUTHORIZED = 4401
+AGENT_DESKS_GROUP = "agent-desks"  # invalidations only; never another caller’s data
 
 
 def agent_group(uid: str) -> str:
@@ -52,6 +53,7 @@ class AgentConsumer(AsyncJsonWebsocketConsumer):
         self.deadline.cancel()
         self.group = agent_group(str(agent.uid))
         await self.channel_layer.group_add(self.group, self.channel_name)
+        await self.channel_layer.group_add(AGENT_DESKS_GROUP, self.channel_name)
         state = await database_sync_to_async(live_state)(agent)
         await self.send_json(
             {
@@ -66,6 +68,10 @@ class AgentConsumer(AsyncJsonWebsocketConsumer):
             self.deadline.cancel()
         if self.group:
             await self.channel_layer.group_discard(self.group, self.channel_name)
+            await self.channel_layer.group_discard(AGENT_DESKS_GROUP, self.channel_name)
 
     async def brain_event(self, message):
         await self.send_json({"type": "event", "event": message["event"]})
+
+    async def queues_changed(self, message):
+        await self.send_json({"type": "queues.changed"})

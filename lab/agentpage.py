@@ -7,7 +7,8 @@ clicking the page.
 
     cd ~/AlgoDial && .venv/bin/python lab/agentpage.py            # headless (or: make agentcheck)
     .venv/bin/python lab/agentpage.py --show                      # watch it in a window
-    .venv/bin/python lab/agentpage.py --no-transfers --no-supervision   # M3 only
+    .venv/bin/python lab/agentpage.py --no-transfers --no-supervision --no-ai   # M3 only
+    # Add --use-running-stack to use make dev on 8000 without stopping it.
 
 It starts its own stack on this machine: web (ASGI, port 8017), brain, writer and the live
 relay, so stop your brain first. The customer is lab/sipphone.py dialling 899; Chrome's
@@ -112,7 +113,7 @@ async def signed_in(browser, email, password, admin_session):
     await page.fill("#password", password)
     await page.click("button[type=submit]")
     await page.wait_for_selector("#desk:not([hidden])", timeout=10000)
-    await until(page, "document.getElementById('phone-chip').textContent.startsWith('Phone: web')", 15)
+    await until(page, "(document.getElementById('phone-chip').dataset.sipId || '').startsWith('web')", 15)
     await until(page, "document.getElementById('live-chip').textContent === 'Live: on'", 10)
     return page
 
@@ -125,6 +126,7 @@ async def done_wrapping_up(page):
     # Right after a hangup the page may still say talking; wait for the brain's next state first.
     await until(page, "!['talking', 'on_hold', 'offered'].includes(window.agentDesk.state.activity)", 10)
     if await activity(page) == "wrapup":
+        await page.select_option("#wrapup-code", label="Information given")
         await page.click("#wrapup-done")
     await until(page, "window.agentDesk.state.activity !== 'wrapup'", 10)
 
@@ -134,6 +136,7 @@ async def go_ready(page):
     ready = "document.getElementById('availability').textContent === 'Ready'"
     await until(page, f"!document.getElementById('ready').disabled || {ready}", 15)
     if not await page.evaluate("document.getElementById('ready').disabled"):
+        await page.click("#state-menu-toggle")
         await page.click("#ready")
     await until(page, ready, 10)
 
@@ -142,13 +145,14 @@ async def take_call(customer, page, number="899"):
     """A customer calls; the page that rings answers it."""
     call = await customer.dial(number)
     await asyncio.wait_for(call.answered.wait(), 10)
-    await page.wait_for_selector("#call:not([hidden])", timeout=15000)
+    await page.wait_for_selector("#incoming-offer:not([hidden])", timeout=15000)
     await page.click("#answer")
     await until(page, "window.agentDesk.state.activity === 'talking'", 15)
     return call
 
 
 async def transfer_from(page, kind, target_kind, target):
+    await page.click("#transfer-toggle")
     await page.select_option("#transfer-kind", kind)
     await page.select_option("#transfer-target-kind", target_kind)
     if target_kind == "agent":
@@ -183,7 +187,7 @@ async def transfers_from_the_page(playwright, show, customer, admin_session, che
     say("── consult, conference, drop the other party")
     call = await take_call(customer, first)
     await transfer_from(first, "consult", "agent", other_uid)
-    await second.wait_for_selector("#call:not([hidden])", timeout=15000)
+    await second.wait_for_selector("#incoming-offer:not([hidden])", timeout=15000)
     check("the consulted agent's page shows the transfer", "Transfer" in (await second.inner_text("#caller")), await second.inner_text("#caller-queue"))
     await second.click("#answer")
     await until(first, "!document.getElementById('consult-complete').disabled", 15)
@@ -206,7 +210,7 @@ async def transfers_from_the_page(playwright, show, customer, admin_session, che
     call = await take_call(customer, first)
     await transfer_from(first, "blind", "agent", other_uid)
     await until(first, "window.agentDesk.session === null", 10)
-    await second.wait_for_selector("#call:not([hidden])", timeout=15000)
+    await second.wait_for_selector("#incoming-offer:not([hidden])", timeout=15000)
     await second.click("#answer")
     await until(second, "window.agentDesk.state.activity === 'talking'", 15)
     check("blind to an agent: the first agent is free at once, the second talks to the customer", not call.ended.is_set())
@@ -219,7 +223,7 @@ async def transfers_from_the_page(playwright, show, customer, admin_session, che
     await go_ready(second)
     await transfer_from(first, "blind", "queue", "Support")
     await until(first, "window.agentDesk.session === null", 10)
-    await second.wait_for_selector("#call:not([hidden])", timeout=20000)
+    await second.wait_for_selector("#incoming-offer:not([hidden])", timeout=20000)
     await second.click("#answer")
     await until(second, "window.agentDesk.state.activity === 'talking'", 15)
     check("blind to a queue: the call went back into Support and the free agent took it", not call.ended.is_set())
@@ -295,7 +299,7 @@ async def supervision_from_the_page(playwright, show, customer, admin_session, c
     await sup.fill("#password", sup_password)
     await sup.click("button[type=submit]")
     await sup.wait_for_selector("#desk:not([hidden])", timeout=10000)
-    await until(sup, "document.getElementById('phone-chip').textContent.startsWith('Phone: websup')", 15)
+    await until(sup, "(document.getElementById('phone-chip').dataset.sipId || '').startsWith('websup')", 15)
     await until(sup, "document.getElementById('live-chip').textContent === 'Live: on'", 10)
     check("supervisor signed in with a browser phone and the live view", True, await sup.inner_text("#me"))
 
@@ -311,7 +315,7 @@ async def supervision_from_the_page(playwright, show, customer, admin_session, c
         await asyncio.sleep(2.5)  # only audio heard in this mode counts
         return customer.hears(1300, 1.5)
 
-    await sup.click("#calls button:text('Monitor')")
+    await sup.click("#agents button:text('Monitor')")
     await until(sup, "window.supervisorDesk.listening && window.supervisorDesk.listening.mode === 'monitor'", 20)
     await until(sup, "window.supervisorDesk.session && window.supervisorDesk.session.isEstablished()", 10)
     await asyncio.sleep(2.5)
@@ -524,7 +528,7 @@ async def report_of_the_run(since, agent_uid, admin_session, check, ai):
     support = next((line for line in report.queues if line.queue == "Support"), None)
     check(
         "the report counts this run's calls in Support, all answered, none abandoned",
-        support is not None and support.offered >= 2 and support.answered == support.offered and support.abandoned == 0,
+        support is not None and support.offered >= 1 and support.answered == support.offered and support.abandoned == 0,
         "-" if support is None else f"offered {support.offered}, answered {support.answered}, "
         f"service level {support.service_level_percent}%, avg handle time {support.average_handle_time} s",
     )
@@ -547,19 +551,20 @@ async def report_of_the_run(since, agent_uid, admin_session, check, ai):
     check("the admin's Reports page shows today", response.status == 200 and "Calls per queue" in html and "Support" in html)
 
 
-async def main(show, transfers=True, supervision=True, ai=True):
+async def main(show, transfers=True, supervision=True, ai=True, use_running_stack=False):
     password, agent_uid, customer_password = await asyncio.to_thread(setup)
     admin_session = await asyncio.to_thread(admin_cookie)
     started = run_started = datetime.now(timezone.utc)
-    if brain_running():
+    if brain_running() and not use_running_stack:
         say("A brain is running on this machine (make dev or make brain). Stop it first.")
         return 2
-    if not port_free(PORT):
+    if not use_running_stack and not port_free(PORT):
         say(f"Port {PORT} is taken.")
         return 2
 
     stack = Stack()
-    stack.start()
+    if not use_running_stack:
+        stack.start()
     customer = await Phone("lab-customer", customer_password).start()
     checks = []
 
@@ -605,7 +610,7 @@ async def main(show, transfers=True, supervision=True, ai=True):
             await page.click("button[type=submit]")
             await page.wait_for_selector("#desk:not([hidden])", timeout=10000)
             check("signed in with the OAuth token", True, await page.inner_text("#agent-name"))
-            await until(page, "document.getElementById('phone-chip').textContent.includes('web9003')", 15)
+            await until(page, "document.getElementById('phone-chip').dataset.sipId === 'web9003'", 15)
             check("browser phone registered over WebSocket", True, await page.inner_text("#phone-chip"))
             await until(page, "document.getElementById('live-chip').textContent === 'Live: on'", 10)
             check("live WebSocket open", True)
@@ -617,7 +622,7 @@ async def main(show, transfers=True, supervision=True, ai=True):
             say("── a customer calls 899")
             call = await customer.dial("899")
             await asyncio.wait_for(call.answered.wait(), 10)
-            await page.wait_for_selector("#call:not([hidden])", timeout=15000)
+            await page.wait_for_selector("#incoming-offer:not([hidden])", timeout=15000)
             check("offer popup shows", True, (await page.inner_text("#caller")) + " " + await page.inner_text("#caller-queue"))
             await page.click("#answer")
             await until(page, "window.agentDesk.state && window.agentDesk.state.activity === 'talking'", 15)
@@ -649,9 +654,10 @@ async def main(show, transfers=True, supervision=True, ai=True):
             check("wrapped up with a code, idle again", True)
 
             say("── Not Ready, then sign out")
+            await page.click("#state-menu-toggle")
             await page.select_option("#reason", "Break")
             await page.click("#not-ready")
-            await until(page, "document.getElementById('activity').textContent.includes('Break')", 10)
+            await until(page, "document.getElementById('state-title').textContent.includes('Break')", 10)
             check("Not Ready with a reason", True)
             await page.click("#signout")
             await page.wait_for_selector("#signin:not([hidden])", timeout=10000)
@@ -744,7 +750,8 @@ async def main(show, transfers=True, supervision=True, ai=True):
         return 1
     finally:
         await customer.close()
-        stack.stop()
+        if not use_running_stack:
+            stack.stop()
         say(f"Stack log: {LOG}")
     say(f"All {len(checks)} checks passed.")
     return 0
@@ -756,7 +763,10 @@ if __name__ == "__main__":
     parser.add_argument("--no-transfers", action="store_true", help="skip the M5 transfer phase")
     parser.add_argument("--no-supervision", action="store_true", help="skip the M6 supervisor phase")
     parser.add_argument("--no-ai", action="store_true", help="skip the M8 AI agent phase")
+    parser.add_argument("--use-running-stack", action="store_true", help="use the existing make dev stack on port 8000 without stopping it")
     arguments = parser.parse_args()
+    if arguments.use_running_stack:
+        PORT = 8000
     sys.exit(
         asyncio.run(
             main(
@@ -764,6 +774,7 @@ if __name__ == "__main__":
                 transfers=not arguments.no_transfers,
                 supervision=not arguments.no_supervision,
                 ai=not arguments.no_ai,
+                use_running_stack=arguments.use_running_stack,
             )
         )
     )

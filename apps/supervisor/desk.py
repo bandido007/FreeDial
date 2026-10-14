@@ -14,9 +14,10 @@ from django.db import transaction
 from apps.agents.live import LOGGED_OUT, live_states
 from apps.agents.models import Agent, NotReadyReason
 from apps.calls import bus
+from apps.calls.models import Event
 from apps.core.exceptions import ApplicationError, ValidationError
-from apps.core.hooks import resolve_permissions
-from apps.queues.models import Queue
+from apps.core.hooks import policy, resolve_permissions
+from apps.queues.models import Queue, QueueMember
 from apps.queues.queries import queue_stats
 from apps.supervisor.permissions import (
     BARGE_CALLS,
@@ -26,6 +27,7 @@ from apps.supervisor.permissions import (
     WHISPER_CALLS,
 )
 from apps.supervisor.scope import Scope, scope_of
+from apps.teams.models import Team
 from apps.telephony import services as telephony
 from contracts import messages as m
 
@@ -62,14 +64,42 @@ def live_calls() -> dict[str, dict[str, Any]]:
 def desk(user) -> dict[str, Any]:
     scope = scope_of(user)
     states = live_states()
-    agents = Agent.objects.filter(active=True).order_by("number")
+    agent_rows = Agent.objects.filter(active=True).order_by("number")
     if not scope.everything:
-        agents = agents.filter(uid__in=list(scope.agents))
+        agent_rows = agent_rows.filter(uid__in=list(scope.agents))
     calls = [call for call in live_calls().values() if scope.has_call(call)]
     queue_rows = Queue.objects.filter(active=True).order_by("name")
     if not scope.everything:
         queue_rows = queue_rows.filter(name__in=list(scope.queues))
     now = time.time()
+    agents = list(agent_rows)
+    uids = {str(agent.uid) for agent in agents}
+    latest = {
+        event.agent_uid: event
+        for event in Event.objects.filter(type=m.AGENT_STATE, agent_uid__in=uids)
+        .order_by("agent_uid", "-at", "-id")
+        .distinct("agent_uid")
+    }
+    memberships: dict[str, list[str]] = {}
+    for member in QueueMember.objects.filter(agent__in=agents, queue__active=True).select_related(
+        "queue", "agent"
+    ):
+        memberships.setdefault(str(member.agent.uid), []).append(member.queue.name)
+    team_rows = Team.objects.filter(active=True).prefetch_related("agents")
+    if not scope.everything:
+        team_rows = team_rows.filter(supervisors=user)
+    teams = []
+    by_user = {agent.user_id: str(agent.uid) for agent in agents}
+    for team in team_rows:
+        members = [by_user[person.pk] for person in team.agents.all() if person.pk in by_user]
+        teams.append(
+            {
+                "uid": str(team.uid),
+                "name": team.name,
+                "agents": members,
+                "queues": sorted({name for uid in members for name in memberships.get(uid, [])}),
+            }
+        )
     queues = []
     for queue in queue_rows:
         waiting = [c for c in calls if c["queue"] == queue.name and c["state"] in ("waiting", "offering")]
@@ -78,7 +108,12 @@ def desk(user) -> dict[str, Any]:
             {
                 "name": queue.name,
                 "waiting": len(waiting),
-                "longest_wait": round(max((now - c["waiting_since"] for c in waiting), default=0)),
+                "longest_wait": round(
+                    max(
+                        (now - (c.get("queue_entered_at") or c.get("waiting_since", now)) for c in waiting),
+                        default=0,
+                    )
+                ),
                 "service_level_percent": stats["service_level_percent"],
                 "target_percent": queue.service_level_percent,
                 "target_seconds": queue.service_level_seconds,
@@ -87,6 +122,10 @@ def desk(user) -> dict[str, Any]:
             }
         )
     return {
+        "teams": teams,
+        "reason_limits": dict(NotReadyReason.objects.filter(active=True).values_list("name", "max_seconds")),
+        "long_call_seconds": max(0, int(policy("SUPERVISOR_LONG_CALL_SECONDS", 600))),
+        "can_manage": bool(user.is_staff),
         "user": str(user.uid),
         "name": user.get_full_name() or user.email,
         "can": [mode for mode, code in MODE_PERMISSION.items() if holds(user, code)]
@@ -96,6 +135,14 @@ def desk(user) -> dict[str, Any]:
                 "uid": str(agent.uid),
                 "number": agent.number,
                 "name": agent.name,
+                "queues": memberships.get(str(agent.uid), []),
+                "state_since": latest[str(agent.uid)].at.timestamp()
+                if str(agent.uid) in latest
+                and all(
+                    latest[str(agent.uid)].data.get(key) == states.get(str(agent.uid), LOGGED_OUT).get(key)
+                    for key in ("availability", "activity", "call")
+                )
+                else None,
                 **{
                     key: states.get(str(agent.uid), LOGGED_OUT).get(key)
                     for key in ("availability", "activity", "reason", "call", "idle_since")
@@ -157,7 +204,11 @@ def force_agent_state(user, *, agent: str, state: str, reason: str = "") -> dict
         raise ApplicationError("That agent is not in your teams.", code=NOT_YOURS)
     data: dict[str, Any] = {"agent": agent, "by": str(user.uid)}
     if state == "not_ready":
-        data["reason"] = (reason or "").strip()
+        cleaned = (reason or "").strip()
+        choices = set(NotReadyReason.objects.filter(active=True).values_list("name", flat=True))
+        if not cleaned or (choices and cleaned not in choices):
+            raise ValidationError("Choose a configured not-ready reason.", code=BAD_CHOICE)
+        data["reason"] = cleaned
     return {"command_id": bus.send_command(STATE_COMMAND[state], data)}
 
 
@@ -167,3 +218,26 @@ def may_supervise(user) -> bool:
 
 def scope_for(user) -> Scope:
     return scope_of(user)
+
+
+def agent_history(user, uid: str) -> list[dict[str, Any]]:
+    if not scope_of(user).has_agent(uid):
+        raise ApplicationError("That agent is not in your teams.", code=NOT_YOURS)
+    events = Event.objects.filter(agent_uid=uid).order_by("-at", "-id")[:50]
+    rows = []
+    for event in events:
+        data = event.data
+        if event.type == m.AGENT_STATE:
+            description = (
+                str(data.get("availability", "")).replace("_", " ")
+                + " / "
+                + str(data.get("activity", "")).replace("_", " ")
+            )
+            if data.get("reason"):
+                description += ": " + str(data["reason"])
+        elif event.type == m.AGENT_WRAPPED_UP:
+            description = "Wrap-up: " + str(data.get("code") or "no code")
+        else:
+            description = event.type.replace(".", " / ").replace("_", " ")
+        rows.append({"at": event.at, "type": event.type, "description": description})
+    return rows

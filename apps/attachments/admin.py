@@ -3,10 +3,11 @@
 from django.contrib import admin
 
 from apps.attachments.models import Attachment, AttachmentDefinition
+from apps.core.admin_workspace import WorkspaceModelAdmin
 
 
 @admin.register(Attachment)
-class AttachmentAdmin(admin.ModelAdmin):
+class AttachmentAdmin(WorkspaceModelAdmin):
     list_display = (
         "name",
         "file_type",
@@ -26,7 +27,7 @@ class AttachmentAdmin(admin.ModelAdmin):
 
 
 @admin.register(AttachmentDefinition)
-class AttachmentDefinitionAdmin(admin.ModelAdmin):
+class AttachmentDefinitionAdmin(WorkspaceModelAdmin):
     list_display = ("name_en", "code", "kind", "max_size_mb", "is_active")
     list_filter = ("kind", "is_active")
     search_fields = ("name_en", "name_sw", "code")

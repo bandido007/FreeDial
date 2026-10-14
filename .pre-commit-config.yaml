@@ -5,8 +5,9 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: \.patch$  # project: a blank context line in a patch is one space
+        exclude: (\.patch$|/vendor/)  # project: patch context lines; vendored files stay as published
       - id: end-of-file-fixer
+        exclude: /vendor/  # project: vendored files stay byte-for-byte as published
       - id: check-yaml
       - id: check-json
       - id: check-toml

@@ -3,9 +3,10 @@
 from django.contrib import admin
 
 from apps.audit.models import AuditLog, ErrorReportSubscription, RequestLog
+from apps.core.admin_workspace import WorkspaceModelAdmin
 
 
-class ReadOnlyAdmin(admin.ModelAdmin):
+class ReadOnlyAdmin(WorkspaceModelAdmin):
     def has_add_permission(self, request):
         return False
 
@@ -33,7 +34,7 @@ class RequestLogAdmin(ReadOnlyAdmin):
 
 
 @admin.register(ErrorReportSubscription)
-class ErrorReportSubscriptionAdmin(admin.ModelAdmin):
+class ErrorReportSubscriptionAdmin(WorkspaceModelAdmin):
     list_display = ("user", "created_at")
     search_fields = ("user__email",)
     autocomplete_fields = ("user",)

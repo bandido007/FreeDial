@@ -3,11 +3,13 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
+from apps.core.admin_workspace import WorkspaceAdminMixin, WorkspaceModelAdmin
 from apps.users.models import OtpVerification, User, UserConsent
 
 
 @admin.register(User)
-class UserAdmin(DjangoUserAdmin):
+class UserAdmin(WorkspaceAdminMixin, DjangoUserAdmin):
+    change_form_template = "admin/workspace_change_form.html"
     ordering = ("-date_joined",)
     list_display = (
         "email",
@@ -62,7 +64,7 @@ class UserAdmin(DjangoUserAdmin):
                 )
             },
         ),
-        ("Django admin access", {"fields": ("is_staff", "is_superuser")}),
+        ("Management access", {"fields": ("is_staff", "is_superuser")}),
         (
             "Dates",
             {"fields": ("date_joined", "last_login", "password_changed_at", "invited_at", "updated_at")},
@@ -85,7 +87,7 @@ class UserAdmin(DjangoUserAdmin):
 
 
 @admin.register(UserConsent)
-class UserConsentAdmin(admin.ModelAdmin):
+class UserConsentAdmin(WorkspaceModelAdmin):
     list_display = ("user", "document", "version", "accepted_at", "ip_address")
     list_filter = ("document", "version")
     search_fields = ("user__email",)
@@ -96,7 +98,7 @@ class UserConsentAdmin(admin.ModelAdmin):
 
 
 @admin.register(OtpVerification)
-class OtpVerificationAdmin(admin.ModelAdmin):
+class OtpVerificationAdmin(WorkspaceModelAdmin):
     list_display = ("user", "purpose", "is_used", "attempts", "expires_at", "created_at")
     list_filter = ("purpose", "is_used")
     search_fields = ("user__email",)
