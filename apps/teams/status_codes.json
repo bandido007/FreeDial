@@ -1,0 +1,6 @@
+[
+  {"code": 10100, "status": false, "messageEn": "Team not found.", "messageSw": "Timu haipatikani."},
+  {"code": 10101, "status": false, "messageEn": "A team with this name already exists.", "messageSw": "Timu yenye jina hili ipo tayari."},
+  {"code": 10102, "status": false, "messageEn": "Nobody can be a supervisor and an agent of the same team.", "messageSw": "Hakuna anayeweza kuwa msimamizi na wakala wa timu moja."},
+  {"code": 10103, "status": false, "messageEn": "One or more users were not found.", "messageSw": "Mtumiaji mmoja au zaidi hawapatikani."}
+]

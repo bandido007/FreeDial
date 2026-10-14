@@ -1,0 +1,8 @@
+[
+  {"code": 10000, "status": false, "messageEn": "SIP account not found.", "messageSw": "Akaunti ya SIP haipatikani."},
+  {"code": 10001, "status": false, "messageEn": "This SIP id is already in use.", "messageSw": "Kitambulisho hiki cha SIP kinatumika tayari."},
+  {"code": 10002, "status": false, "messageEn": "A SIP id is 2 to 40 letters, digits, '.', '_' or '-'.", "messageSw": "Kitambulisho cha SIP ni herufi au tarakimu 2 hadi 40, '.', '_' au '-'."},
+  {"code": 10003, "status": false, "messageEn": "A SIP password needs at least 12 characters.", "messageSw": "Nenosiri la SIP linahitaji angalau herufi 12."},
+  {"code": 10004, "status": false, "messageEn": "Kind must be SOFTPHONE or BROWSER.", "messageSw": "Aina lazima iwe SOFTPHONE au BROWSER."},
+  {"code": 10005, "status": false, "messageEn": "Codecs are a comma-separated list, e.g. ulaw,alaw.", "messageSw": "Kodeki ni orodha iliyotenganishwa kwa koma, mfano ulaw,alaw."}
+]

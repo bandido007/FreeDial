@@ -161,7 +161,7 @@ deploy-check: ## Prove the production settings load and pass Django's deployment
 	DJANGO_SETTINGS_MODULE=config.settings.production $(MANAGE) check --deploy --fail-level ERROR
 
 # ── project ── AlgoDial ─────────────────────────────────────────────────────
-.PHONY: brain brain-check
+.PHONY: brain brain-check pjsip-schema
 
 ## AlgoDial
 brain: ## Run the brain (call control): manage.py run_brain
@@ -169,3 +169,6 @@ brain: ## Run the brain (call control): manage.py run_brain
 
 brain-check: ## Check the brain can reach ARI and Redis, then exit
 	$(MANAGE) run_brain --check
+
+pjsip-schema: ## Asterisk's PJSIP realtime tables (its own Alembic) + Asterisk's read-only role + rewrite accounts
+	$(MANAGE) pjsip_schema

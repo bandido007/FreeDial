@@ -1,0 +1,5 @@
+
+; AlgoDial: PJSIP endpoints, auths and aors come from PostgreSQL (res_pgsql.conf).
+ps_endpoints => pgsql,algodial
+ps_auths => pgsql,algodial
+ps_aors => pgsql,algodial

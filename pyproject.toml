@@ -46,7 +46,7 @@ DJANGO_SETTINGS_MODULE = "config.settings.testing"
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-ra --strict-markers --strict-config -p no:cacheprovider --cov"  # project: --cov, or fail_under never runs
+addopts = "-ra --strict-markers --strict-config -p no:cacheprovider --cov=apps --cov=config --cov=brain --cov=contracts"  # project: coverage on, or fail_under never runs
 testpaths = ["apps", "tests", "brain", "contracts"]  # project
 markers = [
     "slow: a test that takes noticeably longer than the rest",
@@ -111,6 +111,7 @@ type = "layers"
 ignore_imports = ["apps.**.tests.** -> apps.**"]
 unmatched_ignore_imports_alerting = "none"
 layers = [
+    "apps.telephony | apps.teams",  # project: independent of each other
     # <scaffold:project-layers>
     "apps.authentication",
     "apps.users",

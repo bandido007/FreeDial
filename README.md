@@ -27,6 +27,7 @@ make up            # PostgreSQL :5442, Redis :6392, Mailpit :8025, all on 127.0.
 make venv          # .venv with the pinned, hashed requirements
 make env           # .env with fresh keys (never overwrites); then set ARI_PASSWORD
 make migrate seed  # database tables, permission catalogue, first administrator
+make pjsip-schema  # Asterisk's PJSIP realtime tables (its own Alembic) and its read-only role
 make ci            # lint, import contracts, types, checks, tests: must be green
 make run           # web on http://127.0.0.1:8000 (/admin, /graphql)
 make brain-check   # can the brain reach ARI and Redis?

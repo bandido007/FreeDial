@@ -1,5 +1,19 @@
 """The unified root query, composed from every app's Query."""
 type Query {
+  """One team with its members. permissions=['can_view_teams']"""
+  getTeam(uid: UUID!): TeamResponse
+
+  """Paginated, searchable teams. permissions=['can_view_teams']"""
+  getTeamsPageable(searchDto: SearchDataDto!, filtering: TeamFilterInput): TeamPageResponse
+
+  """One SIP account. permissions=['can_view_sip_accounts']"""
+  getSipAccount(uid: UUID!): SipAccountResponse
+
+  """
+  Paginated, searchable SIP accounts. permissions=['can_view_sip_accounts']
+  """
+  getSipAccountsPageable(searchDto: SearchDataDto!, filtering: SipAccountFilterInput): SipAccountPageResponse
+
   """
   Every runtime setting with its value. permissions=['can_view_system_settings','can_manage_system_settings']
   """
@@ -193,6 +207,308 @@ type Query {
   getRegistrationStatus: RegistrationStatusResponse
 }
 
+type TeamResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: TeamType
+  dataList: [TeamType]
+}
+
+type TeamType {
+  uid: UUID!
+  createdAt: DateTime!
+  updatedAt: DateTime
+  name: String!
+  description: String!
+  supervisors: [UserType]
+  agents: [UserType]
+  createdByName: String
+}
+
+"""
+Leverages the internal Python implementation of UUID (uuid.UUID) to provide native UUID objects
+in fields, resolvers and input.
+"""
+scalar UUID
+
+"""
+The `DateTime` scalar type represents a DateTime
+value as specified by
+[iso8601](https://en.wikipedia.org/wiki/ISO_8601).
+"""
+scalar DateTime
+
+type UserType {
+  lastLogin: DateTime
+  uid: UUID!
+  email: String!
+  pendingEmail: String!
+  firstName: String!
+  middleName: String!
+  lastName: String!
+  phone: String!
+  gender: UsersUserGenderChoices
+  photo: String!
+  dateOfBirth: Date
+  accountType: AccountTypeChoices
+  authProvider: AuthProviderChoices
+  isActive: Boolean!
+
+  """May sign in to the Django admin site."""
+  isStaff: Boolean!
+
+  """Email address proven (code or link)."""
+  isVerified: Boolean!
+
+  """Phone proven (code sent by SMS)."""
+  phoneVerified: Boolean!
+  accountStatus: AccountStatusChoices
+  mfaEnabled: Boolean!
+
+  """The next sign-in must set a new password."""
+  mustChangePassword: Boolean!
+  passwordChangedAt: DateTime
+  invitedAt: DateTime
+  dateJoined: DateTime!
+  updatedAt: DateTime
+  deleted: Boolean!
+  fullName: String
+
+  """Roles currently granted to the user"""
+  roles: [RoleType]
+
+  """True when every required profile field is filled."""
+  isProfileComplete: Boolean
+
+  """Required profile fields still blank (empty = complete)."""
+  missingProfileFields: [String]
+
+  """Consent documents whose current version is not yet accepted."""
+  pendingConsents: [String]
+
+  """How many unused two-factor recovery codes are left."""
+  mfaRecoveryCodesRemaining: Int
+
+  """
+  False for external and directory accounts — they have no local password.
+  """
+  hasPassword: Boolean
+
+  """Created by an administrator and not yet activated by its owner."""
+  invitationPending: Boolean
+}
+
+"""An enumeration."""
+enum UsersUserGenderChoices {
+  """MALE"""
+  MALE
+
+  """FEMALE"""
+  FEMALE
+}
+
+"""
+The `Date` scalar type represents a Date
+value as specified by
+[iso8601](https://en.wikipedia.org/wiki/ISO_8601).
+"""
+scalar Date
+
+"""An enumeration."""
+enum AccountTypeChoices {
+  System
+  Internal
+  External
+}
+
+"""An enumeration."""
+enum AuthProviderChoices {
+  DB
+  LDAP
+  GOOGLE
+  OIDC
+}
+
+"""An enumeration."""
+enum AccountStatusChoices {
+  ACTIVE
+  SUSPENDED
+  BLOCKED
+}
+
+type RoleType {
+  uid: UUID!
+  createdAt: DateTime!
+  active: Boolean!
+  name: String!
+  description: String!
+
+  """System roles cannot be edited or deleted"""
+  isSystem: Boolean!
+  permissions: [PermissionType]
+  permissionCount: Int
+
+  """People who currently hold this role."""
+  userCount: Int
+}
+
+"""
+A capability as the role editor shows it: short name, plain-language
+description and a weight (VIEW / CHANGE / DECIDE).
+"""
+type PermissionType {
+  uid: UUID!
+  createdAt: DateTime!
+  code: String!
+  name: String!
+  description: String!
+  group: PermissionGroupType
+
+  """
+  VIEW = look only · CHANGE = create/edit/act · DECIDE = approve/publish/delete/grant access (high impact).
+  """
+  accessLevel: String
+}
+
+type PermissionGroupType {
+  uid: UUID!
+  createdAt: DateTime!
+  name: String!
+  description: String!
+  permissions: [PermissionType]
+}
+
+type TeamPageResponse {
+  status: Boolean
+  code: Int
+  message: String
+  content: [TeamType]
+  page: PageObject
+}
+
+type PageObject {
+  number: Int
+  hasNextPage: Boolean
+  hasPreviousPage: Boolean
+  currentPageNumber: Int
+  nextPageNumber: Int
+  previousPageNumber: Int
+  numberOfPages: Int
+  itemsPerPage: Int
+  totalElements: Int
+  pagesNumberArray: [Int]
+}
+
+input SearchDataDto {
+  pageableParam: PageableParam!
+  searchCombinationType: SearchCombinationType
+  searchFields: [SearchFieldsDto]
+}
+
+input PageableParam {
+  """1-based page number"""
+  pageNumber: Int!
+
+  """Page size"""
+  itemsPerPage: Int!
+
+  """Field to sort by"""
+  sortBy: String = "id"
+
+  """ASC or DESC"""
+  sortDirection: String = "DESC"
+}
+
+"""An enumeration."""
+enum SearchCombinationType {
+  AND
+  OR
+}
+
+input SearchFieldsDto {
+  fieldName: String!
+  searchType: SearchOperationType!
+  fieldValue: String
+  fieldValues: [String]
+}
+
+"""An enumeration."""
+enum SearchOperationType {
+  Equals
+  NotEqual
+  GreaterThan
+  GreaterThanEqual
+  LessThan
+  LessThanEqual
+  Between
+  Like
+  NotLike
+  In
+  NotIn
+  IsNull
+  IsNotNull
+}
+
+input TeamFilterInput {
+  uid: UUID
+
+  """Free text across name and description"""
+  search: String
+}
+
+type SipAccountResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: SipAccountType
+  dataList: [SipAccountType]
+}
+
+type SipAccountType {
+  uid: UUID!
+  createdAt: DateTime!
+  updatedAt: DateTime
+  active: Boolean!
+
+  """Endpoint id and SIP username, e.g. 1003"""
+  sipId: String!
+  kind: SipAccountKindChoices
+
+  """Caller ID name"""
+  displayName: String!
+
+  """Allowed codecs in order, e.g. ulaw,alaw"""
+  codecs: String!
+
+  """Dialplan context for calls from this account"""
+  context: String!
+  createdByName: String
+}
+
+"""An enumeration."""
+enum SipAccountKindChoices {
+  SOFTPHONE
+  BROWSER
+}
+
+type SipAccountPageResponse {
+  status: Boolean
+  code: Int
+  message: String
+  content: [SipAccountType]
+  page: PageObject
+}
+
+input SipAccountFilterInput {
+  uid: UUID
+  kind: SipAccountKindChoices
+  active: Boolean
+
+  """Free text across SIP id and display name"""
+  search: String
+}
+
 type SystemSettingResponse {
   status: Boolean
   code: Int
@@ -266,19 +582,6 @@ type AttachmentDefinitionType {
   description: LocalizedType
   allowedExtensions: [String]
 }
-
-"""
-Leverages the internal Python implementation of UUID (uuid.UUID) to provide native UUID objects
-in fields, resolvers and input.
-"""
-scalar UUID
-
-"""
-The `DateTime` scalar type represents a DateTime
-value as specified by
-[iso8601](https://en.wikipedia.org/wiki/ISO_8601).
-"""
-scalar DateTime
 
 """A translated string in both supported languages."""
 type LocalizedType {
@@ -394,69 +697,6 @@ enum AttachmentsAttachmentScanStatusChoices {
 
   """UNSCANNED"""
   UNSCANNED
-}
-
-type PageObject {
-  number: Int
-  hasNextPage: Boolean
-  hasPreviousPage: Boolean
-  currentPageNumber: Int
-  nextPageNumber: Int
-  previousPageNumber: Int
-  numberOfPages: Int
-  itemsPerPage: Int
-  totalElements: Int
-  pagesNumberArray: [Int]
-}
-
-input SearchDataDto {
-  pageableParam: PageableParam!
-  searchCombinationType: SearchCombinationType
-  searchFields: [SearchFieldsDto]
-}
-
-input PageableParam {
-  """1-based page number"""
-  pageNumber: Int!
-
-  """Page size"""
-  itemsPerPage: Int!
-
-  """Field to sort by"""
-  sortBy: String = "id"
-
-  """ASC or DESC"""
-  sortDirection: String = "DESC"
-}
-
-"""An enumeration."""
-enum SearchCombinationType {
-  AND
-  OR
-}
-
-input SearchFieldsDto {
-  fieldName: String!
-  searchType: SearchOperationType!
-  fieldValue: String
-  fieldValues: [String]
-}
-
-"""An enumeration."""
-enum SearchOperationType {
-  Equals
-  NotEqual
-  GreaterThan
-  GreaterThanEqual
-  LessThan
-  LessThanEqual
-  Between
-  Like
-  NotLike
-  In
-  NotIn
-  IsNull
-  IsNotNull
 }
 
 input AttachmentFilterInput {
@@ -967,146 +1207,6 @@ type LoggedInUserType {
   restrictionCode: Int
 }
 
-type UserType {
-  lastLogin: DateTime
-  uid: UUID!
-  email: String!
-  pendingEmail: String!
-  firstName: String!
-  middleName: String!
-  lastName: String!
-  phone: String!
-  gender: UsersUserGenderChoices
-  photo: String!
-  dateOfBirth: Date
-  accountType: AccountTypeChoices
-  authProvider: AuthProviderChoices
-  isActive: Boolean!
-
-  """May sign in to the Django admin site."""
-  isStaff: Boolean!
-
-  """Email address proven (code or link)."""
-  isVerified: Boolean!
-
-  """Phone proven (code sent by SMS)."""
-  phoneVerified: Boolean!
-  accountStatus: AccountStatusChoices
-  mfaEnabled: Boolean!
-
-  """The next sign-in must set a new password."""
-  mustChangePassword: Boolean!
-  passwordChangedAt: DateTime
-  invitedAt: DateTime
-  dateJoined: DateTime!
-  updatedAt: DateTime
-  deleted: Boolean!
-  fullName: String
-
-  """Roles currently granted to the user"""
-  roles: [RoleType]
-
-  """True when every required profile field is filled."""
-  isProfileComplete: Boolean
-
-  """Required profile fields still blank (empty = complete)."""
-  missingProfileFields: [String]
-
-  """Consent documents whose current version is not yet accepted."""
-  pendingConsents: [String]
-
-  """How many unused two-factor recovery codes are left."""
-  mfaRecoveryCodesRemaining: Int
-
-  """
-  False for external and directory accounts — they have no local password.
-  """
-  hasPassword: Boolean
-
-  """Created by an administrator and not yet activated by its owner."""
-  invitationPending: Boolean
-}
-
-"""An enumeration."""
-enum UsersUserGenderChoices {
-  """MALE"""
-  MALE
-
-  """FEMALE"""
-  FEMALE
-}
-
-"""
-The `Date` scalar type represents a Date
-value as specified by
-[iso8601](https://en.wikipedia.org/wiki/ISO_8601).
-"""
-scalar Date
-
-"""An enumeration."""
-enum AccountTypeChoices {
-  System
-  Internal
-  External
-}
-
-"""An enumeration."""
-enum AuthProviderChoices {
-  DB
-  LDAP
-  GOOGLE
-  OIDC
-}
-
-"""An enumeration."""
-enum AccountStatusChoices {
-  ACTIVE
-  SUSPENDED
-  BLOCKED
-}
-
-type RoleType {
-  uid: UUID!
-  createdAt: DateTime!
-  active: Boolean!
-  name: String!
-  description: String!
-
-  """System roles cannot be edited or deleted"""
-  isSystem: Boolean!
-  permissions: [PermissionType]
-  permissionCount: Int
-
-  """People who currently hold this role."""
-  userCount: Int
-}
-
-"""
-A capability as the role editor shows it: short name, plain-language
-description and a weight (VIEW / CHANGE / DECIDE).
-"""
-type PermissionType {
-  uid: UUID!
-  createdAt: DateTime!
-  code: String!
-  name: String!
-  description: String!
-  group: PermissionGroupType
-
-  """
-  VIEW = look only · CHANGE = create/edit/act · DECIDE = approve/publish/delete/grant access (high impact).
-  """
-  accessLevel: String
-}
-
-type PermissionGroupType {
-  uid: UUID!
-  createdAt: DateTime!
-  name: String!
-  description: String!
-  permissions: [PermissionType]
-}
-
 type SignInProviderResponse {
   status: Boolean
   code: Int
@@ -1457,6 +1557,25 @@ type RegistrationStatusType {
 
 """The unified root mutation, composed from every app's Mutation."""
 type Mutation {
+  """Create or update a team. permissions=['can_manage_teams']"""
+  saveTeam(input: TeamInput!): TeamResponse
+
+  """Remove a team. permissions=['can_manage_teams']"""
+  deleteTeam(uid: UUID!): TeamResponse
+
+  """
+  Create or update a SIP account. permissions=['can_manage_sip_accounts']
+  """
+  saveSipAccount(input: SipAccountInput!): SipAccountResponse
+
+  """
+  Switch a SIP account on or off. permissions=['can_manage_sip_accounts']
+  """
+  setSipAccountActive(active: Boolean!, uid: UUID!): SipAccountResponse
+
+  """Remove a SIP account. permissions=['can_manage_sip_accounts']"""
+  deleteSipAccount(uid: UUID!): SipAccountResponse
+
   """permissions=['can_manage_system_settings']"""
   updateSystemSetting(key: String!, value: GenericScalar!): SystemSettingResponse
 
@@ -1659,6 +1778,42 @@ type Mutation {
 
   """permissions=['can_assign_user_roles']"""
   assignRolesToUser(input: AssignRolesInput!): UserResponse
+}
+
+input TeamInput {
+  """Required when updating"""
+  uid: UUID
+
+  """Required when creating"""
+  name: String
+  description: String
+
+  """Replaces the supervisors when given"""
+  supervisorUids: [UUID]
+
+  """Replaces the agents when given"""
+  agentUids: [UUID]
+}
+
+input SipAccountInput {
+  """Required when updating"""
+  uid: UUID
+
+  """Required when creating: endpoint id and SIP username"""
+  sipId: String
+
+  """Required when creating"""
+  kind: SipAccountKindChoices
+
+  """At least 12 characters; left out on create = generated"""
+  password: String
+  displayName: String
+
+  """Comma-separated, e.g. ulaw,alaw; empty = the kind's default"""
+  codecs: String
+
+  """Dialplan context; empty = the default"""
+  context: String
 }
 
 input AttachmentDefinitionInput {

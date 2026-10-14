@@ -25,6 +25,8 @@ OPTIONAL_MODULES = ()
 
 # Your business apps. `make app name=<name>` adds a line here.
 PROJECT_MODULES = (
+    "apps.telephony",
+    "apps.teams",
     # <scaffold:project-modules>
 )
 

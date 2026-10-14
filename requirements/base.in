@@ -56,3 +56,6 @@ openpyxl>=3.1,<4
 # ── project ── AlgoDial
 # brain: ARI client (REST + WebSocket)
 aiohttp>=3.14,<4
+# PJSIP realtime tables: Asterisk's own Alembic scripts (contrib/ast-db-manage)
+alembic>=1.16,<2
+sqlalchemy>=2.0,<2.1

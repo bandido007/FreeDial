@@ -114,6 +114,8 @@ OPTIONAL_APPS: list[str] = []
 # Your business apps. `make app name=<name>` adds a line here.
 PROJECT_APPS: list[str] = [
     "brain",  # project: call control, lives in brain/ (not apps/)
+    "apps.telephony",
+    "apps.teams",
     # <scaffold:project-apps>
 ]
 
@@ -678,3 +680,14 @@ ARI_APP = env("ARI_APP", default="algodial")
 BUS_REDIS_URL = env("BUS_REDIS_URL", default="redis://127.0.0.1:6392/4")
 BUS_COMMANDS_STREAM = env("BUS_COMMANDS_STREAM", default="algodial:commands")
 BUS_EVENTS_STREAM = env("BUS_EVENTS_STREAM", default="algodial:events")
+
+# PJSIP realtime: a SIP account saved here is rows Asterisk reads live (apps.telephony).
+# The tables come from Asterisk's own Alembic scripts in its source tree.
+ASTERISK_SRC_DIR = env("ASTERISK_SRC_DIR", default=str(Path.home() / "asterisk-22"))
+PJSIP_REALM = env("PJSIP_REALM", default="asterisk")
+PJSIP_DEFAULT_CONTEXT = env("PJSIP_DEFAULT_CONTEXT", default="lab")
+PJSIP_TRANSPORT_SOFTPHONE = env("PJSIP_TRANSPORT_SOFTPHONE", default="transport-udp")
+PJSIP_TRANSPORT_BROWSER = env("PJSIP_TRANSPORT_BROWSER", default="transport-wss")
+# The read-only database role Asterisk logs in with (res_pgsql.conf); `manage.py pjsip_schema` creates it.
+ASTERISK_DB_USER = env("ASTERISK_DB_USER", default="asterisk")
+ASTERISK_DB_PASSWORD = env("ASTERISK_DB_PASSWORD", default="")
