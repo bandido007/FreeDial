@@ -11,25 +11,26 @@ make up          # PostgreSQL, Redis, Mailpit
 make dev         # web, brain, writer, live relay, recordings, AI worker
 ```
 
-- Agent page: http://127.0.0.1:8000/agent/ (agent: `agent1@example.org`, `LAB_AGENT_PASSWORD` in `.env`;
-  demo agents: `<name>@example.org`, `DEMO_PASSWORD`).
+- Agent page: http://127.0.0.1:8000/agent/ (agent 8003: `agent8003@example.org`, `LAB_AGENT_8003_PASSWORD`
+  in `.env`; agent 7001: `agent1@example.org`, `LAB_AGENT_PASSWORD`; demo agents: `<name>@example.org`,
+  `DEMO_PASSWORD`).
 - Supervisor page: http://127.0.0.1:8000/supervisor/ (`asha@example.org` or `daudi@example.org`, `DEMO_PASSWORD`).
-- Caller: Zoiper (1001 on this laptop, 1002 on the phone). Lab entry **899** goes straight to queue
-  Support; **800** (Swahili) and **802** (English) are answered by Jambo AI first.
+- Caller: Zoiper (1001 on this laptop, 1002 on the phone). **800** goes straight to queue Support
+  (agents 7001, 8003, 9003); **803** (Swahili) and **802** (English) are answered by Jambo AI first.
 
 ## Agent tasks (time each one)
 
 | # | Task | What should happen |
 | --- | --- | --- |
 | A1 | Sign in and go Ready | The state bar's button says **Go Ready** (white, filled). One click, or R. The bar turns green |
-| A2 | Take a call from 899, put it on hold, resume | Answer with Enter. H holds ("On hold", caller hears music), H again resumes |
+| A2 | Take a call from 800, put it on hold, resume | Answer with Enter. H holds ("On hold", caller hears music), H again resumes |
 | A3 | Mute, send a digit | M mutes; K opens the keypad |
 | A4 | Transfer to Claims (consult a colleague, then complete) | T opens transfer. The state bar says "Consulting <name>; caller on hold". Complete hands the caller over |
 | A5 | Hang up and wrap up with a code | **Shift+E** hangs up (E alone does nothing). Choose a code; Finish and go Ready |
 | A6 | Change that wrap-up code | Below the call zone: "Last call's wrap-up code", changeable for 2 minutes |
 | A7 | Go Not Ready for lunch | Button says **Go Not Ready**; it opens the reasons; one click on Lunch |
 | A8 | During a call, choose Not Ready after this call | The button says so; after wrap-up no new call is offered |
-| A9 | Call 800, ask a question, then ask for a person | Jambo AI answers, then hands over. Your incoming call shows "Why they called (AI)" and the reason. Try **Summary wrong** / **Wrong queue** |
+| A9 | Call 803, ask a question, then ask for a person | Jambo AI answers, then hands over. Your incoming call shows "Why they called (AI)" and the reason. Try **Summary wrong** / **Wrong queue** |
 | A10 | Switch to Swahili (SW) during a call | Every label changes at once; the call goes on. Note any wrong or unclear word in SWAHILI_REVIEW.md |
 
 ## Failure tasks
@@ -40,7 +41,7 @@ make dev         # web, brain, writer, live relay, recordings, AI worker
 | F2 | Turn Wi-Fi off for 10 s during a call, then on | "Connection lost. Your call continues…", then it clears by itself |
 | F3 | Consult a colleague who does not answer | "<name> did not answer. You are back with the caller." |
 | F4 | Let an offer ring out | You become Not responding; the message says to press Go Ready |
-| F5 | Stop the brain (`make dev`, Ctrl-C only the brain, or stop all), call 899 | The caller still reaches the plain Queue() fallback |
+| F5 | Stop the brain (`make dev`, Ctrl-C only the brain, or stop all), call 800 | The caller still reaches the plain Queue() fallback |
 
 ## Supervisor tasks
 

@@ -50,7 +50,7 @@ def management_pages():
         "team": Team.objects.get(name="Front Desk"),
         "queue": Queue.objects.get(name="Claims"),
         "rules": SkillRuleSet.objects.get(name="R_CLAIMS"),
-        "entry": EntryPoint.objects.get(number="800"),
+        "entry": EntryPoint.objects.get(number="803"),
         "ai": AiAgent.objects.get(name="Jambo AI"),
     }
     paths = {

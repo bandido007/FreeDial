@@ -210,7 +210,7 @@ def test_t8_rehema_never_gets_an_english_call_even_in_the_last_step():
 # T9 ────────────────────────────────────────────────────────────────────────
 def test_t9_an_ai_tag_that_is_not_configured_is_rejected_and_the_call_goes_to_general():
     centre = Centre(ready={})
-    cid, _, _ = centre.call("800", now=0)
+    cid, _, _ = centre.call("803", now=0)
     centre.core.on_command(m.ROUTING_UPDATE, {"call": cid, "source": "ai", "queue": "Claims"}, "c1", 1)
     assert centre.core.calls[cid].queue == "claims"
     actions = centre.core.on_command(
@@ -223,7 +223,7 @@ def test_t9_an_ai_tag_that_is_not_configured_is_rejected_and_the_call_goes_to_ge
 
 def test_t9_a_valid_ai_ticket_is_applied_and_logged():
     centre = Centre(ready={})
-    cid, _, _ = centre.call("800", now=0)
+    cid, _, _ = centre.call("803", now=0)
     actions = centre.core.on_command(
         m.ROUTING_UPDATE,
         {"call": cid, "source": "ai", "queue": "Claims", "language": "english", "skills": {"claims": 5}},

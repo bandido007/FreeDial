@@ -144,12 +144,13 @@ QUEUES: dict[str, dict[str, Any]] = {
     ),
 }
 
-# (number, queue, language, priority or None = the queue's, fallback queue). On 800 and 802 the AI
+# (number, queue, language, priority or None = the queue's, fallback queue). On 802 and 803 the AI
 # agent "Jambo AI" answers first (seed_demo, apps/ai/demo.py); the routing tests start at the queue.
+# 800 is not the demo's: it is the lab's Support line (lab/agent_login.py).
 ENTRIES = [
-    ("800", "General", "swahili", None, "General"),
     ("801", "Providers", "swahili", 10, "Claims"),
     ("802", "General", "english", None, "General"),
+    ("803", "General", "swahili", None, "General"),
 ]
 
 

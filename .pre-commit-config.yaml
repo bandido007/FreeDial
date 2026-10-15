@@ -5,9 +5,9 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: (\.patch$|/vendor/)  # project: patch context lines; vendored files stay as published
+        exclude: (\.patch$|/vendor/|^docs/AlgoDial Logo\.html$)  # project: patch context lines; vendored files and the logo bundle stay as published
       - id: end-of-file-fixer
-        exclude: /vendor/  # project: vendored files stay byte-for-byte as published
+        exclude: (/vendor/|^docs/AlgoDial Logo\.html$)  # project: vendored files and the logo bundle stay byte-for-byte as published
       - id: check-yaml
       - id: check-json
       - id: check-toml

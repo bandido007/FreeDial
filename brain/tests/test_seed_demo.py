@@ -78,12 +78,12 @@ def test_seed_demo_gives_the_brain_the_demo_centre_and_is_safe_to_run_twice():
     )
     assert seeded == expected_by_name
 
-    # M8: Jambo AI answers 800 and 802 first, and may send callers to the five queues.
+    # M8: Jambo AI answers 802 and 803 first, and may send callers to the five queues.
     from apps.ai.models import AiAgent
 
     [jambo] = AiAgent.objects.all()
     config = load_config()
-    assert {n for n, e in config.entries.items() if e.ai_agent == str(jambo.uid)} == {"800", "802"}
+    assert {n for n, e in config.entries.items() if e.ai_agent == str(jambo.uid)} == {"802", "803"}
     assert [route.queue.name for route in jambo.routes.all()] == [
         "Membership",
         "Claims",
@@ -99,3 +99,19 @@ def test_demo_agents_sign_in_with_the_demo_password(sign_in):
     call_command("seed_demo", password=PASSWORD)
     status, body = sign_in("juma@example.org", PASSWORD)
     assert status == 200 and "can_take_calls" in body["user"]["authorities"]
+
+
+@pytest.mark.django_db(transaction=True)
+def test_the_old_demo_800_is_given_back_for_the_support_line():
+    """Before 15 Oct 2026 the demo used 800; now 800 is the lab's Support line (lab/agent_login.py)."""
+    from apps.queues import services as queues
+
+    general = queues.save_queue(actor=None, name="General")
+    queues.save_entry_point(actor=None, number="800", queue=general, name="Demo General")
+    support = queues.save_queue(actor=None, name="Support")
+    queues.save_entry_point(actor=None, number="899", queue=support, name="Lab tests")
+
+    call_command("seed_demo", password=PASSWORD)
+
+    assert sorted(EntryPoint.objects.values_list("number", flat=True)) == ["801", "802", "803", "899"]
+    assert EntryPoint.all_objects.get(number="800").deleted

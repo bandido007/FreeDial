@@ -1,6 +1,6 @@
 
-; AlgoDial: PJSIP objects from pjsip.conf first (1001, 1002, transports),
-; then from PostgreSQL (accounts made in AlgoDial). Realtime is read on every
+; AlgoDial: PJSIP objects from pjsip.conf first (the transports),
+; then from PostgreSQL (every account, 1001 and 1002 included). Realtime is read on every
 ; request, so a new or deleted account takes effect without a reload.
 [res_pjsip]
 endpoint=config,pjsip.conf,criteria=type=endpoint

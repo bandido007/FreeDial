@@ -72,6 +72,19 @@ Space and shape:
 
 Light and dark both ship; default follows the system, and the agent can switch.
 
+Logo ("Decision Dial", chosen from three concepts in `docs/AlgoDial Logo.html`, 15 Oct 2026):
+- The symbol is a ring of rules with an opening at 45°. A needle runs from the centre hub to a bead in that opening: the one right agent, chosen inside the rules. It uses both meanings of "dial".
+- Colour: the symbol is `--accent` (#2E6E73; dark #7CC3C8) and the word is `--ink`, in Atkinson Hyperlegible Next Bold. Only the state bar uses colour to carry meaning.
+- In the pages, the symbol is inline SVG (`templates/algodial/logo_symbol.html`, classes `.ui-logo*` in `ui.css` and `agentdesk/app.css`), so it follows the theme switch. It is 28 px in headers and 40 px on sign-in.
+- Spacing: the gap between symbol and word is x, the bead's diameter (28% of the symbol). Keep x of clear space on every side.
+- Minimum size: never smaller than 24 px on screen or 8 mm in print. The lockup is never narrower than 110 px.
+- Favicon: `static/algodial/favicon.svg`, a separate 16 px drawing. Its strokes are snapped to whole pixels, its opening is wider and it has no hub. It switches to the dark colour by itself.
+- Files for slides and print are in `static/algodial/brand/`:
+  - `symbol.svg` and `symbol-dark.svg`
+  - `symbol-mono.svg`, which takes the text colour of wherever it is placed
+  - `lockup.svg`
+- Before print, convert the lockup's text to outlines and run a trademark search.
+
 ## 4. Agent page
 
 Target sizes: works at 1366x768 without horizontal scrolling; uses extra width at 1920.

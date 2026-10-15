@@ -19,11 +19,13 @@ from apps.teams import services as teams
 from apps.teams.models import Team
 from brain.sim import demo
 
+OLD_NUMBER, OLD_QUEUE = "800", "General"  # the demo's Swahili line before it moved to 803
+
 
 class Command(BaseCommand):
     help = (
         "Seed the demo contact centre of docs/ROUTING_DESIGN.md section 3: skills, agents and their users, "
-        "teams, skill rule sets, queues and entry points 800-802. Safe to run again: it brings everything "
+        "teams, skill rule sets, queues and entry points 801-803. Safe to run again: it brings everything "
         "back to the spec."
     )
 
@@ -171,6 +173,10 @@ class Command(BaseCommand):
         return ai
 
     def _entries(self, ai: AiAgent):
+        # The demo's Swahili line was 800 until 15 Oct 2026; it is 803 now and 800 is the lab's
+        # Support line (lab/agent_login.py). Give back the old demo row, never anyone else's.
+        for old in EntryPoint.objects.filter(number=OLD_NUMBER, name=f"Demo {OLD_QUEUE}"):
+            old.delete()
         for number, queue, language, priority, fallback in demo.ENTRIES:
             values = {
                 "queue": Queue.objects.get(name__iexact=queue),
@@ -213,10 +219,10 @@ class Command(BaseCommand):
             f"  supervisors (Supervisor role, /supervisor/): {', '.join(f'{s.lower()}@example.org' for s in demo.TEAMS.values())}"
         )
         lines.append(
-            "  entry points: 800 General (swahili), 801 Providers (swahili, priority 10), 802 General (english)"
+            "  entry points: 801 Providers (swahili, priority 10), 802 General (english), 803 General (swahili)"
         )
         lines.append(
-            f"  AI agent {ai_demo.NAME} answers 800 and 802 first (needs `manage.py run_ai`; without it, "
+            f"  AI agent {ai_demo.NAME} answers {' and '.join(ai_demo.ENTRY_NUMBERS)} first (needs `manage.py run_ai`; without it, "
             "callers reach General after 10 s)"
         )
         lines.append("  every demo user's password is DEMO_PASSWORD in .env")

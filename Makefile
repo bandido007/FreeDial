@@ -189,7 +189,7 @@ dev: ## Web (with WebSockets), brain, writer, live relay, recordings keeper and 
 ai-bakeoff: ## Rank OpenAI's speech, language and voice models for the AI agent (writes docs/AI_BAKEOFF.md)
 	$(MANAGE) ai_bakeoff
 
-seed-demo: ## The demo centre of docs/ROUTING_DESIGN.md (agents, skills, rule sets, queues, 800-802); safe to rerun
+seed-demo: ## The demo centre of docs/ROUTING_DESIGN.md (agents, skills, rule sets, queues, 801-803); safe to rerun
 	$(MANAGE) seed_demo
 
 sim: ## A virtual busy hour through the real brain core, every queue strategy compared (make sim a="--skills")
@@ -198,7 +198,7 @@ sim: ## A virtual busy hour through the real brain core, every queue strategy co
 agentcheck: ## M3, M5-M8 in real browsers: agent call, recording, supervisor, AI handoff, every transfer (stop your brain first)
 	$(PY) lab/agentpage.py
 
-agent-login: ## A lab agent to sign in on /agent/ with (email and password go into .env)
+agent-login: ## Lab agents 7001, 8003, 9003 in queue Support (800), phones 1001/1002 as SIP accounts (passwords into .env)
 	$(PY) lab/agent_login.py
 
 calltests: ## Call tests 1-20 on the real lab with scripted phones (stop your brain first; make calltests t="1 4")

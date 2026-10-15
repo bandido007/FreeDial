@@ -70,9 +70,9 @@ select,
   align-items: center;
   color: var(--ink) !important;
   font-size: 20px;
-  font-weight: 650;
+  font-weight: 700;
 }
-.workspace-brand span {
+.workspace-brand small {
   font-size: 13px;
   color: var(--muted);
   border-left: 1px solid var(--line);
@@ -629,7 +629,7 @@ th {
   #content {
     padding: 16px;
   }
-  .workspace-brand span {
+  .workspace-brand small {
     display: none;
   }
   .report-heading {

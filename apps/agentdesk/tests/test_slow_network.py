@@ -21,7 +21,13 @@ pytestmark = pytest.mark.django_db
 
 SLOW_3G = {"offline": False, "latency": 400, "downloadThroughput": 50_000, "uploadThroughput": 50_000}
 BUDGET_SECONDS = 3.0
-TYPES = {".js": "application/javascript", ".css": "text/css", ".ttf": "font/ttf", ".woff2": "font/woff2"}
+TYPES = {
+    ".js": "application/javascript",
+    ".css": "text/css",
+    ".ttf": "font/ttf",
+    ".woff2": "font/woff2",
+    ".svg": "image/svg+xml",
+}
 
 
 def serve(page_html: bytes):

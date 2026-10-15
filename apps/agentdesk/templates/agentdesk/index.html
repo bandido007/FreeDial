@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AlgoDial agent</title>
-    <link rel="icon" href="data:," />
+    <link rel="icon" href="{% static 'algodial/favicon.svg' %}" type="image/svg+xml" />
     <link rel="stylesheet" href="{% static 'agentdesk/app.css' %}" />
     {{ config|json_script:"desk-config" }}
     <script src="{% static 'agentdesk/app.js' %}" defer></script>
@@ -50,7 +50,7 @@
       </defs>
     </svg>
     <section id="signin" class="signin-panel" hidden>
-      <h1>AlgoDial</h1>
+      <h1 class="ui-logo ui-logo-large">{% include "algodial/logo_symbol.html" %}AlgoDial</h1>
       <p class="muted" data-i18n="Sign in to your agent workspace"></p>
       <form id="signin-form" autocomplete="on">
         <label class="field" for="email"
@@ -71,7 +71,7 @@
     <section id="desk" hidden>
       <header class="top">
         <div class="brand">
-          <svg aria-hidden="true"><use href="#i-phone" /></svg><strong>AlgoDial</strong
+          <span class="ui-logo">{% include "algodial/logo_symbol.html" %}<strong>AlgoDial</strong></span
           ><small data-i18n="Agent workspace"></small>
         </div>
         <div class="top-actions">

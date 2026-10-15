@@ -378,7 +378,7 @@ def test_a_lost_connection_says_so_and_clears_when_it_is_back(page):
 
 
 def test_a_consult_nobody_answers_says_who_and_puts_you_back(page):
-    """UX_PRINCIPLES.md section 4: "Peter did not answer. You are back with the caller.\" """
+    """UX_PRINCIPLES.md section 4 ("Peter did not answer. You are back with the caller.")."""
     page.evaluate("__deskTest.ready(); __deskTest.offer()")
     page.keyboard.press("Enter")
     page.click("#transfer-toggle")

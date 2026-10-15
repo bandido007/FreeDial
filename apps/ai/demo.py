@@ -35,7 +35,7 @@ GREETING_ENGLISH = (
 
 SENSITIVE_TOPICS = ("overdose", "sumu")
 
-ENTRY_NUMBERS = ("800", "802")  # the AI answers these first (ROUTING_DESIGN.md, entry points)
+ENTRY_NUMBERS = ("802", "803")  # the AI answers these first (ROUTING_DESIGN.md, entry points)
 
 # (queue, when, topic skill or None, min level)
 ROUTES = (

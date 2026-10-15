@@ -6,10 +6,16 @@ Emails and passwords live in .env (git-ignored); a missing password is generated
 written there, and running this again resets each user to the password in .env.
 
   agent 7001 "Agent One"          LAB_AGENT_EMAIL / LAB_AGENT_PASSWORD               for you
+  agent 8003 "Agent 8003"         LAB_AGENT_8003_EMAIL / LAB_AGENT_8003_PASSWORD     for you
   agent 9003 "Lab browser agent"  LAB_CHECK_AGENT_EMAIL / LAB_CHECK_AGENT_PASSWORD   make agentcheck uses it
 
-Both have the Agent role and sit in queue Support (lab entry point 899). A lab supervisor
-(LAB_SUPERVISOR_EMAIL / LAB_SUPERVISOR_PASSWORD) supervises them as team "Lab".
+All have the Agent role and sit in queue Support, which entry point 800 rings (899 is the
+call tests' number for the same queue). A lab supervisor (LAB_SUPERVISOR_EMAIL /
+LAB_SUPERVISOR_PASSWORD) supervises them as team "Lab".
+
+The two Zoiper phones, 1001 (laptop) and 1002 (phone), are SIP accounts in AlgoDial's database,
+with the passwords they already had (LAB_PHONE_1001_PASSWORD / LAB_PHONE_1002_PASSWORD; read
+once from /etc/asterisk/pjsip.conf when .env has none). They call 800 as customers.
 """
 import os
 import re
@@ -31,14 +37,23 @@ from django.contrib.auth import get_user_model  # noqa: E402
 from apps.agents.models import Agent, NotReadyReason, WrapupCode  # noqa: E402
 from apps.queues import services as queues  # noqa: E402
 from apps.queues.models import EntryPoint, Queue  # noqa: E402
+from apps.telephony import services as telephony  # noqa: E402
+from apps.telephony.models import SipAccount  # noqa: E402
 from apps.rbac import selectors as rbac_selectors  # noqa: E402
 from apps.rbac import services as rbac  # noqa: E402
 
 # (env prefix, default email, agent number, agent name, first name, last name, phone)
 AGENTS = [
     ("LAB_AGENT", "agent1@example.org", "7001", "Agent One", "Agent", "One", "+255700007001"),
+    ("LAB_AGENT_8003", "agent8003@example.org", "8003", "Agent 8003", "Agent", "8003", "+255700008003"),
     ("LAB_CHECK_AGENT", "lab.agent@example.org", "9003", "Lab browser agent", "Lab", "Agent", "+255700000903"),
 ]
+
+SUPPORT_ENTRY = "800"  # the lab's Support line: what 800 did in Asterisk before AlgoDial (Queue(support))
+
+# (SIP id, caller ID name): the Zoiper phones that were in /etc/asterisk/pjsip.conf
+PHONES = [("1001", "Laptop"), ("1002", "Phone")]
+PJSIP_CONF = Path("/etc/asterisk/pjsip.conf")
 
 WRAPUP_CODES = [
     "Sale",
@@ -73,12 +88,56 @@ def set_env(name, value):
 
 
 def support_queue():
+    """Queue Support, and entry point 800 straight to it: no AI, no language, no fallback.
+
+    800 was the demo's Swahili line until 15 Oct 2026 (now 803); whatever it points at, it is
+    taken back for Support."""
     support = Queue.objects.filter(name__iexact="Support").first()
     if support is None:
         support = queues.save_queue(actor=None, name="Support")
-    if not EntryPoint.objects.filter(number="800").exists():
-        queues.save_entry_point(actor=None, number="800", queue=support, name="Lab entry")
+    entry = EntryPoint.objects.filter(number=SUPPORT_ENTRY).first()
+    if entry is None:
+        queues.save_entry_point(actor=None, number=SUPPORT_ENTRY, queue=support, name="Support")
+        entry = EntryPoint.objects.get(number=SUPPORT_ENTRY)
+    wanted = {"queue": support, "name": "Support", "ai_agent": None, "language": None,
+              "priority": None, "fallback_queue": None}
+    if any(getattr(entry, field) != value for field, value in wanted.items()):
+        for field, value in wanted.items():
+            setattr(entry, field, value)
+        entry.save()  # tells the brain (config.changed)
     return support
+
+
+def pjsip_conf_password(sip_id):
+    """The password a phone has in /etc/asterisk/pjsip.conf, so Zoiper keeps working unchanged."""
+    try:
+        text = PJSIP_CONF.read_text()
+    except OSError:
+        return ""
+    for section in re.split(r"^(?=\[)", text, flags=re.MULTILINE):
+        if section.startswith(f"[{sip_id}]") and re.search(r"^type\s*=\s*auth", section, re.MULTILINE):
+            match = re.search(r"^password\s*=\s*(\S+)", section, re.MULTILINE)
+            return match.group(1) if match else ""
+    return ""
+
+
+def ensure_phones():
+    """1001 and 1002 as SIP accounts in AlgoDial's database. Returns [(sip_id, name, password)]."""
+    made = []
+    for sip_id, name in PHONES:
+        key = f"LAB_PHONE_{sip_id}_PASSWORD"
+        password = env_value(key) or pjsip_conf_password(sip_id) or telephony.generate_password()
+        set_env(key, password)
+        account = SipAccount.objects.filter(sip_id=sip_id).first()
+        if account is None:
+            telephony.create_sip_account(
+                actor=None, sip_id=sip_id, kind="SOFTPHONE", password=password,
+                display_name=name, codecs="ulaw", context="lab",
+            )
+        else:
+            telephony.update_sip_account(uid=account.uid, actor=None, password=password, display_name=name)
+        made.append((sip_id, name, password))
+    return made
 
 
 def ensure_agent(prefix, default_email, number, name, first, last, phone):
@@ -133,7 +192,7 @@ def ensure_supervisor():
         user.is_active = True
         user.save()
     rbac.grant_role(user, rbac_selectors.get_role_by_name("Supervisor"))
-    agent_users = [agent.user for agent in Agent.objects.filter(number__in=["7001", "9003"]) if agent.user]
+    agent_users = [agent.user for agent in Agent.objects.filter(number__in=[spec[2] for spec in AGENTS]) if agent.user]
     team = Team.objects.filter(name="Lab").first()
     if team is None:
         teams.create_team(actor=None, name="Lab", supervisors=[user], agents=agent_users)
@@ -152,13 +211,16 @@ def ensure_pick_lists():
 def main():
     rbac.sync_catalogue()
     ensure_pick_lists()
-    print("Agent page: http://127.0.0.1:8000/agent/  (queue Support, entry point 800)")
+    print("Agent page: http://127.0.0.1:8000/agent/  (queue Support: call 800)")
     for spec in AGENTS:
         email, password, agent = ensure_agent(*spec)
         print(f"  agent {agent.number} {agent.name!r:22} {email:26} password {password}")
     email, password = ensure_supervisor()
-    print(f"Supervisor page: http://127.0.0.1:8000/supervisor/  (team Lab: agents 7001, 9003)")
+    print(f"Supervisor page: http://127.0.0.1:8000/supervisor/  (team Lab: agents {', '.join(spec[2] for spec in AGENTS)})")
     print(f"  {email:26} password {password}")
+    print("Phones (SIP accounts in the database, transport-udp port 5062):")
+    for sip_id, name, password in ensure_phones():
+        print(f"  {sip_id} {name!r:9} password {password}")
     print(f"Wrap-up codes: {', '.join(WRAPUP_CODES)}")
     print(f"Not Ready reasons: {', '.join(NOT_READY_REASONS)}")
 

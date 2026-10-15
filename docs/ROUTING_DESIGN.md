@@ -124,9 +124,12 @@ Supervisors: Asha (Front Desk), Daudi (Claims & Providers).
 
 | Number | Destination | Default language | Priority | If the AI or brain fails |
 | --- | --- | --- | --- | --- |
-| 800 | AI agent "Jambo AI" (may route to Membership, Claims, Escalations, General) | swahili | queue default | General |
 | 801 | Providers queue (provider hotline, no AI) | swahili | 10 | Claims |
 | 802 | AI agent "Jambo AI" | english | queue default | General |
+| 803 | AI agent "Jambo AI" (may route to Membership, Claims, Escalations, General) | swahili | queue default | General |
+
+800 is not part of the demo: on the lab it is the Support line (queue Support, no AI; `make agent-login`),
+as it was in Asterisk before AlgoDial. The demo's Swahili line was 800 until 15 October 2026.
 
 ## 4. Matcher tests (write these first)
 

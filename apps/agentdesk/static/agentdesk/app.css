@@ -162,11 +162,51 @@ time {
 }
 .brand strong {
   font-size: 20px;
-  font-weight: 650;
+  font-weight: 700;
 }
 .brand small {
   border-left: 1px solid var(--line);
   padding-left: 12px;
+}
+/* The logo (UI_DESIGN.md, "Logo"): the symbol in --accent, the word in --ink. The gap is the
+   bead's diameter (x, 28% of the symbol); never smaller than 24 px on screen. */
+.ui-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.ui-logo-symbol {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.ui-logo-large {
+  display: flex;
+  gap: 11px;
+}
+.ui-logo-large .ui-logo-symbol {
+  width: 40px;
+  height: 40px;
+}
+.ui-logo-ring,
+.ui-logo-needle {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 4;
+}
+.ui-logo-ring {
+  stroke-linecap: butt;
+}
+.ui-logo-needle {
+  stroke-linecap: round;
+}
+.ui-logo-dot {
+  fill: currentColor;
+  stroke: none;
 }
 .top-actions {
   display: flex;

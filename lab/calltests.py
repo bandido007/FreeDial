@@ -7,7 +7,7 @@ whole call; test 18 checks, by the tones each phone receives, that only the righ
 
 What it does:
   * makes sure the lab setup exists: SIP accounts lab-customer, lab-agent-a, lab-agent-b;
-    agents 9001 and 9002; queue "Support"; entry point 899 -> Support (800-802 are the demo centre)
+    agents 9001 and 9002; queue "Support"; entry point 899 -> Support (800 too, for people; 801-803 are the demo centre)
   * starts the brain itself (stop yours first: two brains on one app would fight),
     recording every decision to brain/sim/recordings/lab.jsonl (a full run starts it afresh;
     a run of some tests records to lab/calltests-partial.jsonl instead)

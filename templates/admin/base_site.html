@@ -8,11 +8,12 @@
 {% endblock %}
 {% block extrahead %}
   {{ block.super }}
+  <link rel="icon" href="{% static 'algodial/favicon.svg' %}" type="image/svg+xml">
   <script src="{% static 'algodial/ui.js' %}" defer></script>
   <script src="{% static 'algodial/admin.js' %}" defer></script>
 {% endblock %}
 {% block branding %}
-  <a class="workspace-brand" href="{% url 'admin:index' %}">AlgoDial <span>{% translate "Management workspace" %}</span></a>
+  <a class="workspace-brand" href="{% url 'admin:index' %}"><span class="ui-logo">{% include "algodial/logo_symbol.html" %}AlgoDial</span> <small>{% translate "Management workspace" %}</small></a>
 {% endblock %}
 {% block userlinks %}
   {% for link in workspace_links %}<a href="{{ link.url }}">{{ link.label }}</a> / {% endfor %}

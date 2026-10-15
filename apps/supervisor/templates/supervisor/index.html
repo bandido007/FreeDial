@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AlgoDial supervisor</title>
-    <link rel="icon" href="data:," />
+    <link rel="icon" href="{% static 'algodial/favicon.svg' %}" type="image/svg+xml" />
     <link rel="stylesheet" href="{% static 'algodial/ui.css' %}" />
     <link rel="stylesheet" href="{% static 'supervisor/app.css' %}" />
     {{ config|json_script:"desk-config" }}
@@ -14,7 +14,7 @@
   </head>
   <body>
     <section id="signin" class="ui-signin" hidden>
-      <h1>AlgoDial</h1>
+      <h1 class="ui-logo ui-logo-large">{% include "algodial/logo_symbol.html" %}AlgoDial</h1>
       <p class="ui-muted" data-i18n="Sign in to your supervisor workspace"></p>
       <form id="signin-form" autocomplete="on">
         <label class="ui-field" for="email"
@@ -33,7 +33,7 @@
     <section id="desk" hidden>
       <header class="ui-header">
         <a class="ui-brand" href="/supervisor/"
-          ><strong>AlgoDial</strong><small data-i18n="Supervisor workspace"></small
+          ><span class="ui-logo">{% include "algodial/logo_symbol.html" %}<strong>AlgoDial</strong></span><small data-i18n="Supervisor workspace"></small
         ></a>
         <div class="ui-header-actions">
           <a href="/admin/" id="management-link" hidden data-i18n="Management"></a><span id="me"></span>
