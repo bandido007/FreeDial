@@ -33,6 +33,7 @@ PROJECT_MODULES = (
     "apps.agentdesk",
     "apps.supervisor",
     "apps.reports",
+    "apps.setup",
     # <scaffold:project-modules>
 )
 

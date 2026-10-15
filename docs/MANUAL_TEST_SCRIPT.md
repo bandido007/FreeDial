@@ -53,6 +53,8 @@ make dev         # web, brain, writer, live relay, recordings, AI worker
 
 ## Check afterwards
 
+- Admin -> Setup guide: every item Done or Not used; confirm the hands-on tests there.
+
 - Admin -> Calls -> the calls you made: the stereo recording plays (customer on the left), the
   interaction shows the AI part (with transcript) and your part (code, notes).
 - Admin -> Reports -> Today: your calls, your time in each state, the AI's handoff reasons.

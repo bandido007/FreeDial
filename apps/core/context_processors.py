@@ -16,4 +16,6 @@ def workspace_navigation(request):
         {"can_monitor_calls", "can_whisper_calls", "can_barge_calls", "can_force_agent_state"}
     ):
         links.append({"label": "Supervisor workspace", "url": reverse("supervisor_page")})
+    if user.is_authenticated and user.is_staff and (all_access or "can_view_setup_guide" in codes):
+        links.append({"label": "Setup guide", "url": reverse("admin:setup_setupconfirmation_changelist")})
     return {"workspace_links": links}

@@ -739,3 +739,146 @@ th {
 #content .inline-group .tabular td select {
   max-width: none; /* "$language (the call's language)" must be readable whole */
 }
+
+/* Admin -> Setup guide (apps/setup): each item says its status in words; the colour only repeats it. */
+.setup-jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+.setup-progress {
+  font-size: 18px;
+  margin: 8px 0;
+}
+.setup-attention-count {
+  color: var(--notready);
+}
+.setup-bar {
+  width: min(480px, 100%);
+  height: 12px;
+  accent-color: var(--ready);
+}
+.setup-section {
+  margin-top: 24px;
+}
+.setup-section h3 {
+  font-size: 18px;
+  margin: 16px 16px 4px;
+}
+.setup-intro {
+  margin: 0 16px 8px;
+  color: var(--muted);
+}
+.setup-checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.setup-check {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: 16px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 80px;
+}
+.setup-check:target {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+.setup-status {
+  display: inline-flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-weight: 650;
+}
+.setup-done .setup-status {
+  color: var(--ready);
+}
+.setup-attention .setup-status {
+  color: var(--notready);
+}
+.setup-todo .setup-status {
+  color: var(--muted);
+}
+.setup-not_used .setup-status,
+.setup-not_used .setup-body {
+  color: var(--offline);
+}
+.setup-body p,
+.setup-body ul {
+  margin: 4px 0;
+}
+.setup-title {
+  font-size: 15px;
+}
+.setup-problems li {
+  color: var(--notready);
+}
+.setup-notes li {
+  color: var(--muted);
+}
+.setup-how span {
+  font-weight: 650;
+}
+.setup-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.setup-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+  margin: 8px 0;
+}
+.setup-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 600;
+}
+.setup-form input[type="text"] {
+  width: min(420px, 70vw);
+}
+.setup-manual {
+  margin-top: 40px;
+  max-width: 980px;
+}
+.setup-manual article {
+  margin: 32px 0;
+  scroll-margin-top: 80px;
+}
+.setup-manual h3 {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+.setup-manual p,
+.setup-manual li {
+  font-size: 15px;
+  line-height: 1.5;
+}
+.setup-manual table {
+  width: 100%;
+  margin: 12px 0;
+}
+.setup-manual td,
+.setup-manual th {
+  vertical-align: top;
+}
+.setup-toc ol {
+  columns: 2;
+  margin: 16px;
+}
+@media (max-width: 767px) {
+  .setup-check {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .setup-toc ol {
+    columns: 1;
+  }
+}

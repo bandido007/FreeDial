@@ -1,0 +1,433 @@
+{% extends "admin/base_site.html" %}
+{% comment %}Admin -> Setup guide (apps/setup/admin.py): the checklist, read live (apps/setup/checklist.py),
+then the user manual. Written for contact-centre managers and administrators, not developers.
+Never run Prettier on this file (it splits template tags).{% endcomment %}
+{% block breadcrumbs %}
+  <div class="breadcrumbs"><a href="{% url 'admin:index' %}">Home</a> &rsaquo; Setup guide</div>
+{% endblock %}
+{% block content %}
+<div id="content-main" class="setup-guide">
+  <nav class="setup-jump" aria-label="On this page">
+    <a href="#checklist">Setup checklist</a>
+    <a href="#manual">User manual</a>
+    <a href="#manual-troubleshooting">Troubleshooting</a>
+  </nav>
+
+  <section id="checklist" aria-labelledby="checklist-title">
+    <h2 id="checklist-title">Setup checklist</h2>
+    <p class="setup-progress">
+      <strong>{{ done }} of {{ counted }} done</strong>{% if attention %} &middot; <strong class="setup-attention-count">{{ attention }} need{{ attention|pluralize:"s," }} attention</strong>{% endif %}
+    </p>
+    <progress class="setup-bar" value="{{ done }}" max="{{ counted }}" aria-label="Checklist progress">{{ done }} of {{ counted }}</progress>
+    <p class="help">Checked again each time you open this page, from what is really set up and from the
+      call records. Features this centre does not use are marked "Not used" and are not counted. Each
+      item links to the page where you fix it and to the part of the manual that explains it.</p>
+
+    {% for section in sections %}
+      <div class="module setup-section">
+        <h3>{{ forloop.counter }}. {{ section.title }}</h3>
+        <p class="setup-intro">{{ section.intro }}</p>
+        <ul class="setup-checks">
+          {% for check in section.checks %}
+            <li id="{{ check.anchor }}" class="setup-check setup-{{ check.status }}">
+              <span class="setup-status">
+                <svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24">
+                  {% if check.status == "done" %}<path d="M9 12l2 2 4-5 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/>
+                  {% elif check.status == "attention" %}<path d="M12 8v5 M12 16v.5 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/>
+                  {% elif check.status == "todo" %}<path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/>
+                  {% else %}<path d="M8 12h8"/>{% endif %}
+                </svg>{{ check.label }}
+              </span>
+              <div class="setup-body">
+                <strong class="setup-title">{{ check.title }}</strong>
+                <p>{{ check.summary }}</p>
+                {% if check.problems %}
+                  <ul class="setup-problems">
+                    {% for line in check.problems %}<li>{% if line.url %}<a href="{{ line.url }}">{{ line.text }}</a>{% else %}{{ line.text }}{% endif %}</li>{% endfor %}
+                  </ul>
+                {% endif %}
+                {% if check.notes %}
+                  <ul class="setup-notes">
+                    {% for line in check.notes %}<li>{% if line.url %}<a href="{{ line.url }}">{{ line.text }}</a>{% else %}{{ line.text }}{% endif %}</li>{% endfor %}
+                  </ul>
+                {% endif %}
+                {% if check.hands_on %}
+                  <p class="setup-how"><span>How:</span> {{ check.how }}</p>
+                  {% if can_confirm %}
+                    {% if check.status == "done" %}
+                      <form method="post" action="{% url 'admin:setup_clear' %}" class="setup-form">
+                        {% csrf_token %}<input type="hidden" name="check" value="{{ check.key }}">
+                        <button type="submit" class="button">Clear: test again</button>
+                      </form>
+                    {% else %}
+                      <form method="post" action="{% url 'admin:setup_confirm' %}" class="setup-form">
+                        {% csrf_token %}<input type="hidden" name="check" value="{{ check.key }}">
+                        <label>What you tried (optional) <input type="text" name="note" maxlength="300" placeholder="e.g. called 800 from 1001, clear both ways"></label>
+                        <button type="submit" class="button default">Confirm it works</button>
+                      </form>
+                    {% endif %}
+                  {% endif %}
+                {% endif %}
+                <p class="setup-links">
+                  {% if check.fix %}<a href="{{ check.fix.url }}">{{ check.fix.text }}</a>{% endif %}
+                  {% if check.manual %}<a href="#{{ check.manual }}">How to do it</a>{% endif %}
+                </p>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endfor %}
+  </section>
+
+  <section id="manual" class="setup-manual" aria-labelledby="manual-title">
+    <h2 id="manual-title">User manual</h2>
+    <p>How to set up and run the contact centre from this admin. Read it once from the top; afterwards use
+      the checklist above, whose "How to do it" links bring you to the right part.</p>
+
+    <nav class="module setup-toc" aria-label="Manual contents">
+      <ol>
+        <li><a href="#manual-start">Start here: the order of setting up</a></li>
+        <li><a href="#manual-running">The running services</a></li>
+        <li><a href="#manual-people">People: users</a></li>
+        <li><a href="#manual-roles">Roles: what each person may do</a></li>
+        <li><a href="#manual-skills">Skills: languages and topics</a></li>
+        <li><a href="#manual-agents">Agents</a></li>
+        <li><a href="#manual-picklists">Wrap-up codes and Not Ready reasons</a></li>
+        <li><a href="#manual-queues">Queues</a></li>
+        <li><a href="#manual-rules">Skill rule sets</a></li>
+        <li><a href="#manual-entries">Entry numbers</a></li>
+        <li><a href="#manual-ai">The AI agent</a></li>
+        <li><a href="#manual-teams">Teams and supervisors</a></li>
+        <li><a href="#manual-phones">Phones (SIP accounts)</a></li>
+        <li><a href="#manual-testing">Testing that it works</a></li>
+        <li><a href="#manual-daily">Every day: calls, callbacks, reports</a></li>
+        <li><a href="#manual-changes">When you change something</a></li>
+        <li><a href="#manual-troubleshooting">Troubleshooting</a></li>
+      </ol>
+    </nav>
+
+    <article id="manual-start">
+      <h3>1. Start here: the order of setting up</h3>
+      <p>Each step uses what the step before it made, so this order saves going back:</p>
+      <ol>
+        <li><strong>People</strong>: a user for everyone who signs in, and their roles.</li>
+        <li><strong>Skills</strong>: the languages callers speak and the topics agents know.</li>
+        <li><strong>Agents</strong>: a number and a name for each person who takes calls, with their skills.</li>
+        <li><strong>Wrap-up codes and Not Ready reasons</strong>: what agents pick on their page.</li>
+        <li><strong>Queues</strong>: one per line of business, with its agents. Add <strong>skill rule sets</strong> only if a queue needs them.</li>
+        <li><strong>Entry numbers</strong>: the numbers callers dial and the queue each one goes to.</li>
+        <li><strong>The AI agent</strong> (optional): who answers first on some numbers.</li>
+        <li><strong>Teams</strong>: which supervisor looks after which agents.</li>
+        <li><strong>Phones</strong> (optional): desk phones and test phones.</li>
+        <li><strong>Test</strong>, until every item of the checklist says Done or Not used.</li>
+      </ol>
+      <p>Every page in the left menu lists what exists; <strong>Add</strong> makes a new one. Fields in bold
+        are required, and the small grey text under a field explains it. If something you type is not
+        allowed, the page says why next to the field and nothing is saved.</p>
+    </article>
+
+    <article id="manual-running">
+      <h3>2. The running services</h3>
+      <p>AlgoDial is several programs working together. On the lab machine <code>make up</code> starts the
+        database and Redis, and <code>make dev</code> starts the rest:</p>
+      <table>
+        <thead><tr><th scope="col">Service</th><th scope="col">What it does</th><th scope="col">If it stops</th></tr></thead>
+        <tbody>
+          <tr><td>Web</td><td>This admin, the agent page and the supervisor page.</td><td>Nobody can sign in.</td></tr>
+          <tr><td>Brain</td><td>Decides every call: which queue, which agent, transfers, supervision.</td><td>Asterisk sends callers to its backup queue (phones 1001 and 1002 ring). Agent pages do not get calls.</td></tr>
+          <tr><td>Writer</td><td>Keeps the call records that the Calls pages and reports read.</td><td>Calls still work; their records arrive when it starts again.</td></tr>
+          <tr><td>Live relay</td><td>Pushes changes to the agent and supervisor pages.</td><td>Pages stop updating until they reconnect.</td></tr>
+          <tr><td>Recordings</td><td>Collects each call's recording after it ends.</td><td>Recordings arrive later.</td></tr>
+          <tr><td>AI worker</td><td>Speaks for the AI agent.</td><td>After a few seconds, callers on AI numbers go to a person.</td></tr>
+        </tbody>
+      </table>
+      <p>The first section of the checklist shows whether the brain, the writer and the AI worker are running.</p>
+    </article>
+
+    <article id="manual-people">
+      <h3>3. People: users</h3>
+      <p>Everyone signs in with their email address and a password: agents on the agent page, supervisors on
+        the supervisor page, managers here. To add a person:</p>
+      <ol>
+        <li>Open <a href="{% url 'admin:users_user_add' %}">Users &rarr; Add user</a>. Fill in their
+          <strong>email</strong>, <strong>first name</strong>, <strong>last name</strong>, choose
+          <strong>Account type: Internal</strong>, and type a password twice. Save.</li>
+        <li>Their page opens. Tick <strong>Is verified</strong>. Without it the sign-in is refused with
+          "Please verify your email address".</li>
+        <li>Leave <strong>Must change password</strong> unticked for agents and supervisors: their pages
+          cannot set a new password yet. Give them their password in person.</li>
+        <li>Tick <strong>Staff status</strong> only for people who work in this admin (managers,
+          administrators). Agents and supervisors do not need it.</li>
+        <li>Leave <strong>Superuser status</strong> for one or two system owners: it allows everything.</li>
+        <li>Save, then give them a role (next section).</li>
+      </ol>
+      <p>When someone leaves, open their user and untick <strong>Active</strong> instead of deleting it:
+        their calls and history stay, and they can no longer sign in.</p>
+    </article>
+
+    <article id="manual-roles">
+      <h3>4. Roles: what each person may do</h3>
+      <p>A role is a set of permissions. To give one, open
+        <a href="{% url 'admin:rbac_userrole_add' %}">Roles and permissions &rarr; User roles &rarr; Add</a>,
+        choose the user and the role, and save. A person can hold several roles; they may do everything
+        any of their roles allows.</p>
+      <ul>
+        <li>An <strong>agent</strong> needs the <em>Agent</em> role, and an agent record (section 6).</li>
+        <li>A <strong>supervisor</strong> needs the <em>Supervisor</em> role, and a team (section 12).</li>
+        <li>A <strong>manager</strong> who sets up the centre needs <em>Contact Centre Manager</em> and Staff status.</li>
+        <li>Whoever looks after phones needs <em>Telephony Administrator</em>; whoever adds people needs <em>User Administrator</em>.</li>
+      </ul>
+      <p>The roles in this system now, and what each allows:</p>
+      <table class="setup-roles">
+        <thead><tr><th scope="col">Role</th><th scope="col">What it is for</th><th scope="col">What it allows</th></tr></thead>
+        <tbody>
+          {% for role, permissions in roles %}
+            <tr><th scope="row">{{ role.name }}</th><td>{{ role.description }}</td><td>{{ permissions|join:", "|default:"(nothing yet)" }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p>To make a role of your own, open Roles and permissions &rarr; Roles &rarr; Add and tick its permissions.</p>
+    </article>
+
+    <article id="manual-skills">
+      <h3>5. Skills: languages and topics</h3>
+      <p>A skill is something an agent can do, with a level from 1 to 10. Queues use skills to choose who
+        takes a call (section 9). Open <a href="{% url 'admin:agents_skill_add' %}">Agents &rarr; Skills &rarr; Add</a>:</p>
+      <ul>
+        <li><strong>Name</strong>: one lower-case word, used in rules: <code>swahili</code>, <code>english</code>, <code>claims</code>, <code>tier2</code>.</li>
+        <li><strong>Kind</strong>: <em>language</em> (a language callers speak), <em>topic</em> (what the call is about) or <em>tier</em> (seniority).</li>
+      </ul>
+      <p>Use the same meaning for levels everywhere:</p>
+      <table>
+        <thead><tr><th scope="col">Level</th><th scope="col">Means</th></tr></thead>
+        <tbody>
+          <tr><td>1 to 3</td><td>Trainee: simple cases, with help</td></tr>
+          <tr><td>4 to 6</td><td>Competent: normal cases alone</td></tr>
+          <tr><td>7 to 8</td><td>Experienced: hard cases</td></tr>
+          <tr><td>9 to 10</td><td>Expert: anything, and coaches others</td></tr>
+        </tbody>
+      </table>
+      <p>A centre with one language and no specialities can skip skills: then every agent of a queue takes every call.</p>
+    </article>
+
+    <article id="manual-agents">
+      <h3>6. Agents</h3>
+      <p>An agent is a person who takes calls. Open <a href="{% url 'admin:agents_agent_add' %}">Agents &rarr; Agents &rarr; Add</a>:</p>
+      <table>
+        <thead><tr><th scope="col">Field</th><th scope="col">What to put</th></tr></thead>
+        <tbody>
+          <tr><td>Number</td><td>2 to 20 digits, different for each agent, e.g. <code>8003</code>. It shows on the agent page, the supervisor page and in reports.</td></tr>
+          <tr><td>Name</td><td>As colleagues and supervisors should see it (the transfer list shows it).</td></tr>
+          <tr><td>User</td><td>The person who signs in as this agent (section 3). One person, one agent. Left empty, nobody can sign in as it: only the automatic call tests use such agents.</td></tr>
+          <tr><td>Active</td><td>Untick to stop offering calls to this agent while keeping their history.</td></tr>
+          <tr><td>Skills (rows below)</td><td>Each skill they have and its level, e.g. <code>swahili 9</code>, <code>claims 6</code>.</td></tr>
+        </tbody>
+      </table>
+      <p>Then put the agent in at least one queue (section 8) and in a team (section 12). The checklist shows
+        any agent who is missing either.</p>
+      <p><strong>The agent's phone</strong> is in their browser: there is no phone account to make. When they
+        sign in at <a href="/agent/">/agent/</a>, AlgoDial switches on a phone account named
+        <code>web</code> + their number (<code>web8003</code>) with a new password, and switches it off when
+        they sign out. <a href="{% url 'admin:agents_agentsession_changelist' %}">Agents &rarr; Agent sessions</a>
+        shows who signed in, when, and on which phone.</p>
+    </article>
+
+    <article id="manual-picklists">
+      <h3>7. Wrap-up codes and Not Ready reasons</h3>
+      <ul>
+        <li><a href="{% url 'admin:agents_wrapupcode_changelist' %}">Wrap-up codes</a>: after each call the
+          agent picks one to say how it ended (Sale, Complaint, Information given&hellip;). Keep the list short
+          and the words plain: reports count them.</li>
+        <li><a href="{% url 'admin:agents_notreadyreason_changelist' %}">Not Ready reasons</a>: why an agent is
+          not taking calls (Break, Lunch, Meeting&hellip;). <strong>Max seconds</strong> makes the supervisor
+          page flag an agent who stays longer (e.g. 900 = 15 minutes; 0 = no limit).</li>
+      </ul>
+      <p>Untick Active to retire one; past calls keep the name they were given.</p>
+    </article>
+
+    <article id="manual-queues">
+      <h3>8. Queues</h3>
+      <p>A queue is one line of business (Support, Claims&hellip;): who may take its calls, whom it rings
+        first, and what happens when nobody answers. Open <a href="{% url 'admin:queues_queue_add' %}">Queues &rarr; Queues &rarr; Add</a>:</p>
+      <table>
+        <thead><tr><th scope="col">Field</th><th scope="col">What it means</th></tr></thead>
+        <tbody>
+          <tr><td>Name</td><td>As reports and the supervisor page show it.</td></tr>
+          <tr><td>Strategy</td><td>Which free agent gets the next call: <em>Longest idle</em> (fair; the usual choice),
+            <em>Best skilled</em> (highest levels in the skills the call needs), <em>Ring all</em> (every free agent
+            at once; the first to answer takes it), <em>Round robin</em> (in turn), <em>Linear</em> (always from the
+            first member), <em>Fewest calls answered</em>, or <em>Random</em>.</td></tr>
+          <tr><td>Ring timeout</td><td>Seconds an agent's phone rings. An agent who does not answer becomes
+            "Not responding" and the call moves on.</td></tr>
+          <tr><td>Retry delay</td><td>Seconds before an agent who refused a call is offered it again.</td></tr>
+          <tr><td>Max wait / Max callers</td><td>When a caller has waited this long, or this many callers
+            already wait (0 = no limit), the overflow action happens.</td></tr>
+          <tr><td>Overflow action</td><td><em>Another queue</em> (choose it in <strong>Overflow queue</strong>),
+            <em>Voicemail, then a callback task</em> (the caller leaves a message; it appears in Calls &rarr;
+            Callback tasks) or <em>Hang up</em>.</td></tr>
+          <tr><td>Priority</td><td>For an agent in several queues: the caller of the higher-priority queue is offered first.</td></tr>
+          <tr><td>Wrap-up seconds</td><td>Time the agent has after a call to choose a code and write notes (0 = none).</td></tr>
+          <tr><td>Music on hold class</td><td>What waiting callers hear. Leave <code>default</code> unless your telephony administrator added another.</td></tr>
+          <tr><td>Skill rule set</td><td>Empty: every member may take every call. Otherwise see section 9.</td></tr>
+          <tr><td>Service level</td><td>Your target, e.g. 80% of calls answered within 20 seconds. Reports measure each queue against it.</td></tr>
+          <tr><td>Members (rows below)</td><td>The agents of this queue. <strong>Priority</strong> 1 is offered first (it matters for Linear).</td></tr>
+        </tbody>
+      </table>
+      <p>An agent can be in several queues. A queue with nobody in it makes callers wait, then overflow: the
+        checklist warns about that.</p>
+    </article>
+
+    <article id="manual-rules">
+      <h3>9. Skill rule sets</h3>
+      <p>A rule set says who may take a queue's call, and loosens as the caller waits: first the best match,
+        then a wider circle, so nobody waits forever for one expert. Open
+        <a href="{% url 'admin:queues_skillruleset_add' %}">Queues &rarr; Skill rule sets &rarr; Add</a>. Each row is
+        one minimum level; rows with the same <strong>Until seconds</strong> are one step. For example:</p>
+      <table>
+        <thead><tr><th scope="col">Until seconds</th><th scope="col">Skill</th><th scope="col">Min level</th><th scope="col">Means</th></tr></thead>
+        <tbody>
+          <tr><td>30</td><td><code>$language</code></td><td>6</td><td rowspan="2">For the first 30 s: a good speaker of the caller's language who knows claims well</td></tr>
+          <tr><td>30</td><td><code>claims</code></td><td>7</td></tr>
+          <tr><td>(empty)</td><td><code>$language</code></td><td>4</td><td rowspan="2">After that, for as long as it takes: anyone who speaks it and knows claims a little</td></tr>
+          <tr><td>(empty)</td><td><code>claims</code></td><td>1</td></tr>
+        </tbody>
+      </table>
+      <ul>
+        <li><code>$language</code> means the caller's language (from the entry number or the AI). Every step must ask for it at 4 or more: a caller is never given to someone who cannot speak with them.</li>
+        <li>Only the last step has empty seconds (it lasts until the call is answered or overflows); the seconds of the other steps grow from step to step.</li>
+        <li>The page draws the steps as you type (<strong>Routing steps</strong>), and <strong>Test with agent</strong> tells you whether a given agent would match at a given wait.</li>
+      </ul>
+      <p>Then choose the rule set on the queue. The checklist warns when no member of a queue meets its last step.</p>
+    </article>
+
+    <article id="manual-entries">
+      <h3>10. Entry numbers</h3>
+      <p>An entry number is what callers dial. Open <a href="{% url 'admin:queues_entrypoint_add' %}">Queues &rarr; Entry points &rarr; Add</a>:</p>
+      <table>
+        <thead><tr><th scope="col">Field</th><th scope="col">What it means</th></tr></thead>
+        <tbody>
+          <tr><td>Number</td><td><strong>800 to 899</strong>: Asterisk hands only these to AlgoDial. Another number needs a dialplan change by the telephony administrator first.</td></tr>
+          <tr><td>Name</td><td>A label for you and for reports.</td></tr>
+          <tr><td>Queue</td><td>Where callers go.</td></tr>
+          <tr><td>AI agent</td><td>Optional: the AI answers first and hands the caller to a person (section 11). Empty: straight to the queue.</td></tr>
+          <tr><td>Language</td><td>The callers' language until something better is known. It decides the AI's greeting and <code>$language</code> in skill rules.</td></tr>
+          <tr><td>Priority</td><td>Empty: the queue's priority. Set it higher to serve this number's callers first.</td></tr>
+          <tr><td>Fallback queue</td><td>Where the call goes if the AI or a routing decision fails.</td></tr>
+        </tbody>
+      </table>
+      <p>On the lab: <strong>800</strong> goes to Support; 801 to 803 are the demo helpline (802 and 803 are
+        answered by Jambo AI first); 897 and 899 are used by the automatic call tests. A number that is not an
+        entry point is hung up at once.</p>
+    </article>
+
+    <article id="manual-ai">
+      <h3>11. The AI agent</h3>
+      <p>The AI agent answers a call, helps with what it may answer, and hands the caller to a person with a
+        short summary that the agent sees before answering. Open
+        <a href="{% url 'admin:ai_aiagent_changelist' %}">AI agents</a>:</p>
+      <ul>
+        <li><strong>Name</strong>: what it calls itself, e.g. Jambo AI.</li>
+        <li><strong>Instructions</strong>: who the helpline is, opening hours, what it may answer and what must go to a person. It says nothing that is not written here.</li>
+        <li><strong>Greetings</strong>: its first words in Swahili and in English (chosen by the entry number's language).</li>
+        <li><strong>When a person takes over</strong>: after this many turns it did not understand; at once for any of the <strong>sensitive topics</strong> (one per line); and if it is not on the line within <strong>start timeout</strong> seconds. It also hands over whenever the caller asks for a person.</li>
+        <li><strong>Voice and models</strong>: already set to the ones that sounded best in our tests. Change them only on advice.</li>
+        <li><strong>Where it may send callers</strong> (rows below): each queue it may choose, and when, in plain words ("a specific claim or payment"). It may choose only these.</li>
+      </ul>
+      <p>Then choose the AI agent on an entry number. It needs the OpenAI key (<code>OPENAI_API_KEY</code> in
+        the server's <code>.env</code> file) and the AI worker running; the checklist checks both. Each call's
+        page shows what the AI and the caller said.</p>
+    </article>
+
+    <article id="manual-teams">
+      <h3>12. Teams and supervisors</h3>
+      <p>A supervisor sees, listens to and helps only the agents of their teams. Open
+        <a href="{% url 'admin:teams_team_add' %}">Teams &rarr; Teams &rarr; Add</a>: a name, then move people
+        into <strong>Supervisors</strong> and <strong>Agents</strong>. The lists are users (people), not agent
+        numbers. Nobody can be a supervisor and an agent of the same team.</p>
+      <p>The supervisor signs in at <a href="/supervisor/">/supervisor/</a>, sees who waits and who is on a
+        call, and can monitor (listen), whisper (only the agent hears) or barge (everyone hears), and change an
+        agent's state.</p>
+    </article>
+
+    <article id="manual-phones">
+      <h3>13. Phones (SIP accounts)</h3>
+      <p>Agents need nothing here: their phone is in the browser (section 6). Make a SIP account for a desk
+        phone, a softphone such as Zoiper, or a test phone. Open
+        <a href="{% url 'admin:telephony_sipaccount_add' %}">Telephony &rarr; SIP accounts &rarr; Add</a>:</p>
+      <ul>
+        <li><strong>SIP id</strong>: the phone's number and username, e.g. <code>1003</code>.</li>
+        <li><strong>Kind</strong>: <em>SOFTPHONE</em>. (BROWSER accounts, named <code>web…</code>, are made and switched on and off by AlgoDial: do not edit them.)</li>
+        <li><strong>Display name</strong>: the name the other side sees.</li>
+        <li><strong>New password</strong>: at least 12 characters, or leave it empty and AlgoDial makes one. It is shown <strong>once</strong>, at the top of the page after saving: type it into the phone straight away.</li>
+        <li><strong>Codecs</strong> and <strong>Context</strong>: leave empty.</li>
+      </ul>
+      <p>In the phone (Zoiper: Settings &rarr; Accounts &rarr; Add, SIP): <strong>Domain</strong> = this server's
+        address with port <code>5062</code> (on the lab laptop itself <code>127.0.0.1:5062</code>; from a phone on the same Wi-Fi, the laptop's IP address, e.g. <code>192.168.1.20:5062</code>),
+        <strong>Username</strong> = the SIP id, <strong>Password</strong> as above, transport <strong>UDP</strong>.
+        It should show Registered. On the lab, phones 1000 to 1009 ring each other by dialling the number, and dial 800 to call the centre.</p>
+      <p>To change a password, type a new one in New password, save, and type it in the phone too. Untick Active
+        to stop a phone at once.</p>
+    </article>
+
+    <article id="manual-testing">
+      <h3>14. Testing that it works</h3>
+      <p>Do this after setting up, and again after a big change. Use two browsers (or a normal and a private
+        window) so the agent and the supervisor are signed in at the same time.</p>
+      <ol>
+        <li>Fix everything the checklist marks <strong>Needs attention</strong>.</li>
+        <li>Sign in at <a href="/agent/">/agent/</a> as an agent, allow the microphone, press <strong>Go Ready</strong>. The bar turns green.</li>
+        <li>From a desk phone, call your entry number (on the lab: 800). Answer on the agent page. Talk both ways; try Hold and Resume.</li>
+        <li>Transfer the call to a colleague who is Ready, or hang up. Choose a wrap-up code and finish.</li>
+        <li>As a supervisor at <a href="/supervisor/">/supervisor/</a>, during another call press Monitor, then Whisper.</li>
+        <li>If you use the AI: call an AI number, ask a question, then ask for a person. The agent sees the AI's summary.</li>
+        <li>Here in the admin, open <a href="{% url 'admin:calls_call_changelist' %}">Calls</a>: your calls are listed, the recording plays, and <a href="{% url 'admin:reports_report_changelist' %}">Reports</a> &rarr; Today counts them.</li>
+        <li>Come back to this page. The automatic tests tick themselves; confirm the hands-on ones with <strong>Confirm it works</strong>.</li>
+      </ol>
+      <p>For timed tests with real agents, see the manual test script (<code>docs/MANUAL_TEST_SCRIPT.md</code>).</p>
+    </article>
+
+    <article id="manual-daily">
+      <h3>15. Every day: calls, callbacks, reports</h3>
+      <ul>
+        <li><a href="{% url 'admin:calls_call_changelist' %}">Calls</a>: every call, with who answered, how it ended, the AI's part, transfers and the recording (left ear: the caller; right ear: what they heard). Playing recordings needs the permission to listen to recordings.</li>
+        <li><a href="{% url 'admin:calls_callbacktask_changelist' %}">Callback tasks</a>: voicemails left when a queue overflowed. Listen, call the person back, then mark it Called back.</li>
+        <li><a href="{% url 'admin:reports_report_changelist' %}">Reports</a>: calls per queue (service level, abandoned calls, waiting and handling times), agents' time in each state, and what the AI handled, for any period, as PDF, Excel or CSV.</li>
+        <li><a href="{% url 'admin:agents_agentsession_changelist' %}">Agent sessions</a>: who signed in, when, on which phone.</li>
+        <li>Audit logs (Audit &amp; system logs): who changed what in this admin, and when.</li>
+      </ul>
+    </article>
+
+    <article id="manual-changes">
+      <h3>16. When you change something</h3>
+      <p>A save takes effect at once: AlgoDial picks up queues, agents, entry numbers and AI settings without a
+        restart. New calls follow the new settings; calls already in progress carry on. Every change is kept in
+        the audit log with your name.</p>
+      <p>Changes to Asterisk itself (which numbers reach AlgoDial, recordings, the backup queue) are made by the
+        telephony administrator on the server, not here.</p>
+    </article>
+
+    <article id="manual-troubleshooting">
+      <h3>17. Troubleshooting</h3>
+      <table>
+        <thead><tr><th scope="col">What you see</th><th scope="col">Why</th><th scope="col">What to do</th></tr></thead>
+        <tbody>
+          <tr><td>"Please verify your email address before signing in"</td><td>Is verified is not ticked.</td><td>Users &rarr; the person &rarr; tick Is verified.</td></tr>
+          <tr><td>"Choose a new password to continue" on the agent page</td><td>Must change password is ticked.</td><td>Untick it, and give the person a password yourself.</td></tr>
+          <tr><td>"You are not set up as an agent."</td><td>No active agent has this person as its user.</td><td>Agents &rarr; open or add the agent &rarr; choose the user.</td></tr>
+          <tr><td>The agent signs in but buttons say they are not allowed</td><td>No Agent role.</td><td>User roles &rarr; Add &rarr; the person, Agent.</td></tr>
+          <tr><td>"Phone not connected" on the agent page</td><td>The browser blocked the microphone, or the page is not opened on the server itself (the lab's browser phone works only on that machine).</td><td>Allow the microphone in the address bar, then press Reconnect.</td></tr>
+          <tr><td>An agent is Ready but gets no calls</td><td>Not in the queue of the number called, or the queue's skill rules leave them out.</td><td>Check the checklist; add them to the queue; check their skills against the rule set (Test with agent).</td></tr>
+          <tr><td>The caller hears music for a long time</td><td>Nobody in the queue is Ready.</td><td>Agents go Ready; review Max wait and the overflow action.</td></tr>
+          <tr><td>A number is hung up at once</td><td>It is not an entry point, or it is outside 800 to 899.</td><td>Queues &rarr; Entry points: add it, or ask for a dialplan change.</td></tr>
+          <tr><td>The AI does not answer; a person answers after a few seconds</td><td>The AI worker is stopped, the OpenAI key is missing, or the AI agent is switched off.</td><td>See "AI numbers are ready" and "The AI worker" in the checklist.</td></tr>
+          <tr><td>All calls ring phones 1001 and 1002 instead of the agent pages</td><td>The brain is stopped, so Asterisk uses its backup queue.</td><td>Start make dev; the checklist's first section shows it.</td></tr>
+          <tr><td>A supervisor sees nobody</td><td>They are not the supervisor of a team with those agents.</td><td>Teams &rarr; the team &rarr; Supervisors.</td></tr>
+          <tr><td>A call has no recording</td><td>Recording is not switched on in Asterisk, or the recordings service is stopped.</td><td>Ask the telephony administrator (apply.sh m7); check make dev.</td></tr>
+          <tr><td>A desk phone will not register</td><td>Wrong domain, port (5062), username or password, or the account is not Active.</td><td>Check the SIP account; set a new password and type it again in the phone.</td></tr>
+        </tbody>
+      </table>
+    </article>
+  </section>
+</div>
+{% endblock %}

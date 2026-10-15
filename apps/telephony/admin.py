@@ -21,7 +21,7 @@ class SipAccountForm(forms.ModelForm):
         model = SipAccount
         fields = ("sip_id", "kind", "display_name", "codecs", "context", "active")
         help_texts = {
-            "codecs": "Empty = the kind's default (softphone ulaw,alaw; browser opus,ulaw).",
+            "codecs": "Empty = the kind's default (ulaw,alaw for both: this Asterisk has no opus).",
             "context": "Empty = the default dialplan context.",
         }
 
