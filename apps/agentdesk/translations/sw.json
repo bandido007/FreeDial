@@ -165,5 +165,11 @@
   "Shift plus E": "Shift pamoja na E",
   "Wrap-up": "Kumalizia",
   "Swahili": "Kiswahili",
-  "English": "Kiingereza"
+  "English": "Kiingereza",
+  "Connection lost. Your call continues if your phone is still connected. Reconnecting…": "Muunganisho umekatika. Simu yako inaendelea ikiwa simu bado imeunganishwa. Inaunganisha tena…",
+  "Connection back. Your screen is up to date.": "Muunganisho umerudi. Ukurasa wako uko sawa.",
+  "{name} did not answer. You are back with the caller.": "{name} hakupokea. Umerudi kwa mpigaji.",
+  "{name} declined the call. You are back with the caller.": "{name} amekataa simu. Umerudi kwa mpigaji.",
+  "{name} could not be reached. You are back with the caller.": "{name} hapatikani. Umerudi kwa mpigaji.",
+  "Starting your session…": "Inaanzisha kipindi chako…"
 }

@@ -1,4 +1,6 @@
 import asyncio
+import os
+from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
@@ -31,6 +33,14 @@ class Command(BaseCommand):
                 raise CommandError(f"cannot reach {', '.join(failed)}")
             return
 
+        others = another_brain()
+        if others:
+            # Two brains on one ARI app split the commands between them: one takes an agent's login,
+            # the other refuses that agent's Ready (seen on 15 October 2026 with two `make dev`).
+            raise CommandError(
+                f"another brain is already running on this machine (pid {', '.join(others)}). "
+                "Stop it first (Ctrl-C in its terminal)."
+            )
         record = open(options["record"], "a") if options["record"] else None  # noqa: SIM115
         try:
             asyncio.run(service.run(settings, record=record))
@@ -39,3 +49,19 @@ class Command(BaseCommand):
         finally:
             if record is not None:
                 record.close()
+
+
+def another_brain() -> list[str]:
+    """Other brain processes on this machine: argv ``... manage.py run_brain ...`` (not a shell that
+    merely mentions it, like the one `make dev` runs, and not this process)."""
+    found = []
+    for proc in Path("/proc").iterdir():
+        if not proc.name.isdigit() or proc.name == str(os.getpid()):
+            continue
+        try:
+            argv = (proc / "cmdline").read_bytes().split(b"\0")
+        except OSError:
+            continue
+        if any(a.endswith(b"manage.py") and b == b"run_brain" for a, b in zip(argv, argv[1:], strict=False)):
+            found.append(proc.name)
+    return found

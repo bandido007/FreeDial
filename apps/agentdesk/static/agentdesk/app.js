@@ -133,6 +133,31 @@
   const WRAPUP_EDIT_SECONDS = 120; // the brain accepts a corrected code this long
   let lastWrap = null; // { call, code, at }: the code just given, still correctable
   const SEARCH_FROM = 10; // wrap-up codes before a search box helps (a short list is quicker as a select)
+  // UX_PRINCIPLES.md section 4: every failure has a designed message that says what to do.
+  const CONNECTION_LOST =
+    "Connection lost. Your call continues if your phone is still connected. Reconnecting…";
+  const TRANSFER_FAILURES = {
+    no_answer: "{name} did not answer. You are back with the caller.",
+    rejected: "{name} declined the call. You are back with the caller.",
+    offline: "{name} could not be reached. You are back with the caller.",
+  };
+  let connectionLost = false;
+  let phoneLibraryLoading = null;
+  function phoneLibrary() {
+    // UX_PRINCIPLES.md section 3: the first load stays small; the SIP library comes after sign-in.
+    if (window.JsSIP) return Promise.resolve(true);
+    phoneLibraryLoading ||= new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = config.phoneLibraryUrl;
+      script.onload = () => resolve(true);
+      script.onerror = () => {
+        phoneLibraryLoading = null;
+        resolve(false);
+      };
+      document.head.append(script);
+    });
+    return phoneLibraryLoading;
+  }
   const LANGUAGE_NAMES = { swahili: "Swahili", english: "English" }; // routing skills, shown in the agent's language
   const STATE_NAMES = {
     offered: "Incoming call",
@@ -490,6 +515,11 @@
       if (data.type === "hello") {
         liveRetry = 1000;
         liveReady = true;
+        if (connectionLost) {
+          connectionLost = false;
+          notice();
+          feedback(t("Connection back. Your screen is up to date."));
+        }
         label($("live-chip"), "Live: on");
         applyState(data.state);
         scheduleSnapshot();
@@ -502,6 +532,10 @@
       live = null;
       liveReady = false;
       label($("live-chip"), "Live: reconnecting");
+      if (!signingOut && !stopping && tokens) {
+        connectionLost = true;
+        notice(t(CONNECTION_LOST));
+      }
       renderCall();
       if (signingOut || stopping || !tokens) return;
       if (event.code === 4401 && !(await refresh())) {
@@ -570,13 +604,20 @@
         break;
       case "transfer.completed":
       case "transfer.cancelled":
-      case "transfer.failed":
-        if (transfer?.id === data.transfer) {
+      case "transfer.failed": {
+        const ours = transfer?.id === data.transfer ? transfer : null;
+        if (ours) {
           transfer = null;
           $("transfer").hidden = true;
         }
-        if (event.type === "transfer.failed") notice(t("Transfer failed. The caller is still with you."));
+        if (event.type === "transfer.failed")
+          notice(
+            ours?.kind === "consult" && TRANSFER_FAILURES[data.reason]
+              ? t(TRANSFER_FAILURES[data.reason], { name: targetName(ours) })
+              : t("Transfer failed. The caller is still with you."),
+          );
         break;
+      }
       case "conference.started":
         if (data.agent === desk.uid) transfer = { id: data.transfer, kind: "consult", state: "conference" };
         break;
@@ -705,15 +746,25 @@
               : state.reason
                 ? t("Not ready since {time}", { time: clockTime(since) })
                 : t("Go Ready when you can take calls");
+    // Logged out here means the brain has not taken this sign-in yet: Ready would be ignored.
+    const starting = state.availability === "logged_out";
     $("ready").disabled = $("empty-ready").disabled =
-      problem || !liveReady || (state.availability === "ready" && state.activity !== "not_responding");
+      problem ||
+      !liveReady ||
+      starting ||
+      (state.availability === "ready" && state.activity !== "not_responding");
     const action = stateAction();
     $("state-action").textContent = t(action.label);
     $("state-action-icon").setAttribute("href", action.direct ? "#i-check" : "#i-minus");
     $("state-action-caret").style.display = action.direct ? "none" : "";
     $("state-menu-toggle").classList.toggle("cta", action.direct && !problem);
     $("state-menu-toggle").disabled = action.direct && $("ready").disabled;
-    $("state-menu-toggle").title = action.direct && problem ? t("Reconnect your phone first") : "";
+    $("state-menu-toggle").title =
+      action.direct && problem
+        ? t("Reconnect your phone first")
+        : starting
+          ? t("Starting your session…")
+          : "";
     $("ready").hidden = !action.direct;
     $("reason-heading").hidden = $("reason-buttons").hidden = action.direct;
     for (const button of $("reason-buttons").children) button.disabled = !liveReady;
@@ -902,6 +953,10 @@
       return;
     }
     if (!tokens || stopping) return;
+    if (!(await phoneLibrary())) {
+      unavailable(disconnectedMessage);
+      return;
+    }
     JsSIP.debug.disable("JsSIP:*");
     const phoneUa = (ua = new JsSIP.UA({
       sockets: [new JsSIP.WebSocketInterface(phone.wsUrl)],

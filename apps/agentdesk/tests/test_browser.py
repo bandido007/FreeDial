@@ -40,6 +40,7 @@ def page(browser):
         "revokeUrl": "/oauth2/revoke_token",
         "graphqlUrl": "/graphql",
         "liveUrl": "/ws/agent",
+        "phoneLibraryUrl": "/static/agentdesk/vendor/jssip-3.12.0.min.js",
         "messages": page_messages(),
     }
     html = render_to_string("agentdesk/index.html", {"config": config})
@@ -360,3 +361,30 @@ def test_the_agent_switches_to_swahili_in_place_and_it_is_remembered(page):
     page.click('[data-language="sw"]')
     page.reload()
     expect(page.locator("html")).to_have_attribute("lang", "sw")
+
+
+def test_a_lost_connection_says_so_and_clears_when_it_is_back(page):
+    """UX_PRINCIPLES.md section 4: "Browser loses the network mid-call"."""
+    page.evaluate("__deskTest.ready(); __deskTest.offer()")
+    page.keyboard.press("Enter")
+    expect(page.locator("#state-title")).to_have_text("On a call")
+    page.evaluate("__deskTest.socket.onclose({code: 1006})")
+    expect(page.locator("#notice")).to_have_text(
+        "Connection lost. Your call continues if your phone is still connected. Reconnecting…"
+    )
+    expect(page.locator("#notice")).to_be_hidden(timeout=10000)  # the page reconnects by itself
+    expect(page.locator("#live-chip")).to_have_text("Live: on")
+    expect(page.locator("#state-title")).to_have_text("On a call")
+
+
+def test_a_consult_nobody_answers_says_who_and_puts_you_back(page):
+    """UX_PRINCIPLES.md section 4: "Peter did not answer. You are back with the caller.\" """
+    page.evaluate("__deskTest.ready(); __deskTest.offer()")
+    page.keyboard.press("Enter")
+    page.click("#transfer-toggle")
+    page.select_option("#transfer-kind", "consult")
+    page.click("#transfer-go")
+    expect(page.locator("#consult")).to_be_visible()
+    page.evaluate("__deskTest.event('transfer.failed', {agent: 'juma', transfer: 't1', reason: 'no_answer'})")
+    expect(page.locator("#notice")).to_have_text("Neema did not answer. You are back with the caller.")
+    expect(page.locator("#consult")).to_be_hidden()

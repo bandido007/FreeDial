@@ -164,5 +164,11 @@
   "Shift plus E": "Shift plus E",
   "Wrap-up": "Wrap-up",
   "Swahili": "Swahili",
-  "English": "English"
+  "English": "English",
+  "Connection lost. Your call continues if your phone is still connected. Reconnecting…": "Connection lost. Your call continues if your phone is still connected. Reconnecting…",
+  "Connection back. Your screen is up to date.": "Connection back. Your screen is up to date.",
+  "{name} did not answer. You are back with the caller.": "{name} did not answer. You are back with the caller.",
+  "{name} declined the call. You are back with the caller.": "{name} declined the call. You are back with the caller.",
+  "{name} could not be reached. You are back with the caller.": "{name} could not be reached. You are back with the caller.",
+  "Starting your session…": "Starting your session…"
 }

@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.shortcuts import render
+from django.templatetags.static import static
 from oauth2_provider.models import get_application_model
 
 
@@ -36,6 +37,8 @@ def agent_page(request):
         "revokeUrl": "/oauth2/revoke_token",
         "graphqlUrl": "/graphql",
         "liveUrl": "/ws/agent",
+        # The browser phone (240 KB) loads after sign-in, not before the page can be used.
+        "phoneLibraryUrl": static("agentdesk/vendor/jssip-3.12.0.min.js"),
         "messages": page_messages(),
     }
     return page_headers(request, render(request, "agentdesk/index.html", {"config": config}))

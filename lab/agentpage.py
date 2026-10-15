@@ -137,7 +137,17 @@ async def go_ready(page):
     await until(page, f"!document.getElementById('ready').disabled || {ready}", 15)
     if not await page.evaluate("document.getElementById('ready').disabled"):
         await page.click("#state-menu-toggle")  # it says "Go Ready" and acts at once
-    await until(page, ready, 10)
+    try:
+        await until(page, ready, 10)
+    except AssertionError as failure:
+        seen = await page.evaluate(
+            """() => ({action: document.getElementById('state-action').textContent,
+                title: document.getElementById('state-title').textContent,
+                notice: document.getElementById('notice').textContent,
+                menuOpen: !document.getElementById('state-menu').hidden,
+                state: window.agentDesk && window.agentDesk.state})"""
+        )
+        raise AssertionError(f"{failure}; the page shows {seen}") from None
 
 
 async def go_not_ready(page, reason="Break"):
