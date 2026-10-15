@@ -78,8 +78,8 @@
         <div class="top-actions">
           <span><span id="agent-name"></span> <small id="agent-number"></small></span>
           <div class="language" role="group" aria-label="Language">
-            <button class="selected" aria-pressed="true">EN</button
-            ><button disabled aria-pressed="false" title="Swahili labels await Tostao’s review">SW</button>
+            <button data-language="en" aria-pressed="true" lang="en">EN</button
+            ><button data-language="sw" aria-pressed="false" lang="sw" title="Swahili labels await Tostao’s review">SW</button>
           </div>
           <button id="theme-toggle" aria-label="Switch colour theme">
             <svg aria-hidden="true"><use href="#i-sun" /></svg>
@@ -96,8 +96,12 @@
           </div>
           <time id="since" class="state-time">00:00</time>
         </div>
-        <button id="state-menu-toggle" aria-expanded="false" aria-controls="state-menu">
-          <span data-i18n="Change state"></span><kbd>R</kbd>
+        <!-- Named by what it does next ("Go Ready", "Go Not Ready"), so nobody has to guess (UX rule 4). -->
+        <button id="state-menu-toggle" class="state-action" aria-expanded="false" aria-controls="state-menu">
+          <svg aria-hidden="true"><use id="state-action-icon" href="#i-check" /></svg
+          ><span id="state-action"></span
+          ><svg id="state-action-caret" class="caret" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg
+          ><kbd>R</kbd>
         </button>
         <div class="state-load">
           <p id="queue-load"></p>
@@ -109,9 +113,8 @@
         <button id="ready" class="primary">
           <svg aria-hidden="true"><use href="#i-check" /></svg><span data-i18n="Go Ready"></span>
         </button>
-        <label for="reason" data-i18n="Not Ready reason"></label
-        ><select id="reason"></select>
-        <button id="not-ready" data-i18n="Not Ready"></button>
+        <p id="reason-heading" class="menu-heading" data-i18n="Go Not Ready because of:"></p>
+        <div id="reason-buttons" class="reason-buttons" role="group" aria-labelledby="reason-heading"></div>
         <button id="enable-notifications" data-i18n="Enable call notifications"></button>
       </section>
       <p id="notice" class="notice error" role="alert" hidden></p>
@@ -149,6 +152,14 @@
             <p id="empty-description" class="muted"></p>
             <button id="empty-ready" class="primary" data-i18n="Go Ready" hidden></button
             ><button id="reconnect" class="primary" data-i18n="Reconnect" hidden></button>
+            <!-- UX_PRINCIPLES.md section 4: the last code stays correctable for 2 minutes. -->
+            <div id="last-wrap" class="last-wrap" hidden>
+              <p><span data-i18n="Last call's wrap-up code:"></span> <strong id="last-wrap-code"></strong></p>
+              <label for="last-wrap-select" data-i18n="Change it to"></label>
+              <select id="last-wrap-select"></select>
+              <button id="last-wrap-save" type="button" data-i18n="Change code"></button>
+              <small id="last-wrap-time"></small>
+            </div>
           </div>
           <div id="call" hidden>
             <h1 id="caller" class="caller"></h1>
@@ -179,7 +190,7 @@
                 ><kbd>K</kbd></button
               ><button id="hangup" class="danger">
                 <svg aria-hidden="true"><use href="#i-phone" /></svg><span data-i18n="Hang up"></span
-                ><kbd>E</kbd>
+                ><kbd aria-label="Shift plus E">Shift+E</kbd>
               </button>
             </div>
             <div id="transfer" class="transfer-form" hidden>
@@ -238,6 +249,11 @@
             <h3 data-i18n="Why they called (AI)"></h3>
             <p id="ai-summary-text" class="summary"></p>
             <small id="ai-reason"></small>
+            <!-- UX_PRINCIPLES.md section 5: the AI can be wrong; the agent says so in one click. -->
+            <div class="ai-feedback">
+              <button id="summary-wrong" type="button" data-i18n="Summary wrong"></button
+              ><button id="queue-wrong" type="button" data-i18n="Wrong queue"></button>
+            </div>
           </div>
           <div id="context-meta" class="context-meta" hidden>
             <div><small data-i18n="Language"></small><strong id="context-language"></strong></div>

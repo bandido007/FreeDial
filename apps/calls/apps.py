@@ -8,3 +8,8 @@ class CallsConfig(AppConfig):
     verbose_name = "Calls"
     # This app's status codes live in this band (checked by `manage.py check`).
     status_code_range = (10400, 10499)
+
+    def ready(self):
+        from apps.calls import receivers
+
+        receivers.connect()

@@ -89,7 +89,7 @@ Target sizes: works at 1366x768 without horizontal scrolling; uses extra width a
 |                           |   12 Sep was rejected. Has    | General     1  0:20  |
 | [Hold  H] [Mute  M]       |   member number ready."       |                      |
 | [Transfer  T] [Keypad  K] | Notes                         | MY DAY               |
-| [Hang up  E]              | [ text area               ]   | Calls 23  Talk 3:41  |
+| [Hang up  Shift+E]        | [ text area               ]   | Calls 23  Talk 3:41  |
 |                           |                               | Not ready 18 min     |
 +---------------------------+-------------------------------+----------------------+
 ```
@@ -122,7 +122,7 @@ Shown on the buttons. Active only when focus is not in a text field, except Answ
 | Mute / unmute | M |
 | Transfer | T |
 | Keypad | K |
-| Hang up | E |
+| Hang up | Shift+E (two keys, so it cannot happen by accident; see UX_PRINCIPLES.md) |
 | Go Ready / Not Ready menu | R |
 
 ### Messages (plain, specific, with the fix)

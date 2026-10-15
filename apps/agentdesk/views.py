@@ -21,8 +21,11 @@ def _origin(url: str) -> str:
 
 
 @lru_cache(maxsize=1)
-def english_messages():
-    return json.loads((Path(__file__).with_name("translations") / "en.json").read_text())
+def page_messages() -> dict[str, dict[str, str]]:
+    """Every label in each language the page offers (translations/<code>.json). Swahili is a draft
+    until Tostao has reviewed it (docs/SWAHILI_REVIEW.md); the page says so on the SW button."""
+    folder = Path(__file__).with_name("translations")
+    return {code: json.loads((folder / f"{code}.json").read_text()) for code in ("en", "sw")}
 
 
 def agent_page(request):
@@ -33,7 +36,7 @@ def agent_page(request):
         "revokeUrl": "/oauth2/revoke_token",
         "graphqlUrl": "/graphql",
         "liveUrl": "/ws/agent",
-        "messages": english_messages(),
+        "messages": page_messages(),
     }
     return page_headers(request, render(request, "agentdesk/index.html", {"config": config}))
 

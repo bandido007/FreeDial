@@ -5,6 +5,7 @@ did comes back on the live WebSocket.
 """
 
 import graphene
+from graphene.types.generic import GenericScalar
 
 from apps.agentdesk import desk
 from apps.agentdesk.types import AgentPhoneType, CommandSentType
@@ -84,6 +85,42 @@ class FinishMyWrapup(graphene.Mutation):
         return Response.build_response(code=9001, info=info, data=data)
 
 
+class ChangeMyWrapupCode(graphene.Mutation):
+    class Arguments:
+        call = graphene.String(required=True, description="The call just wrapped up")
+        code = graphene.String(required=True, description="One of myAgentDesk.wrapupCodes")
+
+    Output = Response.get_response_type(CommandSentType)
+
+    @classmethod
+    @has_permission(permissions=[TAKE_CALLS])
+    @log_errors_and_warnings
+    def mutate(cls, root, info, call, code):
+        data = desk.change_wrapup_code(current_user(info), call=call, code=code)
+        return Response.build_response(code=9001, info=info, data=data)
+
+
+class RecordUxSignal(graphene.Mutation):
+    class Arguments:
+        signal = graphene.String(required=True, description="One of the ux.* page signals")
+        signal_id = graphene.String(
+            required=True, description="A UUID the page makes; a retry is stored once"
+        )
+        call = graphene.String()
+        data = GenericScalar()
+
+    Output = Response.get_response_type(CommandSentType)
+
+    @classmethod
+    @has_permission(permissions=[TAKE_CALLS])
+    @log_errors_and_warnings
+    def mutate(cls, root, info, signal, signal_id, call=None, data=None):
+        result = desk.record_ux_signal(
+            current_user(info), signal=signal, signal_id=signal_id, call=call, data=data
+        )
+        return Response.build_response(code=9001, info=info, data=result)
+
+
 class SkillNeedInput(graphene.InputObjectType):
     skill = graphene.String(required=True)
     min_level = graphene.Int(required=True)
@@ -160,4 +197,10 @@ class Mutation(graphene.ObjectType):
     )
     finish_my_wrapup = FinishMyWrapup.Field(
         description="End wrap-up with a code. permissions=['can_take_calls']"
+    )
+    change_my_wrapup_code = ChangeMyWrapupCode.Field(
+        description="Correct the last call's wrap-up code, within 2 minutes. permissions=['can_take_calls']"
+    )
+    record_ux_signal = RecordUxSignal.Field(
+        description="A UX measurement from the agent page (UX_PRINCIPLES.md 6). permissions=['can_take_calls']"
     )

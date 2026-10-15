@@ -66,3 +66,23 @@ Reviewed against UI_DESIGN.md and the approved mockups, then fixed:
 
 Validation: `make ci` (lint, types, 9 import contracts, 741 tests including the three browser suites);
 the M3 lab check against a running stack passed 22 checks.
+
+## UX principles applied (15 October 2026)
+
+Following `docs/UX_PRINCIPLES.md` (and the updated UI_DESIGN.md: Hang up is Shift+E):
+
+- **The state button says what it will do.** Not Ready: a filled "Go Ready" that acts at once (R).
+  Ready: "Go Not Ready", which opens the reasons as one-click buttons. During a call: "Not Ready
+  after this call" / "Ready after this call". This replaces the generic "Change state" menu, so an
+  agent never has to guess how to change state.
+- **Hang up is Shift+E**; a lone "e" does nothing (section 4).
+- **AI feedback** (section 5): "Summary wrong" and "Wrong queue" beside the AI summary.
+- **A wrap-up code can be corrected for 2 minutes** after it was given (section 4), from the call zone.
+- **Section 6 signals**: the brain emits `offer.answered`, `offer.missed`, `wrapup.started`,
+  `wrapup.done`, `wrapup.code_changed`; the page sends `ux.offer_shown`, `ux.ai_summary_shown`,
+  `ux.ai_summary_wrong`, `ux.ai_queue_wrong`, `ux.action` (press-to-confirm time for each button);
+  the admin sends `ux.admin_validation_error` (field names only).
+- **Swahili** on the agent and supervisor pages, switched in place (no reload, a call goes on) and
+  remembered. Draft labels for Tostao's review: `docs/SWAHILI_REVIEW.md`. Tests check that every
+  English label has a Swahili one with the same `{placeholders}`, and that every state still fits at
+  1366x768 and passes axe in Swahili.

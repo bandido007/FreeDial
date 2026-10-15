@@ -11,8 +11,13 @@ from django.contrib import admin
 from django.contrib.admin.widgets import AdminSplitDateTime
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
+from django.dispatch import Signal
 from django.template.response import TemplateResponse
 from django.urls import reverse
+
+# Sent when an admin form comes back with errors (UX_PRINCIPLES.md section 6: "validation errors shown").
+# Arguments: model ("app_label.model_name") and fields (names only, never the values typed).
+admin_form_refused = Signal()
 
 
 class WorkspaceAdminMixin:
@@ -80,7 +85,15 @@ class WorkspaceAdminMixin:
         context = dict(extra_context or {})
         if not request.GET.get("_popup") and self.has_view_or_change_permission(request):
             context.update(self.workspace_context(request, object_id))
-        return super().changeform_view(request, object_id, form_url, context)
+        response = super().changeform_view(request, object_id, form_url, context)
+        form = getattr((getattr(response, "context_data", None) or {}).get("adminform"), "form", None)
+        if request.method == "POST" and form is not None and form.errors:
+            admin_form_refused.send(
+                sender=type(self),
+                model=f"{self.opts.app_label}.{self.opts.model_name}",
+                fields=sorted(form.errors),
+            )
+        return response
 
 
 class WorkspaceModelAdmin(WorkspaceAdminMixin, admin.ModelAdmin):

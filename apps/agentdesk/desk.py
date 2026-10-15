@@ -5,6 +5,7 @@ agent's or a call's state itself. The brain's answer comes back as events on the
 page's live WebSocket; ``live_state`` reads the state the brain last saved.
 """
 
+import uuid
 from typing import Any
 
 from django.conf import settings
@@ -130,6 +131,48 @@ def finish_wrapup(
                 raise ValidationError("Pick one of the listed reasons.", code=NOT_LISTED)
             data["reason"] = reason
     return {"command_id": bus.send_command(m.AGENT_WRAPUP_DONE, data)}
+
+
+def change_wrapup_code(user, *, call: str, code: str) -> dict[str, Any]:
+    """Correct the last call's wrap-up code (the brain allows it for 2 minutes, UX_PRINCIPLES.md 4)."""
+    agent = agent_of(user)
+    code = (code or "").strip()
+    if code not in set(WrapupCode.objects.filter(active=True).values_list("name", flat=True)):
+        raise ValidationError("Pick one of the listed wrap-up codes.", code=NOT_LISTED)
+    data = {"agent": str(agent.uid), "call": str(call), "code": code}
+    return {"command_id": bus.send_command(m.AGENT_WRAPUP_CODE_CHANGE, data)}
+
+
+# The fields each page signal may carry (UX_PRINCIPLES.md section 6); anything else is dropped.
+UX_FIELDS = {
+    m.UX_OFFER_SHOWN: ("shown_at",),
+    m.UX_AI_SUMMARY_SHOWN: ("where",),
+    m.UX_AI_SUMMARY_WRONG: ("note",),
+    m.UX_AI_QUEUE_WRONG: ("queue",),
+    m.UX_ACTION: ("action", "ms", "ok"),
+}
+
+
+def record_ux_signal(
+    user, *, signal: str, signal_id: str, call: str | None, data: dict | None
+) -> dict[str, Any]:
+    """A measurement from the agent page, stamped with this agent; stored once per ``signal_id``."""
+    agent = agent_of(user)
+    if signal not in UX_FIELDS:
+        raise ValidationError("Not a page signal.", code=NOT_LISTED)
+    try:
+        event_id = str(uuid.UUID(signal_id))
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("signalId must be a UUID.", code=NOT_LISTED) from exc
+    given = data if isinstance(data, dict) else {}
+    clean: dict[str, Any] = {"agent": str(agent.uid), "call": str(call or "")[:64]}
+    for key in UX_FIELDS[signal]:
+        value = given.get(key, "" if key != "ok" else True)
+        clean[key] = (
+            value[:500] if isinstance(value, str) else value if isinstance(value, bool | int | float) else ""
+        )
+    bus.publish_ux(signal, clean, event_id)
+    return {"command_id": event_id}
 
 
 # ── transfers and conference (M5) ─────────────────────────────────────────

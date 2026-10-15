@@ -228,6 +228,25 @@ time {
   color: inherit;
   border-color: currentColor;
 }
+.state-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+/* The next step the agent should take ("Go Ready") is filled, so it reads as a button. */
+.statebar .state-action.cta {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--surface);
+}
+.state-action .caret {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
 .state-load {
   border-left: 1px solid currentColor;
   padding-left: 24px;
@@ -947,8 +966,13 @@ body[data-state="phone-problem"] {
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
-.state-menu select {
-  width: 200px;
+.menu-heading {
+  font-weight: 600;
+}
+.reason-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .notice {
   margin: 12px 32px;
@@ -1282,4 +1306,29 @@ body[data-state="phone-problem"] {
 }
 .bottom #unsaved-notes {
   margin-left: auto;
+}
+
+/* UX_PRINCIPLES.md section 5: the AI can be wrong, and the agent can say so. */
+.ai-feedback {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.ai-feedback button {
+  font-size: 13px;
+  min-height: 32px;
+}
+/* Section 4: the last wrap-up code stays correctable for 2 minutes. */
+.last-wrap {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.last-wrap p,
+.last-wrap small {
+  flex-basis: 100%;
 }

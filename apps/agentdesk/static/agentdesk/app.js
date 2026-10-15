@@ -4,21 +4,48 @@
   "use strict";
   const $ = (id) => document.getElementById(id);
   const config = JSON.parse($("desk-config").textContent);
+  // Labels come from translations/<language>.json; the agent picks the language (UI_DESIGN.md 2.7).
+  // Switching re-labels the page in place: it never reloads, so a call in progress goes on.
+  const LANGUAGES = config.messages;
+  let language = "en";
+  try {
+    language = LANGUAGES[localStorage.getItem("algodial.language")]
+      ? localStorage.getItem("algodial.language")
+      : "en";
+  } catch {
+    /* no storage: English */
+  }
   const t = (key, values = {}) =>
     Object.entries(values).reduce(
       (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
-      config.messages[key] || key,
+      LANGUAGES[language]?.[key] || LANGUAGES.en[key] || key,
     );
-  document.querySelectorAll("[data-i18n]").forEach((node) => {
-    node.textContent = t(node.dataset.i18n);
-  });
-  document.querySelectorAll("[data-placeholder]").forEach((node) => {
-    node.placeholder = t(node.dataset.placeholder);
-  });
-  for (const attribute of ["aria-label", "title"])
-    document
-      .querySelectorAll(`[${attribute}]`)
-      .forEach((node) => node.setAttribute(attribute, t(node.getAttribute(attribute))));
+  function translatePage() {
+    document.documentElement.lang = language;
+    document.querySelectorAll("[data-i18n]").forEach((node) => {
+      node.textContent = t(node.dataset.i18n);
+    });
+    document.querySelectorAll("[data-placeholder]").forEach((node) => {
+      node.placeholder = t(node.dataset.placeholder);
+    });
+    for (const attribute of ["aria-label", "title"]) {
+      const keep = `i18n${attribute === "title" ? "Title" : "Aria"}`; // the English key, kept for the next switch
+      document.querySelectorAll(`[${attribute}]`).forEach((node) => {
+        if (node.dataset[keep] === undefined) node.dataset[keep] = node.getAttribute(attribute);
+        if (node.dataset[keep]) node.setAttribute(attribute, t(node.dataset[keep]));
+      });
+    }
+    document.querySelectorAll("[data-language]").forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.language === language));
+      button.classList.toggle("selected", button.dataset.language === language);
+    });
+  }
+  translatePage();
+  function label(node, key) {
+    // Text that stays on screen: keep its English key, so a language switch relabels it.
+    node.dataset.i18n = key;
+    node.textContent = t(key);
+  }
   const store = {
     get(key) {
       try {
@@ -87,6 +114,14 @@
     failed_turns: "The AI did not understand",
     sensitive_topic: "Sensitive topic",
   };
+  function stateAction() {
+    // What the state button offers next. Not Ready (or not responding): Go Ready, at once.
+    // Ready: Go Not Ready, with a reason. During a call either applies once the call ends.
+    const busy = ["offered", "talking", "on_hold", "wrapup"].includes(state?.activity);
+    const notReady = state?.availability !== "ready" || state?.activity === "not_responding";
+    if (notReady) return { direct: true, label: busy ? "Ready after this call" : "Go Ready" };
+    return { direct: false, label: busy ? "Not Ready after this call" : "Go Not Ready" };
+  }
   function targetName(current) {
     // An agent transfer carries the colleague's uid; the page already lists colleagues by name.
     const colleague = desk?.transferTargets?.agents?.find((agent) => agent.uid === current.target);
@@ -95,7 +130,10 @@
   function clockTime(stamp) {
     return new Date(stamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
+  const WRAPUP_EDIT_SECONDS = 120; // the brain accepts a corrected code this long
+  let lastWrap = null; // { call, code, at }: the code just given, still correctable
   const SEARCH_FROM = 10; // wrap-up codes before a search box helps (a short list is quicker as a select)
+  const LANGUAGE_NAMES = { swahili: "Swahili", english: "English" }; // routing skills, shown in the agent's language
   const STATE_NAMES = {
     offered: "Incoming call",
     talking: "On a call",
@@ -200,18 +238,62 @@
       throw new DeskError(answer?.code || 0, answer?.message || t("Request failed. Try again."));
     return answer.data;
   }
+  // ── UX signals (UX_PRINCIPLES.md section 6): measurement only, sent and forgotten ──
+  const SIGNAL_MUTATION =
+    "mutation S($signal: String!, $signalId: String!, $call: String, $data: GenericScalar) " +
+    "{ recordUxSignal(signal: $signal, signalId: $signalId, call: $call, data: $data) { status } }";
+  const sentSignals = new Set();
+  function newId() {
+    if (crypto.randomUUID) return crypto.randomUUID();
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+  function signal(kind, call, data = {}, once = "") {
+    if (once) {
+      if (sentSignals.has(once)) return;
+      sentSignals.add(once);
+    }
+    api(SIGNAL_MUTATION, { signal: kind, signalId: newId(), call: call || "", data }).catch(() => {});
+  }
+  // Section 3: how long a button takes from press to the brain's confirmation (a state change).
+  const CONFIRMED_BY_STATE = new Set(["setMyAvailability", "holdMyCall", "finishMyWrapup"]);
+  let pendingAction = null;
+  function confirmAction(ok) {
+    if (!pendingAction) return;
+    const { action, pressed, call } = pendingAction;
+    pendingAction = null;
+    signal("ux.action", call, { action, ms: Math.round(performance.now() - pressed), ok });
+  }
   async function command(query, variables, message = "Waiting for confirmation…") {
     notice();
     feedback(t(message));
+    const action = (query.match(/\{\s*(\w+)/) || [])[1] || "action";
+    const pressed = performance.now();
+    const call = state?.call || state?.wrapupCall || "";
+    // Wait for the confirming state change before sending: it can arrive before the API reply.
+    const confirmed = CONFIRMED_BY_STATE.has(action);
+    if (confirmed) {
+      pendingAction = { action, pressed, call };
+      setTimeout(() => pendingAction?.pressed === pressed && confirmAction(false), 10000);
+    }
     try {
       await api(query, variables);
+      if (!confirmed)
+        signal("ux.action", call, { action, ms: Math.round(performance.now() - pressed), ok: true });
       return true;
     } catch (error) {
+      if (confirmed && pendingAction?.pressed === pressed) confirmAction(false);
+      else if (!confirmed)
+        signal("ux.action", call, { action, ms: Math.round(performance.now() - pressed), ok: false });
       notice(error.message);
       feedback();
       return false;
     }
   }
+
   $("signin-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     $("signin-error").textContent = "";
@@ -251,7 +333,9 @@
     transferTargets { queues agents { uid number name availability activity } }
   } } }`;
   function fill(select, names, empty) {
-    select.replaceChildren(new Option(t(empty), ""));
+    const placeholder = new Option(t(empty), "");
+    placeholder.dataset.i18n = empty; // relabelled when the agent switches language
+    select.replaceChildren(placeholder);
     for (const name of names || []) select.append(new Option(name, name));
   }
   function fillTargets(targets) {
@@ -277,7 +361,16 @@
     $("desk").hidden = false;
     $("agent-name").textContent = desk.name;
     $("agent-number").textContent = desk.number;
-    fill($("reason"), desk.notReadyReasons, "Choose a reason");
+    $("reason-buttons").replaceChildren(
+      ...desk.notReadyReasons.map((reason) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.reason = reason;
+        button.textContent = reason;
+        button.addEventListener("click", () => goNotReady(reason));
+        return button;
+      }),
+    );
     fill($("wrapup-reason"), desk.notReadyReasons, "Choose a reason");
     fill(
       $("wrapup-code"),
@@ -356,7 +449,10 @@
     }
     if (Number.isFinite(stamp(at))) since = stamp(at);
     else if (changed) since = Date.now();
-    if (changed) feedback();
+    if (changed) {
+      feedback();
+      confirmAction(true);
+    }
     if (state.activity !== "wrapup") wrapPending = false;
     renderCall();
   }
@@ -394,7 +490,7 @@
       if (data.type === "hello") {
         liveRetry = 1000;
         liveReady = true;
-        $("live-chip").textContent = t("Live: on");
+        label($("live-chip"), "Live: on");
         applyState(data.state);
         scheduleSnapshot();
         renderCall();
@@ -405,7 +501,7 @@
       if (live !== socket) return;
       live = null;
       liveReady = false;
-      $("live-chip").textContent = t("Live: reconnecting");
+      label($("live-chip"), "Live: reconnecting");
       renderCall();
       if (signingOut || stopping || !tokens) return;
       if (event.code === 4401 && !(await refresh())) {
@@ -611,7 +707,16 @@
                 : t("Go Ready when you can take calls");
     $("ready").disabled = $("empty-ready").disabled =
       problem || !liveReady || (state.availability === "ready" && state.activity !== "not_responding");
-    $("not-ready").disabled = state.availability === "logged_out" || !liveReady;
+    const action = stateAction();
+    $("state-action").textContent = t(action.label);
+    $("state-action-icon").setAttribute("href", action.direct ? "#i-check" : "#i-minus");
+    $("state-action-caret").style.display = action.direct ? "none" : "";
+    $("state-menu-toggle").classList.toggle("cta", action.direct && !problem);
+    $("state-menu-toggle").disabled = action.direct && $("ready").disabled;
+    $("state-menu-toggle").title = action.direct && problem ? t("Reconnect your phone first") : "";
+    $("ready").hidden = !action.direct;
+    $("reason-heading").hidden = $("reason-buttons").hidden = action.direct;
+    for (const button of $("reason-buttons").children) button.disabled = !liveReady;
     $("incoming-offer").hidden = !incoming;
     $("answer").disabled = !ringing || !micReady;
     $("reject").disabled = !ringing;
@@ -624,7 +729,9 @@
       identity?.uri.user ||
       t("Unknown caller");
     const queue = offer?.queue || t("Queue unknown"),
-      language = offer?.language || t("Language unknown");
+      language = offer?.language
+        ? t(LANGUAGE_NAMES[offer.language.toLowerCase()] || offer.language)
+        : t("Language unknown");
     $("offer-caller").textContent = $("caller").textContent = caller;
     $("caller-name").textContent = offer?.caller_name || offer?.callerName || "";
     $("offer-meta").textContent = `${queue} / ${language}`;
@@ -638,6 +745,16 @@
     $("ai-summary").hidden = !(summary && !wrapping && (talking || incoming));
     $("ai-summary-text").textContent = summary;
     $("ai-reason").textContent = t(AI_REASONS[offer?.ai_reason || offer?.aiReason] || "");
+    const callId = offer?.call || state.call || state.wrapupCall || "";
+    if (incoming && callId)
+      signal("ux.offer_shown", callId, { shown_at: new Date().toISOString() }, `shown:${callId}`);
+    if (summary && callId && (incoming || talking)) {
+      const where = incoming ? "offer" : "call";
+      signal("ux.ai_summary_shown", callId, { where }, `summary:${callId}:${where}`);
+    }
+    $("summary-wrong").disabled = sentSignals.has(`summary-wrong:${callId}`);
+    $("queue-wrong").disabled = sentSignals.has(`queue-wrong:${callId}`);
+    $("last-wrap").hidden = !lastWrap || incoming || talking || wrapping || problem;
     $("context-language").textContent = language;
     $("context-topic").textContent = queue;
     $("context-meta").hidden = wrapping || !(talking || incoming);
@@ -717,6 +834,16 @@
     $("since").textContent = duration(
       state?.activity === "wrapup" && wrap ? wrap - (Date.now() - since) / 1000 : (Date.now() - since) / 1000,
     );
+    if (lastWrap) {
+      const left = WRAPUP_EDIT_SECONDS - (Date.now() - lastWrap.at) / 1000;
+      if (left <= 0) {
+        lastWrap = null;
+        $("last-wrap").hidden = true;
+      } else {
+        $("last-wrap-code").textContent = lastWrap.code;
+        $("last-wrap-time").textContent = t("You can change it for {time}", { time: duration(left) });
+      }
+    }
     $("wrapup-time").textContent = wrap
       ? t("Wrap-up ends in {time}", { time: duration(wrap - (Date.now() - since) / 1000) })
       : t("Time in wrap-up {time}", { time: duration((Date.now() - since) / 1000) });
@@ -732,7 +859,7 @@
     const wasReady = phoneReady;
     phoneReady = false;
     phoneProblem = t(message);
-    $("phone-chip").textContent = t("Phone disconnected");
+    label($("phone-chip"), "Phone disconnected");
     renderCall();
     if (!stopping && !signingOut && tokens && (wasReady || state?.availability === "ready")) {
       command(
@@ -788,13 +915,13 @@
       user_agent: "AlgoDial agent page",
     }));
     phoneUa.on("connecting", () => {
-      $("phone-chip").textContent = t("Phone connecting");
+      label($("phone-chip"), "Phone connecting");
     });
     phoneUa.on("registered", () => {
       if (ua !== phoneUa) return;
       phoneReady = true;
       phoneProblem = "";
-      $("phone-chip").textContent = t("Phone connected"); // plain words; the account is for support
+      label($("phone-chip"), "Phone connected"); // plain words; the account is for support
       $("phone-chip").dataset.sipId = phone.sipId;
       $("phone-chip").title = t("Phone: {id}", { id: phone.sipId });
       note(t("Phone connected"));
@@ -894,7 +1021,11 @@
     $(button).setAttribute("aria-expanded", String(!$(id).hidden));
     if (!$(id).hidden) $(id).querySelector("select,input,button")?.focus();
   }
-  $("state-menu-toggle").addEventListener("click", () => toggle("state-menu", "state-menu-toggle"));
+  // The state button does what it says: "Go Ready" acts at once; "Go Not Ready" opens the reasons.
+  $("state-menu-toggle").addEventListener("click", () => {
+    if (stateAction().direct) $("ready").click();
+    else toggle("state-menu", "state-menu-toggle");
+  });
   $("ready").addEventListener("click", async () => {
     if (await command("mutation { setMyAvailability(ready: true) { status code message } }")) {
       $("state-menu").hidden = true;
@@ -902,22 +1033,17 @@
     }
   });
   $("empty-ready").addEventListener("click", () => $("ready").click());
-  $("not-ready").addEventListener("click", async () => {
-    if (!$("reason").value) {
-      notice(t("Choose a reason before going Not Ready."));
-      $("reason").focus();
-      return;
-    }
+  async function goNotReady(reason) {
     if (
       await command(
         "mutation R($reason: String) { setMyAvailability(ready: false, reason: $reason) { status code message } }",
-        { reason: $("reason").value },
+        { reason },
       )
     ) {
       $("state-menu").hidden = true;
       $("state-menu-toggle").setAttribute("aria-expanded", "false");
     }
-  });
+  }
   $("enable-notifications").addEventListener("click", async () => {
     if ("Notification" in window) {
       const value = await Notification.requestPermission();
@@ -1045,6 +1171,7 @@
     }
     wrapPending = true;
     renderCall();
+    const wrapCall = state?.wrapupCall || "";
     if (
       !(await command(
         "mutation W($code: String!, $notes: String, $ready: Boolean, $reason: String) { finishMyWrapup(code: $code, notes: $notes, ready: $ready, reason: $reason) { status code message } }",
@@ -1053,8 +1180,56 @@
     ) {
       wrapPending = false;
       renderCall();
+    } else if (wrapCall && desk.wrapupCodes.length) {
+      lastWrap = { call: wrapCall, code, at: Date.now() };
+      fill($("last-wrap-select"), desk.wrapupCodes, "Choose a wrap-up code");
+      $("last-wrap-select").value = code;
     }
   }
+  document.querySelectorAll("[data-language]").forEach((button) =>
+    button.addEventListener("click", () => {
+      language = button.dataset.language;
+      try {
+        localStorage.setItem("algodial.language", language);
+      } catch {
+        /* the choice lasts this page only */
+      }
+      translatePage();
+      if (desk) {
+        const chosen = $("transfer-agent").value;
+        fillTargets(desk.transferTargets);
+        $("transfer-agent").value = chosen;
+        renderQueues();
+        renderCall();
+      }
+    }),
+  );
+  $("summary-wrong").addEventListener("click", () => aiCorrection("ux.ai_summary_wrong", "summary-wrong"));
+  $("queue-wrong").addEventListener("click", () => aiCorrection("ux.ai_queue_wrong", "queue-wrong"));
+  function aiCorrection(kind, id) {
+    const callId = offer?.call || state?.call || state?.wrapupCall || "";
+    signal(
+      kind,
+      callId,
+      kind === "ux.ai_queue_wrong" ? { queue: offer?.queue || "" } : {},
+      `${id}:${callId}`,
+    );
+    $(id).disabled = true;
+    feedback(t("Thanks. Noted for whoever improves the AI."));
+  }
+  $("last-wrap-save").addEventListener("click", async () => {
+    const code = $("last-wrap-select").value;
+    if (!lastWrap || !code || code === lastWrap.code) return;
+    const done = await command(
+      "mutation C($call: String!, $code: String!) { changeMyWrapupCode(call: $call, code: $code) { status code message } }",
+      { call: lastWrap.call, code },
+    );
+    if (done && lastWrap) {
+      lastWrap.code = code;
+      feedback(t("Wrap-up code changed"));
+      renderCall();
+    }
+  });
   $("wrapup-done").addEventListener("click", () => finishWrapup(true));
   $("wrapup-not-ready").addEventListener("click", () => finishWrapup(false));
   $("signout").addEventListener("click", async () => {
@@ -1106,6 +1281,9 @@
     if (event.key === "Enter" && !$("incoming-offer").hidden && !$("answer").disabled) id = "answer";
     else {
       if (event.target.closest("input,textarea,select,[contenteditable=true]")) return;
+      const key = event.key.toLowerCase();
+      // Hang up needs Shift+E: a stray "e" must never end a call (UX_PRINCIPLES.md section 4).
+      if (key === "e" && !event.shiftKey) return;
       id = {
         h: $("resume").hidden ? "hold" : "resume",
         m: "mute",
@@ -1113,7 +1291,7 @@
         k: "keypad-toggle",
         e: "hangup",
         r: "state-menu-toggle",
-      }[event.key.toLowerCase()];
+      }[key];
     }
     if (id && !$(id).disabled && $(id).getClientRects().length) {
       event.preventDefault();

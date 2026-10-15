@@ -4,6 +4,7 @@ Real OAuth, commands and isolation are covered by test_desk/test_live; the lab
 script verifies WebRTC against Asterisk. These tests cover the visible workflow.
 """
 
+import re
 import shutil
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from django.contrib.staticfiles import finders
 from django.template.loader import render_to_string
 from playwright.sync_api import expect, sync_playwright
 
-from apps.agentdesk.views import english_messages
+from apps.agentdesk.views import page_messages
 
 HERE = Path(__file__).resolve().parent
 ARTIFACTS = HERE.parents[2] / "test-artifacts" / "agentdesk"
@@ -39,7 +40,7 @@ def page(browser):
         "revokeUrl": "/oauth2/revoke_token",
         "graphqlUrl": "/graphql",
         "liveUrl": "/ws/agent",
-        "messages": english_messages(),
+        "messages": page_messages(),
     }
     html = render_to_string("agentdesk/index.html", {"config": config})
     page.add_init_script(path=str(HERE / "browser_stub.js"))
@@ -90,16 +91,20 @@ def check_view(page):
     assert not results, [(v["id"], [n["target"] for n in v["nodes"]]) for v in results]
 
 
+@pytest.mark.parametrize("language", ["en", "sw"])
 @pytest.mark.parametrize("size", [(1366, 768), (1920, 1080)])
 @pytest.mark.parametrize("theme", ["light", "dark"])
-def test_approved_states_fit_and_pass_accessibility(page, size, theme):
+def test_approved_states_fit_and_pass_accessibility(page, size, theme, language):
+    """Swahili labels run longer than English: every state must still fit without scrolling."""
     page.set_viewport_size({"width": size[0], "height": size[1]})
     page.evaluate("theme => document.documentElement.dataset.theme=theme", theme)
+    page.click(f'[data-language="{language}"]')
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
+    suffix = "" if language == "en" else f"-{language}"
 
     def capture(state):
         check_view(page)
-        page.screenshot(path=str(ARTIFACTS / f"{state}-{theme}-{size[0]}x{size[1]}.png"))
+        page.screenshot(path=str(ARTIFACTS / f"{state}-{theme}-{size[0]}x{size[1]}{suffix}.png"))
 
     capture("not-ready")
     page.evaluate("__deskTest.ready()")
@@ -132,9 +137,8 @@ def focus_by_tab(page, selector):
 
 def test_keyboard_call_workflow_preserves_notes_and_finishes_not_ready(page):
     # Use the keyboard for every action; shortcuts stay inactive in editable fields.
-    page.keyboard.press("r")
-    expect(page.locator("#state-menu")).to_be_visible()
-    page.keyboard.press("Enter")  # focused Go Ready
+    expect(page.locator("#state-action")).to_have_text("Go Ready")
+    page.keyboard.press("r")  # the state button says what it does, and Go Ready acts at once
     expect(page.locator("#state-title")).to_have_text("Ready")
     page.evaluate("__deskTest.offer()")
     page.keyboard.press("Enter")
@@ -157,7 +161,9 @@ def test_keyboard_call_workflow_preserves_notes_and_finishes_not_ready(page):
     expect(page.locator("#consult")).to_be_visible()
     focus_by_tab(page, "#consult-cancel")
     page.keyboard.press("Enter")
-    page.keyboard.press("e")
+    page.keyboard.press("e")  # alone it does nothing: hanging up needs Shift+E
+    expect(page.locator("#state-title")).not_to_have_text("Wrap-up")
+    page.keyboard.press("Shift+E")
     expect(page.locator("#wrapup")).to_be_visible()
     expect(page.locator("#notes")).to_have_value("Receipt requested. h m t e")
     focus_by_tab(page, "#wrapup-code")
@@ -260,3 +266,97 @@ def test_delayed_snapshot_from_previous_signin_cannot_replace_the_next_agents_de
     expect(page.locator("#agent-name")).to_have_text("Neema")
     page.evaluate("window.__releaseOldDesk()")
     expect(page.locator("#agent-name")).to_have_text("Neema")
+
+
+def test_the_state_button_says_what_it_will_do(page):
+    """Nobody has to guess the state control: it is named by its next action (UX rule 4)."""
+    button = page.locator("#state-menu-toggle")
+    expect(page.locator("#state-action")).to_have_text("Go Ready")
+    expect(button).to_have_class(re.compile(r"\bcta\b"))  # the next step is filled, so it reads as a button
+    button.click()
+    expect(page.locator("#state-title")).to_have_text("Ready")
+    expect(page.locator("#state-action")).to_have_text("Go Not Ready")
+    button.click()  # now it opens the reasons: one click each
+    expect(page.locator("#state-menu")).to_be_visible()
+    expect(page.locator("#ready")).to_be_hidden()
+    page.click('#reason-buttons [data-reason="Break"]')
+    expect(page.locator("#state-title")).to_have_text("Not ready: Break")
+    expect(page.locator("#state-action")).to_have_text("Go Ready")
+    button.click()
+    expect(page.locator("#state-title")).to_have_text("Ready")
+    page.evaluate("__deskTest.offer()")
+    page.keyboard.press("Enter")
+    expect(page.locator("#state-title")).to_have_text("On a call")
+    expect(page.locator("#state-action")).to_have_text("Not Ready after this call")
+
+
+def sent(page, kind):
+    return page.evaluate(
+        f"__deskTest.commands.filter(c => c.variables.signal === '{kind}').map(c => [c.variables.call, c.variables.data])"
+    )
+
+
+def test_the_page_measures_offers_ai_feedback_and_button_times(page):
+    """UX_PRINCIPLES.md section 6: offer shown, AI summary shown and corrected, button round trips."""
+    page.evaluate("__deskTest.ready(); __deskTest.offer()")
+    page.wait_for_function("__deskTest.commands.some(c => c.variables.signal === 'ux.offer_shown')")
+    [(call, data)] = sent(page, "ux.offer_shown")
+    assert call == "call-1" and data["shown_at"].endswith("Z")
+    assert sent(page, "ux.ai_summary_shown") == [["call-1", {"where": "offer"}]]
+    page.keyboard.press("Enter")
+    expect(page.locator("#state-title")).to_have_text("On a call")
+    page.wait_for_function(
+        "__deskTest.commands.filter(c => c.variables.signal === 'ux.ai_summary_shown').length === 2"
+    )
+
+    page.click("#summary-wrong")
+    expect(page.locator("#summary-wrong")).to_be_disabled()
+    page.click("#queue-wrong")
+    assert sent(page, "ux.ai_summary_wrong") == [["call-1", {}]]
+    assert sent(page, "ux.ai_queue_wrong") == [["call-1", {"queue": "Claims"}]]
+
+    page.keyboard.press("h")
+    expect(page.locator("#state-title")).to_have_text("On hold")
+    page.wait_for_function("__deskTest.commands.some(c => c.variables.data?.action === 'holdMyCall')")
+    [(_, hold)] = [s for s in sent(page, "ux.action") if s[1]["action"] == "holdMyCall"]
+    assert hold["ok"] is True and 0 <= hold["ms"] < 1000
+
+
+def test_a_wrapup_code_can_be_corrected_for_two_minutes(page):
+    """UX_PRINCIPLES.md section 4: "Wrap-up submitted with the wrong code: editable for 2 minutes"."""
+    page.evaluate("__deskTest.ready(); __deskTest.offer()")
+    page.keyboard.press("Enter")
+    expect(page.locator("#state-title")).to_have_text("On a call")
+    page.keyboard.press("Shift+E")
+    expect(page.locator("#wrapup")).to_be_visible()
+    page.select_option("#wrapup-code", "Information given")
+    page.click("#wrapup-done")
+    expect(page.locator("#last-wrap")).to_be_visible()
+    expect(page.locator("#last-wrap-code")).to_have_text("Information given")
+    expect(page.locator("#last-wrap-time")).to_contain_text("You can change it for")
+    page.select_option("#last-wrap-select", "Follow-up required")
+    page.click("#last-wrap-save")
+    page.wait_for_function("__deskTest.commands.some(c => c.query.includes('changeMyWrapupCode'))")
+    change = page.evaluate("__deskTest.commands.find(c => c.query.includes('changeMyWrapupCode')).variables")
+    assert change == {"call": "call-1", "code": "Follow-up required"}
+    expect(page.locator("#last-wrap-code")).to_have_text("Follow-up required")
+
+
+def test_the_agent_switches_to_swahili_in_place_and_it_is_remembered(page):
+    """No reload: a call in progress goes on (UI_DESIGN.md 2.7)."""
+    page.click('[data-language="sw"]')
+    expect(page.locator("html")).to_have_attribute("lang", "sw")
+    expect(page.locator('[data-language="sw"]')).to_have_attribute("aria-pressed", "true")
+    expect(page.locator("#state-action")).to_have_text("Kuwa Tayari")
+    expect(page.locator("#state-title")).to_have_text("Sipo tayari: Break")
+    page.evaluate("__deskTest.ready(); __deskTest.offer()")
+    expect(page.locator("#state-title")).to_have_text("Simu inaingia")
+    page.keyboard.press("Enter")
+    expect(page.locator("#state-title")).to_have_text("Kwenye simu")
+    expect(page.locator("#state-action")).to_have_text("Sipo tayari baada ya simu hii")
+    page.click('[data-language="en"]')
+    expect(page.locator("#state-title")).to_have_text("On a call")
+    expect(page.locator("#state-action")).to_have_text("Not Ready after this call")
+    page.click('[data-language="sw"]')
+    page.reload()
+    expect(page.locator("html")).to_have_attribute("lang", "sw")

@@ -182,6 +182,10 @@ def _project(kind: str, data: dict[str, Any], at: datetime) -> None:
         )
     elif kind == m.ROUTING_TICKET:
         Call.objects.filter(linkedid=data["call"]).update(queue=data["queue"])
+    elif kind == m.WRAPUP_CODE_CHANGED:
+        InteractionPart.objects.filter(
+            call__linkedid=data["call"], kind=PartKind.AGENT, agent_uid=data["agent"]
+        ).update(wrapup_code=str(data["code"])[:120])
     elif kind == m.CALL_QUEUED:
         Call.objects.filter(linkedid=data["call"]).update(queue=data["queue"])  # where it waits now
     elif kind == m.CALL_OVERFLOWED:

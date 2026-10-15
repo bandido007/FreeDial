@@ -46,6 +46,8 @@ SUPERVISE_STOP = "supervise.stop"
 # transcript (optional): [{"who": "caller" | "ai", "text": ..., "at": seconds into the AI part}].
 AI_HANDOFF = "ai.handoff"
 AI_HANGUP = "ai.hangup"
+# UX_PRINCIPLES.md section 4: a wrap-up code can be corrected for 2 minutes after it was given.
+AGENT_WRAPUP_CODE_CHANGE = "agent.wrapup_code_change"  # agent, call, code
 
 COMMANDS: dict[str, tuple[str, ...]] = {
     AGENT_LOGIN: ("agent", "endpoint"),
@@ -67,6 +69,7 @@ COMMANDS: dict[str, tuple[str, ...]] = {
     SUPERVISE_STOP: ("supervisor",),
     AI_HANDOFF: ("call", "reason", "summary"),
     AI_HANGUP: ("call", "reason"),
+    AGENT_WRAPUP_CODE_CHANGE: ("agent", "call", "code"),
 }
 
 # ── Events: what happened, in the order the brain decided it ──────────────
@@ -102,6 +105,20 @@ AI_STARTED = "ai.started"
 AI_CONNECTED = "ai.connected"
 AI_ENDED = "ai.ended"
 CALL_ENDED = "call.ended"  # result: answered, abandoned, overflow, voicemail, ai_handled, failed
+# UX_PRINCIPLES.md section 6 (HEART signals). From the brain: what happened to an offer and a wrap-up.
+OFFER_ANSWERED = "offer.answered"  # seconds the agent's phone rang
+OFFER_MISSED = "offer.missed"  # reason: no_answer, rejected, offline, failed; seconds it rang
+WRAPUP_STARTED = "wrapup.started"  # limit_seconds: the queue's wrap-up time (0: none)
+WRAPUP_DONE = "wrapup.done"  # code, seconds in wrap-up, by: agent | timeout
+WRAPUP_CODE_CHANGED = "wrapup.code_changed"  # code, previous
+# From the web (measurement only, never state; straight onto the events stream, the writer stores them):
+UX_OFFER_SHOWN = "ux.offer_shown"  # the offer panel became visible: shown_at (browser clock, ISO)
+UX_AI_SUMMARY_SHOWN = "ux.ai_summary_shown"  # where: offer | call
+UX_AI_SUMMARY_WRONG = "ux.ai_summary_wrong"  # the agent says the AI summary was wrong
+UX_AI_QUEUE_WRONG = "ux.ai_queue_wrong"  # the agent says the AI chose the wrong queue: queue
+UX_ACTION = "ux.action"  # a button's round trip: action, ms from press to confirmation, ok
+UX_ADMIN_VALIDATION_ERROR = "ux.admin_validation_error"  # an admin form refused: model, fields
+UX_SIGNALS = (UX_OFFER_SHOWN, UX_AI_SUMMARY_SHOWN, UX_AI_SUMMARY_WRONG, UX_AI_QUEUE_WRONG, UX_ACTION)
 LEG_ENDED = "leg.ended"
 STASIS_REJECTED = "stasis.rejected"  # a channel with unknown args, hung up (rule 3)
 AGENT_STATE = "agent.state"  # the agent's whole state after a change
@@ -137,6 +154,17 @@ EVENTS: dict[str, tuple[str, ...]] = {
     AI_CONNECTED: ("call", "leg"),
     AI_ENDED: ("call", "outcome", "reason"),
     CALL_ENDED: ("call", "result", "reason"),
+    OFFER_ANSWERED: ("call", "agent", "leg", "seconds"),
+    OFFER_MISSED: ("call", "agent", "leg", "reason", "seconds"),
+    WRAPUP_STARTED: ("agent", "call", "limit_seconds"),
+    WRAPUP_DONE: ("agent", "call", "code", "seconds", "by"),
+    WRAPUP_CODE_CHANGED: ("agent", "call", "code", "previous"),
+    UX_OFFER_SHOWN: ("agent", "call", "shown_at"),
+    UX_AI_SUMMARY_SHOWN: ("agent", "call", "where"),
+    UX_AI_SUMMARY_WRONG: ("agent", "call"),
+    UX_AI_QUEUE_WRONG: ("agent", "call", "queue"),
+    UX_ACTION: ("agent", "action", "ms", "ok"),
+    UX_ADMIN_VALIDATION_ERROR: ("model", "fields"),
     LEG_ENDED: ("call", "leg", "role"),
     STASIS_REJECTED: ("channel", "args", "reason"),
     AGENT_STATE: ("agent", "number", "availability", "activity", "reason", "call", "endpoint"),

@@ -66,6 +66,10 @@ Before using any new port, check it is free: `sudo ss -ltnp | grep ':PORT'`.
 - **Commands web → brain** and **events brain → writer** travel on **Redis Streams**
   (`algodial:commands`, `algodial:events`), read through consumer groups. Delivery is
   at-least-once, so every handler is idempotent.
+- **UX signals** (`ux.*`, UX_PRINCIPLES.md section 6) go from the web straight onto `algodial:events`:
+  measurement only, never call or agent state. The web stamps the signed-in agent; the page's own
+  UUID is the `event_id`, so a retry is stored once. The brain emits its own signals
+  (`offer.*`, `wrapup.*`, `transfer.*`).
 - **Pub/Sub or the Channels layer only for browser push.** A browser that misses a message
   re-reads the state when it reconnects; nothing that must not be lost goes this way.
 - `contracts/` holds the **versioned** command and event schemas shared by web and brain. Every
@@ -107,6 +111,8 @@ Before using any new port, check it is free: `sudo ss -ltnp | grep ':PORT'`.
 ## How to work
 
 - One milestone at a time from `docs/POC_PLAN.md`. Write the tests for its "Done when" first, then the code.
+- A feature is done only when it meets the UX definition of done (`docs/UX_PRINCIPLES.md` section 8).
+  How pages look: `docs/UI_DESIGN.md`; how they behave (speed, errors, AI, measurement): `docs/UX_PRINCIPLES.md`.
 - For anything touching `/etc/asterisk`: show the diff, explain it, apply it, reload the right module, and commit in `/etc/asterisk`.
 - After each milestone: run all tests, give a short summary, and list the commands Tostao should run to see it working.
 - A new column gets a database default (`db_default`), so a process still running older code keeps working while `make dev` is restarted.

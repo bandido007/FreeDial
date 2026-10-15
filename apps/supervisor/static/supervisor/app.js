@@ -8,15 +8,52 @@
 
   const config = JSON.parse(document.getElementById("desk-config").textContent);
   const $ = (id) => document.getElementById(id);
+  // Labels come from translations/<language>.json, switched in place (never a reload: a supervised
+  // call goes on). The choice is shared with the agent page on this browser.
+  const LANGUAGES = config.messages;
+  let language = "en";
+  try {
+    const saved = localStorage.getItem("algodial.language");
+    if (LANGUAGES[saved]) language = saved;
+  } catch {
+    /* no storage: English */
+  }
   const t = (key, values = {}) =>
     Object.entries(values).reduce(
       (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
-      config.messages[key] || key,
+      LANGUAGES[language]?.[key] || LANGUAGES.en[key] || key,
     );
   const ui = window.AlgoDialUI;
-  document.querySelectorAll("[data-i18n]").forEach((node) => {
-    node.textContent = t(node.dataset.i18n);
-  });
+  function translatePage() {
+    document.documentElement.lang = language;
+    document.querySelectorAll("[data-i18n]").forEach((node) => {
+      node.textContent = t(node.dataset.i18n);
+    });
+    for (const attribute of ["aria-label", "title"]) {
+      const keep = `i18n${attribute === "title" ? "Title" : "Aria"}`;
+      document.querySelectorAll(`[${attribute}]`).forEach((node) => {
+        if (node.dataset[keep] === undefined) node.dataset[keep] = node.getAttribute(attribute);
+        if (node.dataset[keep]) node.setAttribute(attribute, t(node.dataset[keep]));
+      });
+    }
+    document.querySelectorAll("[data-language]").forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.language === language));
+      button.classList.toggle("selected", button.dataset.language === language);
+    });
+  }
+  translatePage();
+  document.querySelectorAll("[data-language]").forEach((button) =>
+    button.addEventListener("click", () => {
+      language = button.dataset.language;
+      try {
+        localStorage.setItem("algodial.language", language);
+      } catch {
+        /* the choice lasts this page only */
+      }
+      translatePage();
+      if (typeof render === "function") render();
+    }),
+  );
   let phoneReady = false,
     liveReady = false,
     selectedTeam = "",
@@ -87,8 +124,10 @@
     $("notice").textContent = text || "";
     $("notice").hidden = !text;
   }
-  function chip(id, text, kind) {
-    $(id).textContent = text;
+  function chip(id, key, kind) {
+    // Keeps the English key, so a language switch relabels the chip.
+    $(id).dataset.i18n = key;
+    $(id).textContent = t(key);
     $(id).className = `chip ${kind || ""}`;
   }
   function clock(since) {
@@ -754,7 +793,7 @@
     });
     ua.on("registered", () => {
       phoneReady = true;
-      chip("phone-chip", t("Phone connected"), "on"); // plain words; the account is for support
+      chip("phone-chip", "Phone connected", "on"); // plain words; the account is for support
       $("phone-chip").dataset.sipId = phone.sipId;
       $("phone-chip").title = `Phone: ${phone.sipId}`;
       $("reconnect").hidden = true;
@@ -788,7 +827,7 @@
 
   function phoneFailed() {
     phoneReady = false;
-    chip("phone-chip", t("Phone not connected"), "bad");
+    chip("phone-chip", "Phone not connected", "bad");
     $("reconnect").hidden = false;
     render();
   }

@@ -81,6 +81,7 @@ class Call:
     queued_at: float
     state: CallState = CallState.WAITING
     offers: dict[str, str] = field(default_factory=dict)  # ringing agent leg -> agent uid
+    offered_at: dict[str, float] = field(default_factory=dict)  # ringing agent leg -> when it started
     agent_leg: str | None = None
     agent: str | None = None
     tried: set[str] = field(default_factory=set)  # agents who missed or refused it this round

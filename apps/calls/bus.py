@@ -15,7 +15,7 @@ from django.db import transaction
 from redis.exceptions import ResponseError
 
 from contracts import messages
-from contracts.envelope import Command, encode
+from contracts.envelope import Command, Event, encode
 
 log = logging.getLogger(__name__)
 
@@ -42,6 +42,19 @@ def send_command_on_commit(kind: str, data: dict[str, Any] | None = None) -> str
     messages.check(command)
     transaction.on_commit(lambda: client().xadd(settings.BUS_COMMANDS_STREAM, {FIELD: encode(command)}))
     return command.command_id
+
+
+def publish_ux(kind: str, data: dict[str, Any], event_id: str) -> None:
+    """A UX measurement (``ux.*``, UX_PRINCIPLES.md section 6) straight onto the events stream.
+
+    Measurement only, never call or agent state (those are the brain's): the writer stores it in
+    the Event table like any event. ``event_id`` comes from the sender, so a retry is stored once.
+    """
+    if not kind.startswith("ux."):
+        raise ValueError("only ux.* signals go to the events stream from the web")
+    event = Event(type=kind, data=dict(data), event_id=event_id)
+    messages.check(event)
+    client().xadd(settings.BUS_EVENTS_STREAM, {FIELD: encode(event)})
 
 
 def _send_config_changed() -> None:

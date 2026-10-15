@@ -1973,6 +1973,31 @@ type Mutation {
     reason: String
   ): CommandSentResponse
 
+  """
+  Correct the last call's wrap-up code, within 2 minutes. permissions=['can_take_calls']
+  """
+  changeMyWrapupCode(
+    """The call just wrapped up"""
+    call: String!
+
+    """One of myAgentDesk.wrapupCodes"""
+    code: String!
+  ): CommandSentResponse
+
+  """
+  A UX measurement from the agent page (UX_PRINCIPLES.md 6). permissions=['can_take_calls']
+  """
+  recordUxSignal(
+    call: String
+    data: GenericScalar
+
+    """One of the ux.* page signals"""
+    signal: String!
+
+    """A UUID the page makes; a retry is stored once"""
+    signalId: String!
+  ): CommandSentResponse
+
   """Create or update a team. permissions=['can_manage_teams']"""
   saveTeam(input: TeamInput!): TeamResponse
 

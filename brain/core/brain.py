@@ -56,6 +56,7 @@ from brain.core.supervision import SUPERVISOR_COMMANDS, Supervision, Supervision
 from brain.core.transfers import TransferMixin
 from contracts import messages as m
 
+WRAPUP_EDIT_SECONDS = 120  # UX_PRINCIPLES.md section 4: a wrap-up code is correctable this long
 FORCEABLE = (m.AGENT_READY, m.AGENT_NOT_READY, m.AGENT_LOGOUT)  # with "by": a supervisor forced it
 
 
@@ -248,6 +249,11 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
                 agent.availability = Availability.READY if data["ready"] else Availability.NOT_READY
                 agent.reason = "" if data["ready"] else str(data.get("reason") or "")
             return self._wrapped_up(agent, str(data.get("code") or ""), "agent", now, notes=data.get("notes"))
+
+        if kind == m.AGENT_WRAPUP_CODE_CHANGE:
+            return self._change_wrapup_code(
+                agent, str(data.get("call") or ""), str(data.get("code") or ""), command_id, now
+            )
 
         if kind in (m.CALL_HOLD, m.CALL_RESUME):
             call = self.calls.get(agent.call or "")
@@ -470,7 +476,7 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
                 if queue.strategy == Strategy.BEST_SKILLED
                 else None,
             )
-            return self._offer(call, chosen, queue)
+            return self._offer(call, chosen, queue, now)
         out: list[a.Action] = []
         if (
             matching and not call.retry_pending
@@ -495,11 +501,11 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
         queue = self.config.queues.get(call.queue)
         return queue.priority if queue else 0
 
-    def _offer(self, call: Call, agents: list[Agent], queue: QueueConfig) -> list[a.Action]:
+    def _offer(self, call: Call, agents: list[Agent], queue: QueueConfig, now: float) -> list[a.Action]:
         out: list[a.Action] = []
         for agent in agents:
             leg = AGENT_LEG_PREFIX + self.new_id()
-            call.state, call.offers[leg] = CallState.OFFERING, agent.uid
+            call.state, call.offers[leg], call.offered_at[leg] = CallState.OFFERING, agent.uid, now
             self.legs[leg] = call.id
             agent.activity, agent.call = Activity.OFFERED, call.id
             self.last_rung[queue.uid] = agent.uid
@@ -550,6 +556,7 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
             return self._reject(channel, args, "its call is gone")
 
         uid = call.offers.pop(leg)
+        rang = now - call.offered_at.pop(leg, now)
         agent = self.agents.get(uid)
         out = self._cancel_offers(call, "answered elsewhere")
         call.state, call.agent_leg, call.agent = CallState.CONNECTED, leg, uid
@@ -566,6 +573,7 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
                     "sip_call_id": str(channel.get("protocol_id") or ""),
                 },
             ),
+            a.Emit(m.OFFER_ANSWERED, {"call": call.id, "agent": uid, "leg": leg, "seconds": round(rang, 2)}),
             a.StopMoh(call.id, call.bridge),
             a.AddToBridge(call.id, call.bridge, leg),
             a.CancelTimer(max_wait_timer(call)),
@@ -584,6 +592,7 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
         out: list[a.Action] = []
         for leg, uid in list(call.offers.items()):
             del call.offers[leg]
+            call.offered_at.pop(leg, None)  # not missed: nobody's fault (answered elsewhere, caller left)
             self.legs.pop(leg, None)
             out += [
                 a.Hangup(call.id, leg),
@@ -633,11 +642,16 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
 
     def _offer_failed(self, call: Call, leg: str, reason: str, cause: Any, now: float) -> list[a.Action]:
         uid = call.offers.pop(leg, None)
+        rang = now - call.offered_at.pop(leg, now)
         agent = self.agents.get(uid or "")
         self.legs.pop(leg, None)
         if not call.offers:
             call.state = CallState.WAITING
         out: list[a.Action] = [
+            a.Emit(
+                m.OFFER_MISSED,
+                {"call": call.id, "agent": uid, "leg": leg, "reason": reason, "seconds": round(rang, 2)},
+            ),
             a.Emit(
                 m.CALL_OFFER_FAILED,
                 {
@@ -769,8 +783,13 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
             if talked:
                 agent.idle_since = now
                 if wrapup > 0 and agent.availability is not Availability.LOGGED_OUT:
-                    agent.activity, agent.wrapup_call = Activity.WRAPUP, call.id
-                    out.append(a.SetTimer(wrapup_timer(agent), wrapup))
+                    agent.activity, agent.wrapup_call, agent.wrapup_started_at = Activity.WRAPUP, call.id, now
+                    out += [
+                        a.SetTimer(wrapup_timer(agent), wrapup),
+                        a.Emit(
+                            m.WRAPUP_STARTED, {"agent": agent.uid, "call": call.id, "limit_seconds": wrapup}
+                        ),
+                    ]
         out += self._changed(agent)
         if agent.removed:
             out += self._drop(agent)
@@ -1060,14 +1079,37 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
             return []
         call, agent.wrapup_call = agent.wrapup_call, None
         agent.activity, agent.idle_since = Activity.IDLE, now
+        agent.last_wrap = (str(call), code, now) if call else None
         data = {"agent": agent.uid, "call": call, "code": code, "by": by}
         if notes is not None:
             data["notes"] = str(notes)[:8000]
+        spent = round(now - agent.wrapup_started_at, 2) if agent.wrapup_started_at else 0
         return [
             a.CancelTimer(wrapup_timer(agent)),
             a.Emit(m.AGENT_WRAPPED_UP, data),
+            a.Emit(
+                m.WRAPUP_DONE, {"agent": agent.uid, "call": call, "code": code, "seconds": spent, "by": by}
+            ),
             *self._changed(agent),
             *self._offer_waiting(now),
+        ]
+
+    def _change_wrapup_code(
+        self, agent: Agent, call: str, code: str, command_id: str, now: float
+    ) -> list[a.Action]:
+        """UX_PRINCIPLES.md section 4: the last wrap-up code is correctable for WRAPUP_EDIT_SECONDS."""
+        last = agent.last_wrap
+        if last is None or last[0] != call or now - last[2] > WRAPUP_EDIT_SECONDS:
+            return self._refuse(
+                command_id, m.AGENT_WRAPUP_CODE_CHANGE, "only the last call's code, for 2 minutes", agent.uid
+            )
+        if code == last[1]:
+            return []  # the same code again (or a repeat): nothing changes
+        agent.last_wrap = (call, code, last[2])  # the window still counts from the first submit
+        return [
+            a.Emit(
+                m.WRAPUP_CODE_CHANGED, {"agent": agent.uid, "call": call, "code": code, "previous": last[1]}
+            )
         ]
 
     def _refuse(self, command_id: str, kind: str, reason: str, agent: str | None = None) -> list[a.Action]:

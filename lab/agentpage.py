@@ -136,9 +136,15 @@ async def go_ready(page):
     ready = "document.getElementById('availability').textContent === 'Ready'"
     await until(page, f"!document.getElementById('ready').disabled || {ready}", 15)
     if not await page.evaluate("document.getElementById('ready').disabled"):
-        await page.click("#state-menu-toggle")
-        await page.click("#ready")
+        await page.click("#state-menu-toggle")  # it says "Go Ready" and acts at once
     await until(page, ready, 10)
+
+
+async def go_not_ready(page, reason="Break"):
+    """The state button says "Go Not Ready"; it opens the reasons, each one click."""
+    await page.click("#state-menu-toggle")
+    await page.click(f'#reason-buttons [data-reason="{reason}"]')
+    await until(page, "document.getElementById('availability').textContent !== 'Ready'", 10)
 
 
 async def take_call(customer, page, number="899"):
@@ -235,7 +241,7 @@ async def transfers_from_the_page(playwright, show, customer, admin_session, che
     outside = await Phone("lab-agent-b", await asyncio.to_thread(sip_password, "lab-agent-b"), mode="answer").start()
     assert await outside.register() == 200
     try:
-        await second.click("#not-ready")
+        await go_not_ready(second)
         call = await take_call(customer, first)
         await transfer_from(first, "blind", "number", "lab-agent-b")
         await until(first, "window.agentDesk.session === null", 10)
@@ -470,7 +476,7 @@ async def ai_from_the_page(playwright, show, customer, admin_session, check, pas
         reason = await page.inner_text("#ai-reason")
         check(
             "the agent's incoming call shows the AI's summary",
-            "saturday" in summary.lower() and reason == "asked for a person",
+            "saturday" in summary.lower() and "asked for a person" in reason.lower(),
             f"{reason}: {summary}",
         )
         await page.click("#answer")
@@ -654,9 +660,7 @@ async def main(show, transfers=True, supervision=True, ai=True, use_running_stac
             check("wrapped up with a code, idle again", True)
 
             say("── Not Ready, then sign out")
-            await page.click("#state-menu-toggle")
-            await page.select_option("#reason", "Break")
-            await page.click("#not-ready")
+            await go_not_ready(page, "Break")
             await until(page, "document.getElementById('state-title').textContent.includes('Break')", 10)
             check("Not Ready with a reason", True)
             await page.click("#signout")

@@ -8,7 +8,7 @@ from django.contrib.staticfiles import finders
 from django.template.loader import render_to_string
 from playwright.sync_api import expect, sync_playwright
 
-from apps.supervisor.views import english_messages
+from apps.supervisor.views import page_messages
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
@@ -37,7 +37,7 @@ def page(browser):
         "revokeUrl": "/oauth2/revoke_token",
         "graphqlUrl": "/graphql",
         "liveUrl": "/ws/supervisor",
-        "messages": english_messages(),
+        "messages": page_messages(),
     }
     html = render_to_string("supervisor/index.html", {"config": config})
     page.add_init_script(path=str(HERE / "browser_stub.js"))

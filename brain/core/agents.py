@@ -36,6 +36,8 @@ class Agent:
     call: str | None = None
     wrapup_call: str | None = None  # the call the agent is wrapping up
     idle_since: float = 0.0  # longest idle is offered first
+    wrapup_started_at: float = 0.0
+    last_wrap: tuple[str, str, float] | None = None  # (call, code, when): correctable for 2 minutes
     removed: bool = False  # gone from the configuration; dropped once its call ends
 
     @property
