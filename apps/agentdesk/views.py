@@ -39,6 +39,7 @@ def agent_page(request):
         "liveUrl": "/ws/agent",
         # The browser phone (240 KB) loads after sign-in, not before the page can be used.
         "phoneLibraryUrl": static("agentdesk/vendor/jssip-3.12.0.min.js"),
+        "deskPhoneCheckMs": 10_000,  # a desk phone's state is asked again this often (30 s once connected)
         "messages": page_messages(),
     }
     return page_headers(request, render(request, "agentdesk/index.html", {"config": config}))

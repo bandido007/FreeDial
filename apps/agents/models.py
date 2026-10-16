@@ -1,8 +1,9 @@
 """Agents: who the brain can offer calls to, and what they pick on the agent page.
 
 An agent's number lives here, not on the user. A human agent signs in as a user;
-an AI agent (M8) has no user. Where an agent takes calls is decided at login,
-not stored here: the brain holds it with the agent's live state.
+an AI agent (M8) has no user. Where an agent takes calls is decided at sign-in: the
+desk phone an admin set on the agent (``phone``), or else the browser phone
+web<number> made for that sign-in. The brain holds it with the agent's live state.
 """
 
 from django.conf import settings
@@ -23,6 +24,16 @@ class Agent(BaseModel):
         blank=True,
         related_name="agent",
         help_text="The person who signs in as this agent",
+    )
+    phone = models.ForeignKey(
+        "telephony.SipAccount",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="agents",
+        limit_choices_to={"kind": "SOFTPHONE", "deleted": False},
+        help_text="Empty: calls ring the agent page in the browser. Or a desk phone or softphone "
+        "(SIP account, e.g. 1001): calls ring that phone, and the agent answers and hangs up on it.",
     )
 
     class Meta:

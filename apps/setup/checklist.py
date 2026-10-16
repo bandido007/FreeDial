@@ -612,8 +612,48 @@ def phones_section() -> Section:
             manual="manual-phones",
         )
     )
+    on_desk = list(Agent.objects.filter(active=True, phone__isnull=False).select_related("phone"))
+    off = [
+        Line(
+            f"{agent} takes calls on phone {agent.phone.sip_id}, which is switched off: they cannot sign in.",
+            change_url(agent),
+        )
+        for agent in on_desk
+        if agent.phone and (not agent.phone.active or agent.phone.deleted)
+    ]
+    sharing: dict[str, list[str]] = {}
+    for agent in on_desk:
+        if agent.phone:
+            sharing.setdefault(agent.phone.sip_id, []).append(str(agent))
+    shared = [
+        Line(f"Phone {sip_id} is shared by {', '.join(names)}: only one of them can be signed in at a time.")
+        for sip_id, names in sharing.items()
+        if len(names) > 1
+    ]
+    desk = (
+        Check(
+            "phones.agents",
+            "Agents' desk phones are switched on",
+            NOT_USED,
+            "No agent has a desk phone: every agent uses the browser phone.",
+            manual="manual-agents",
+        )
+        if not on_desk
+        else item(
+            "phones.agents",
+            "Agents' desk phones are switched on",
+            off,
+            shared,
+            done=", ".join(f"{agent.number} on {agent.phone.sip_id}" for agent in on_desk if agent.phone)
+            + ".",
+            fix=Line("Agents", list_url(Agent)),
+            manual="manual-agents",
+        )
+    )
     return Section(
-        "Phones", "Desk and test phones (SIP accounts). Agents' browser phones need nothing.", [phones]
+        "Phones",
+        "Desk and test phones (SIP accounts). Agents' browser phones need nothing.",
+        [phones, desk],
     )
 
 

@@ -171,5 +171,10 @@
   "{name} did not answer. You are back with the caller.": "{name} hakupokea. Umerudi kwa mpigaji.",
   "{name} declined the call. You are back with the caller.": "{name} amekataa simu. Umerudi kwa mpigaji.",
   "{name} could not be reached. You are back with the caller.": "{name} hapatikani. Umerudi kwa mpigaji.",
-  "Starting your session…": "Inaanzisha kipindi chako…"
+  "Starting your session…": "Inaanzisha kipindi chako…",
+  "Desk phone connected": "Simu ya mezani imeunganishwa",
+  "Pick up phone {id} to answer.": "Inua simu {id} ili upokee.",
+  "Hang up, mute and send digits on phone {id}.": "Kata simu, zima sauti na tuma tarakimu kwenye simu {id}.",
+  "Phone {id} is not connected. Turn it on or open your softphone, then press Reconnect.": "Simu {id} haijaunganishwa. Iwashe au fungua programu ya simu, kisha bonyeza Unganisha tena.",
+  "Cannot check phone {id}: the call server did not answer. Press Reconnect.": "Imeshindwa kukagua simu {id}: seva ya simu haikujibu. Bonyeza Unganisha tena."
 }

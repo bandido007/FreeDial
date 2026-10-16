@@ -58,6 +58,7 @@ class AgentCallType(graphene.ObjectType):
 
 
 class AgentDeskType(graphene.ObjectType):
+    desk_phone = graphene.String(description="The desk phone set in admin (SIP id); empty: the browser phone")
     uid = graphene.String()
     number = graphene.String()
     name = graphene.String()
@@ -72,14 +73,27 @@ class AgentDeskType(graphene.ObjectType):
 
 
 class AgentPhoneType(graphene.ObjectType):
-    """The browser phone's account for this session. The password works until the next sign-in."""
+    """Where the agent takes calls this session. The browser phone: its account, whose password works
+    until the next sign-in. A desk phone: its SIP id only."""
 
+    desk_phone = graphene.Boolean(description="True: calls ring the desk phone an admin set on the agent")
+    phone_state = graphene.String(
+        description='Desk phone: "online", "offline" or "unknown" (Asterisk did not answer)'
+    )
     sip_id = graphene.String()
     password = graphene.String()
     ws_url = graphene.String(description="Asterisk's SIP WebSocket")
     domain = graphene.String()
     endpoint = graphene.String()
     command_id = graphene.String()
+
+
+class AgentPhoneStateType(graphene.ObjectType):
+    """Whether Asterisk can reach the agent's desk phone now."""
+
+    state = graphene.String(
+        description='"online", "offline", "unknown" (Asterisk did not answer); empty: no desk phone'
+    )
 
 
 class CommandSentType(graphene.ObjectType):

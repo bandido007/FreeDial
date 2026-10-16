@@ -170,5 +170,10 @@
   "{name} did not answer. You are back with the caller.": "{name} did not answer. You are back with the caller.",
   "{name} declined the call. You are back with the caller.": "{name} declined the call. You are back with the caller.",
   "{name} could not be reached. You are back with the caller.": "{name} could not be reached. You are back with the caller.",
-  "Starting your session…": "Starting your session…"
+  "Starting your session…": "Starting your session…",
+  "Desk phone connected": "Desk phone connected",
+  "Pick up phone {id} to answer.": "Pick up phone {id} to answer.",
+  "Hang up, mute and send digits on phone {id}.": "Hang up, mute and send digits on phone {id}.",
+  "Phone {id} is not connected. Turn it on or open your softphone, then press Reconnect.": "Phone {id} is not connected. Turn it on or open your softphone, then press Reconnect.",
+  "Cannot check phone {id}: the call server did not answer. Press Reconnect.": "Cannot check phone {id}: the call server did not answer. Press Reconnect."
 }

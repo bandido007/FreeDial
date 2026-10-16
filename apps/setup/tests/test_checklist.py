@@ -231,3 +231,17 @@ def test_an_old_hand_made_web_phone_is_named(centre):
     )
     item = check("phones.softphones")
     assert item.status == checklist.ATTENTION and "web8003 has a browser phone's name" in problems(item)
+
+
+def test_an_agents_switched_off_desk_phone_is_named(centre):
+    from apps.telephony import services as telephony
+
+    desk = telephony.create_sip_account(
+        actor=None, sip_id="1001", kind="SOFTPHONE", password="Long-enough-secret-1"
+    )
+    agents.update_agent(uid=centre["agent"].uid, actor=None, phone=desk)
+    assert check("phones.agents").status == checklist.DONE
+    assert "8003 on 1001" in check("phones.agents").summary
+    telephony.set_sip_account_active(uid=desk.uid, actor=None, active=False)
+    item = check("phones.agents")
+    assert item.status == checklist.ATTENTION and "8003 Amina takes calls on phone 1001" in problems(item)

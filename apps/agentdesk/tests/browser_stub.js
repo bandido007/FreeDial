@@ -4,13 +4,18 @@
   const test = window.__deskTest = {
     state: {...base}, commands: [], sockets: 0, muted: false,
     call: {call:'call-1',caller:'+255 712 000 123',queue:'Claims',language:'Swahili',summary:'Member asks why their claim was rejected. Has their member number ready.',ringTimeout:15,wrapupSeconds:60,waitSeconds:38},
-    data() { return {uid:this.uid || 'juma',number:'7001',name:this.name || 'Juma',notReadyReasons:['Break','Lunch'],wrapupCodes:['Information given','Follow-up required'],state:{...this.state},stateSince:new Date().toISOString(),queues:[{name:'Claims',waiting:3,longestWait:100,ringTimeout:15,wrapupSeconds:60},{name:'Membership',waiting:0,longestWait:0},{name:'General',waiting:1,longestWait:20}],myDay:{calls:23,averageTalkSeconds:221,notReadySeconds:1080},currentCall:this.state.call || this.state.wrapupCall ? this.call : null,transferTargets:{queues:['Claims'],agents:[{uid:'neema',number:'7002',name:'Neema',availability:'ready',activity:'idle'}]}}; },
+    data() { return {deskPhone:window.__deskPhone?.sipId || '',uid:this.uid || 'juma',number:'7001',name:this.name || 'Juma',notReadyReasons:['Break','Lunch'],wrapupCodes:['Information given','Follow-up required'],state:{...this.state},stateSince:new Date().toISOString(),queues:[{name:'Claims',waiting:3,longestWait:100,ringTimeout:15,wrapupSeconds:60},{name:'Membership',waiting:0,longestWait:0},{name:'General',waiting:1,longestWait:20}],myDay:{calls:23,averageTalkSeconds:221,notReadySeconds:1080},currentCall:this.state.call || this.state.wrapupCall ? this.call : null,transferTargets:{queues:['Claims'],agents:[{uid:'neema',number:'7002',name:'Neema',availability:'ready',activity:'idle'}]}}; },
     event(type,data) { this.socket?.onmessage?.({data:JSON.stringify({type:'event',event:{type,data,at:new Date().toISOString()}})}); },
     change(data) { this.state={...this.state,...data}; this.event('agent.state',this.state); },
     offer() { this.call.connectedAt=null; this.call.offeredAt=Date.now()/1000; this.event('call.offered',this.call); this.change({activity:'offered',call:'call-1',wrapupCall:null}); this.session=new Session(); this.ua.emit('newRTCSession',{session:this.session,originator:'remote'}); },
     incomingBeforeOffer() { this.session = new Session(); this.session.remote_identity.uri.user = '+255 713 000 456'; this.ua.emit('newRTCSession',{session:this.session,originator:'remote'}); },
     ready() { this.change({availability:'ready',activity:'idle',reason:'',call:null,wrapupCall:null}); },
     wrap() { this.session?.terminate(); },
+    // A desk phone: no SIP in the browser; the brain's events are all the page sees.
+    deskOffer() { this.call.connectedAt=null; this.call.offeredAt=Date.now()/1000; this.event('call.offered',this.call); this.change({activity:'offered',call:'call-1',wrapupCall:null}); },
+    pickUp() { this.call.connectedAt=Date.now()/1000; this.change({activity:'talking'}); this.event('call.connected',{call:'call-1'}); },
+    hangUpOnPhone() { this.change({activity:'wrapup',call:null,wrapupCall:'call-1'}); this.event('call.ended',{call:'call-1',result:'answered',reason:'hangup'}); },
+    micAsked: 0,
   };
   const reply = (data) => ({json:async()=>data});
   const original = window.fetch;
@@ -21,9 +26,10 @@
     const {query,variables:v={}}=JSON.parse(options.body);
     let data={commandId:'test-command'};
     if (query.includes('myAgentDesk')) data=test.data();
+    else if (query.includes('myPhoneState')) data={state:window.__deskPhone?.state || ''};
     else {
       test.commands.push({query,variables:v});
-      if (query.includes('startAgentSession')) {data={sipId:'web7001',password:'test-only',wsUrl:'wss://desk.test/sip',domain:'desk.test'};}
+      if (query.includes('startAgentSession')) {data=window.__deskPhone ? {deskPhone:true,sipId:window.__deskPhone.sipId,password:null,endpoint:'PJSIP/'+window.__deskPhone.sipId,phoneState:window.__deskPhone.state} : {deskPhone:false,phoneState:'',sipId:'web7001',password:'test-only',wsUrl:'wss://desk.test/sip',domain:'desk.test'};}
       else if(query.includes('setMyAvailability')) {const ready=query.includes('ready: true');test.change({availability:ready?'ready':'not_ready',reason:ready?'':v.reason || 'Phone not connected'});}
       else if(query.includes('holdMyCall')) test.change({activity:query.includes('hold: true')?'on_hold':'talking'});
       else if(query.includes('finishMyWrapup')) {test.event('agent.wrapped_up',{agent:'juma',call:'call-1',by:'agent',code:v.code,notes:v.notes});test.change({availability:v.ready?'ready':'not_ready',activity:'idle',reason:v.reason || '',call:null,wrapupCall:null});}
@@ -47,5 +53,5 @@
   }
   class UA extends Emitter {constructor(){super();test.ua=this;}start(){queueMicrotask(()=>this.emit('registered'));}stop(){this.emit('unregistered');}}
   window.JsSIP={UA,WebSocketInterface:class{},debug:{disable(){}}};
-  Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:async()=>({getTracks:()=>[{stop(){}}]})}});
+  Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:async()=>{test.micAsked++;return {getTracks:()=>[{stop(){}}]};}}});
 })();

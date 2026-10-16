@@ -12,6 +12,7 @@ NOT_FOUND = 10200
 NUMBER_TAKEN = 10201
 BAD_NUMBER = 10202
 USER_TAKEN = 10203
+NOT_A_DESK_PHONE = 10210
 
 NUMBER_PATTERN = re.compile(r"^\d{2,20}$")
 SKILL_NAME = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
@@ -53,14 +54,27 @@ def next_free_number() -> str | None:
     return next((str(n) for n in range(first, last + 1) if n not in used), None)
 
 
+def validate_phone(phone) -> None:
+    """An agent's own phone is a desk phone or softphone: browser accounts are made at each sign-in."""
+    if phone is not None and (phone.kind != "SOFTPHONE" or phone.deleted):
+        raise ValidationError(
+            "An agent's phone is a desk phone or softphone (a SOFTPHONE SIP account). Leave it empty "
+            "for the browser phone.",
+            code=NOT_A_DESK_PHONE,
+        )
+
+
 @transaction.atomic
-def create_agent(*, actor, number, name, user=None) -> Agent:
+def create_agent(*, actor, number, name, user=None, phone=None) -> Agent:
     number, name = validate_agent(number=number, name=name, user=user)
-    return Agent.objects.create(number=number, name=name, user=user, created_by=actor)
+    validate_phone(phone)
+    return Agent.objects.create(number=number, name=name, user=user, phone=phone, created_by=actor)
 
 
 @transaction.atomic
-def update_agent(*, uid, actor, number=None, name=None, user=None, clear_user=False) -> Agent:
+def update_agent(
+    *, uid, actor, number=None, name=None, user=None, clear_user=False, phone=None, clear_phone=False
+) -> Agent:
     agent = get_agent(uid)
     new_user = None if clear_user else (user or agent.user)
     agent.number, agent.name = validate_agent(
@@ -69,7 +83,9 @@ def update_agent(*, uid, actor, number=None, name=None, user=None, clear_user=Fa
         user=new_user,
         except_pk=agent.pk,
     )
-    agent.user = new_user
+    new_phone = None if clear_phone else (phone or agent.phone)
+    validate_phone(new_phone)
+    agent.user, agent.phone = new_user, new_phone
     agent.updated_by = actor
     agent.save()
     return agent

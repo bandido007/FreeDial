@@ -27,12 +27,11 @@ def browser():
         browser.close()
 
 
-@pytest.fixture
-def page(browser):
+def open_desk(browser, errors, *, init_script="", config=None):
+    """The agent page with the test stub, signed in. ``init_script`` runs first (e.g. a desk phone)."""
     context = browser.new_context(viewport={"width": 1366, "height": 768}, reduced_motion="reduce")
     page = context.new_page()
     page.set_default_timeout(5000)
-    errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     config = {
         "clientId": "browser-test",
@@ -42,8 +41,11 @@ def page(browser):
         "liveUrl": "/ws/agent",
         "phoneLibraryUrl": "/static/agentdesk/vendor/jssip-3.12.0.min.js",
         "messages": page_messages(),
+        **(config or {}),
     }
     html = render_to_string("agentdesk/index.html", {"config": config})
+    if init_script:
+        page.add_init_script(init_script)
     page.add_init_script(path=str(HERE / "browser_stub.js"))
 
     def serve(route):
@@ -68,9 +70,16 @@ def page(browser):
     page.fill("#email", "juma@example.org")
     page.fill("#password", "test-only")
     page.click("button[type=submit]")
+    expect(page.locator("#live-chip")).to_have_text("Live: on")
+    return context, page
+
+
+@pytest.fixture
+def page(browser):
+    errors = []
+    context, page = open_desk(browser, errors)
     expect(page.locator("#phone-chip")).to_have_text("Phone connected")
     expect(page.locator("#phone-chip")).to_have_attribute("data-sip-id", "web7001")
-    expect(page.locator("#live-chip")).to_have_text("Live: on")
     yield page
     assert not errors, errors
     context.close()

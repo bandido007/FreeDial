@@ -17,7 +17,8 @@ from contracts import messages as m
 
 
 class StartAgentSession(graphene.Mutation):
-    """Sign the agent's browser phone in: a fresh SIP password for this session, and the brain told."""
+    """Sign the agent in on their phone: the desk phone set in admin, or else the browser phone with a
+    fresh SIP password for this session. The brain is told where to ring them."""
 
     Output = Response.get_response_type(AgentPhoneType)
 

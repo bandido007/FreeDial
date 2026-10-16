@@ -15,7 +15,7 @@ from django.utils import timezone
 from apps.agentdesk.selectors import screen_data
 from apps.agents.live import LOGGED_OUT, live_state, live_states
 from apps.agents.models import Agent, AgentSession, NotReadyReason, WrapupCode
-from apps.calls import bus
+from apps.calls import asterisk, bus
 from apps.core.exceptions import ApplicationError, ValidationError
 from apps.queues.models import Queue
 from apps.telephony import services as telephony
@@ -24,6 +24,8 @@ from contracts import messages as m
 NOT_AN_AGENT = 10204
 ON_A_CALL = 10205
 NOT_LISTED = 10206
+PHONE_IN_USE = 10211
+PHONE_OFF = 10212
 
 
 def agent_of(user) -> Agent:
@@ -42,6 +44,7 @@ def desk(user) -> dict[str, Any]:
     state = live_state(agent)
     return {
         **screen_data(agent, state),
+        "desk_phone": agent.phone.sip_id if agent.phone_id and agent.phone else "",
         "uid": str(agent.uid),
         "number": agent.number,
         "name": agent.name,
@@ -56,14 +59,63 @@ def browser_sip_id(agent: Agent) -> str:
     return f"web{agent.number}"
 
 
+def _desk_phone(agent: Agent) -> dict[str, Any]:
+    """Sign in on the desk phone an admin gave this agent: nothing is made or changed on the phone."""
+    phone = agent.phone
+    assert phone is not None
+    if not phone.active or phone.deleted:
+        raise ApplicationError(
+            f"Your desk phone {phone.sip_id} is switched off in the admin. Ask your manager.", code=PHONE_OFF
+        )
+    endpoint = f"PJSIP/{phone.sip_id}"
+    other = (
+        AgentSession.objects.filter(endpoint=endpoint, logout_at=None)
+        .exclude(agent=agent)
+        .select_related("agent")
+        .first()
+    )
+    if other is not None:
+        raise ApplicationError(
+            f"Your desk phone {phone.sip_id} is in use by agent {other.agent}, who is signed in. "
+            "Ask them to sign out, or your manager to give you another phone.",
+            code=PHONE_IN_USE,
+        )
+    AgentSession.objects.filter(agent=agent, logout_at=None).update(logout_at=timezone.now())
+    AgentSession.objects.create(agent=agent, sip_account=phone, endpoint=endpoint)
+    command_id = bus.send_command_on_commit(m.AGENT_LOGIN, {"agent": str(agent.uid), "endpoint": endpoint})
+    return {
+        "desk_phone": True,
+        "sip_id": phone.sip_id,
+        "password": None,  # stays in the phone
+        "ws_url": None,
+        "domain": None,
+        "endpoint": endpoint,
+        "command_id": command_id,
+        "phone_state": asterisk.endpoint_state(phone.sip_id),
+    }
+
+
+def phone_state(user) -> dict[str, Any]:
+    """The desk phone's state, which the agent page re-checks while signed in.
+
+    Asterisk only learns a database phone's state at its next check of the phone (every 30 s), so a
+    phone that just registered can read "offline" for a while: the page keeps asking."""
+    agent = agent_of(user)
+    phone = agent.phone if agent.phone_id else None
+    return {"state": asterisk.endpoint_state(phone.sip_id) if phone else ""}
+
+
 @transaction.atomic
 def start_session(user) -> dict[str, Any]:
-    """The agent's own browser phone account, with a fresh password for this session only.
+    """Where this agent takes calls for this session, and the brain told.
 
-    The previous password stops working at once, so an old tab or a copied password
-    cannot register any more. The brain is told where to ring the agent.
+    A desk phone set on the agent in admin: that phone. Otherwise the agent's own browser phone
+    account, with a fresh password for this session only: the previous password stops working at
+    once, so an old tab or a copied password cannot register any more.
     """
     agent = agent_of(user)
+    if agent.phone_id:
+        return _desk_phone(agent)
     sip_id = browser_sip_id(agent)
     account, password = telephony.issue_browser_phone(actor=user, sip_id=sip_id, display_name=agent.name)
 
@@ -72,6 +124,8 @@ def start_session(user) -> dict[str, Any]:
     AgentSession.objects.create(agent=agent, sip_account=account, endpoint=endpoint)
     command_id = bus.send_command_on_commit(m.AGENT_LOGIN, {"agent": str(agent.uid), "endpoint": endpoint})
     return {
+        "desk_phone": False,
+        "phone_state": "",  # the browser phone reports its own registration
         "sip_id": sip_id,
         "password": password,
         "ws_url": settings.PJSIP_WS_URL,
@@ -83,13 +137,15 @@ def start_session(user) -> dict[str, Any]:
 
 @transaction.atomic
 def end_session(user) -> dict[str, Any]:
-    """Log out and switch the browser account off, so its password is useless until the next session."""
+    """Log out and switch the browser account off, so its password is useless until the next session.
+    A desk phone is left as it is: it is a real phone."""
     agent = agent_of(user)
     if live_state(agent).get("call"):
         raise ApplicationError("Hang up before signing out.", code=ON_A_CALL)
     command_id = bus.send_command_on_commit(m.AGENT_LOGOUT, {"agent": str(agent.uid)})
     AgentSession.objects.filter(agent=agent, logout_at=None).update(logout_at=timezone.now())
-    telephony.retire_browser_phone(actor=user, sip_id=browser_sip_id(agent))
+    if not agent.phone_id:
+        telephony.retire_browser_phone(actor=user, sip_id=browser_sip_id(agent))
     return {"command_id": command_id}
 
 

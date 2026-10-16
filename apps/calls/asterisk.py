@@ -1,4 +1,5 @@
-"""The few ARI calls the web side makes: Asterisk's stored recordings (voicemail, call recordings).
+"""The few ARI calls the web side makes: Asterisk's stored recordings (voicemail, call recordings), and
+whether a desk phone is registered.
 
 Plain HTTP to the local ARI; nothing here changes a live call (rule 2: only the brain does that).
 """
@@ -42,3 +43,17 @@ def channel_exists(channel_id: str) -> bool:
         return False
     response.raise_for_status()
     return True
+
+
+def endpoint_state(sip_id: str) -> str:
+    """Whether Asterisk can reach this phone now: "online", "offline", or "unknown" when Asterisk did not
+    answer (ARI GET /endpoints/PJSIP/<id>)."""
+    try:
+        response = requests.get(_url(f"/endpoints/PJSIP/{_name(sip_id)}"), auth=_auth(), timeout=3)
+        if response.status_code == 404:
+            return "offline"
+        response.raise_for_status()
+        state = response.json().get("state", "")
+    except (requests.RequestException, ValueError):
+        return "unknown"
+    return "online" if state == "online" else "offline"

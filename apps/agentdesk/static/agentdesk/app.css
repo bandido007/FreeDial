@@ -499,6 +499,14 @@ textarea {
   align-items: center;
   gap: 12px;
 }
+/* A desk phone: what to do on the phone itself (answer, hang up, mute, digits). */
+.phone-hint {
+  margin: 0;
+  font-weight: 650;
+}
+.controls .phone-hint {
+  grid-column: 1 / -1;
+}
 .offer .progress {
   position: absolute;
   bottom: 0;

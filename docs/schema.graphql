@@ -44,6 +44,11 @@ type Query {
   myAgentDesk: AgentDeskResponse
 
   """
+  Whether Asterisk can reach the signed-in agent's desk phone. permissions=['can_take_calls']
+  """
+  myPhoneState: AgentPhoneStateResponse
+
+  """
   Calls offered, answered, abandoned and overflowed, waits and service level. permissions=['can_view_queues']
   """
   getQueueStats(
@@ -478,6 +483,8 @@ type AgentDeskResponse {
 }
 
 type AgentDeskType {
+  """The desk phone set in admin (SIP id); empty: the browser phone"""
+  deskPhone: String
   uid: String
   number: String
   name: String
@@ -549,6 +556,22 @@ type AgentCallType {
   waitSeconds: Float
   ringTimeout: Int
   wrapupSeconds: Int
+}
+
+type AgentPhoneStateResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: AgentPhoneStateType
+  dataList: [AgentPhoneStateType]
+}
+
+"""Whether Asterisk can reach the agent's desk phone now."""
+type AgentPhoneStateType {
+  """
+  "online", "offline", "unknown" (Asterisk did not answer); empty: no desk phone
+  """
+  state: String
 }
 
 type QueueStatsResponse {
@@ -2230,9 +2253,15 @@ type AgentPhoneResponse {
 }
 
 """
-The browser phone's account for this session. The password works until the next sign-in.
+Where the agent takes calls this session. The browser phone: its account, whose password works
+until the next sign-in. A desk phone: its SIP id only.
 """
 type AgentPhoneType {
+  """True: calls ring the desk phone an admin set on the agent"""
+  deskPhone: Boolean
+
+  """Desk phone: "online", "offline" or "unknown" (Asterisk did not answer)"""
+  phoneState: String
   sipId: String
   password: String
 

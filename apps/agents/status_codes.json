@@ -8,5 +8,8 @@
   {"code": 10206, "status": false, "messageEn": "Pick one of the listed reasons or codes.", "messageSw": "Chagua moja ya sababu au misimbo iliyoorodheshwa."},
   {"code": 10207, "status": false, "messageEn": "A reason or code with this name already exists.", "messageSw": "Sababu au msimbo wenye jina hili upo tayari."},
   {"code": 10208, "status": false, "messageEn": "That is not a valid skill or skill level.", "messageSw": "Huo si ujuzi au kiwango sahihi cha ujuzi."},
-  {"code": 10209, "status": false, "messageEn": "A skill with this name already exists.", "messageSw": "Ujuzi wenye jina hili upo tayari."}
+  {"code": 10209, "status": false, "messageEn": "A skill with this name already exists.", "messageSw": "Ujuzi wenye jina hili upo tayari."},
+  {"code": 10210, "status": false, "messageEn": "An agent's phone is a desk phone or softphone (a SOFTPHONE SIP account).", "messageSw": "Simu ya wakala ni simu ya mezani au programu ya simu (akaunti ya SIP ya aina SOFTPHONE)."},
+  {"code": 10211, "status": false, "messageEn": "Your desk phone is in use by another agent who is signed in.", "messageSw": "Simu yako ya mezani inatumiwa na wakala mwingine aliyeingia."},
+  {"code": 10212, "status": false, "messageEn": "Your desk phone is switched off in the admin. Ask your manager.", "messageSw": "Simu yako ya mezani imezimwa kwenye usimamizi. Muulize meneja wako."}
 ]

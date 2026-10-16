@@ -32,6 +32,7 @@ make dev         # web, brain, writer, live relay, recordings, AI worker
 | A8 | During a call, choose Not Ready after this call | The button says so; after wrap-up no new call is offered |
 | A9 | Call 803, ask a question, then ask for a person | Jambo AI answers, then hands over. Your incoming call shows "Why they called (AI)" and the reason. Try **Summary wrong** / **Wrong queue** |
 | A10 | Switch to Swahili (SW) during a call | Every label changes at once; the call goes on. Note any wrong or unclear word in SWAHILI_REVIEW.md |
+| A11 | (Desk phone) In admin set agent 8003's Phone to 1001, sign in as 8003, call 800 from 1002 | Zoiper 1001 rings; the page says "Pick up phone 1001 to answer"; Hold, Transfer and wrap-up work from the page |
 
 ## Failure tasks
 

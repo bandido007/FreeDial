@@ -82,6 +82,8 @@
     callEndedAt = null,
     offeredAt = null,
     draftCall = null;
+  // A desk phone an admin set on this agent ({sipId}): calls ring it, not the browser.
+  let deskPhone = null;
   let phoneReady = false,
     micReady = false,
     phoneProblem = "",
@@ -350,7 +352,7 @@
     }
   });
   const DESK_QUERY = `query { myAgentDesk { status code message data {
-    uid number name notReadyReasons wrapupCodes stateSince
+    deskPhone uid number name notReadyReasons wrapupCodes stateSince
     state { availability activity reason call wrapupCall endpoint }
     queues { name waiting longestWait ringTimeout wrapupSeconds }
     myDay { calls averageTalkSeconds notReadySeconds }
@@ -674,8 +676,13 @@
   });
   function renderCall() {
     if (!desk || !state) return;
-    const ringing = Boolean(session && !session.isEstablished() && !session.isEnded());
-    const talking = Boolean(session?.isEstablished()),
+    // A desk phone rings and is answered on the phone itself: only the brain's state shows it here.
+    const ringing = deskPhone
+      ? state.activity === "offered"
+      : Boolean(session && !session.isEstablished() && !session.isEnded());
+    const talking = deskPhone
+        ? state.activity === "talking" || state.activity === "on_hold"
+        : Boolean(session?.isEstablished()),
       wrapping = state.activity === "wrapup";
     const held = state.activity === "on_hold",
       incoming = ringing || state.activity === "offered";
@@ -771,6 +778,9 @@
     $("incoming-offer").hidden = !incoming;
     $("answer").disabled = !ringing || !micReady;
     $("reject").disabled = !ringing;
+    $("answer").hidden = $("reject").hidden = Boolean(deskPhone);
+    $("offer-hint").hidden = !deskPhone;
+    if (deskPhone) $("offer-hint").textContent = t("Pick up phone {id} to answer.", { id: deskPhone.sipId });
     const identity = session?.remote_identity;
     const caller =
       offer?.caller ||
@@ -848,6 +858,14 @@
     $("hold").disabled = $("resume").disabled = !liveReady;
     $("transfer-toggle").disabled = !liveReady || held || Boolean(transfer);
     $("hangup").disabled = !talking;
+    // Mute, digits and hang up happen on the desk phone itself.
+    $("mute").hidden = $("hangup").hidden = Boolean(deskPhone);
+    if (deskPhone) $("keypad-toggle").hidden = true;
+    $("phone-hint").hidden = !deskPhone || !talking;
+    if (deskPhone)
+      $("phone-hint").textContent = t("Hang up, mute and send digits on phone {id}.", {
+        id: deskPhone.sipId,
+      });
     $("mute-label").textContent = t(session?.isMuted().audio ? "Unmute" : "Mute");
     $("mute").setAttribute("aria-pressed", String(Boolean(session?.isMuted().audio)));
     $("consult").hidden = !(transfer?.kind === "consult" && transfer.state !== "conference");
@@ -906,10 +924,10 @@
     "Your phone is not connected to the call server. Press Reconnect. If it fails twice, tell your supervisor.";
   const blockedMessage =
     "Your browser is blocking the microphone. Allow it in the address bar, then press Reconnect.";
-  function unavailable(message) {
+  function unavailable(message, values = {}) {
     const wasReady = phoneReady;
     phoneReady = false;
-    phoneProblem = t(message);
+    phoneProblem = t(message, values);
     label($("phone-chip"), "Phone disconnected");
     renderCall();
     if (!stopping && !signingOut && tokens && (wasReady || state?.availability === "ready")) {
@@ -937,8 +955,66 @@
       return false;
     }
   }
+  async function startDeskPhone() {
+    phoneProblem = t("Connecting your phone…");
+    renderCall();
+    let phone;
+    try {
+      phone = await api(
+        `mutation { startAgentSession { status code message data { deskPhone sipId endpoint commandId phoneState } } }`,
+      );
+    } catch (error) {
+      unavailable(disconnectedMessage);
+      notice(error.message);
+      return;
+    }
+    if (!tokens || stopping) return;
+    deskPhone = { sipId: phone.sipId };
+    micReady = true; // the desk phone has its own microphone
+    $("phone-chip").dataset.sipId = phone.sipId;
+    $("phone-chip").title = t("Phone: {id}", { id: phone.sipId });
+    if (phone.phoneState !== "online") {
+      unavailable(
+        phone.phoneState === "unknown"
+          ? "Cannot check phone {id}: the call server did not answer. Press Reconnect."
+          : "Phone {id} is not connected. Turn it on or open your softphone, then press Reconnect.",
+        { id: phone.sipId },
+      );
+      return;
+    }
+    deskPhoneConnected();
+  }
+  function deskPhoneConnected() {
+    phoneReady = true;
+    phoneProblem = "";
+    label($("phone-chip"), "Desk phone connected");
+    note(t("Desk phone connected"));
+    renderCall();
+  }
+  // Asterisk learns a phone's state only at its next check (every 30 s), and a desk phone can be
+  // switched off mid-shift: ask again every 10 s while it is not connected, every 30 s while it is.
+  let deskChecks = 0;
+  async function checkDeskPhone() {
+    if (!deskPhone || !tokens || stopping) return;
+    deskChecks++;
+    if (phoneReady && deskChecks % 3) return;
+    let answer;
+    try {
+      answer = await api("query { myPhoneState { status code message data { state } } }");
+    } catch {
+      return; // a failed request says nothing about the phone
+    }
+    if (!deskPhone) return;
+    if (answer.state === "online" && !phoneReady) deskPhoneConnected();
+    else if (answer.state === "offline" && phoneReady)
+      unavailable("Phone {id} is not connected. Turn it on or open your softphone, then press Reconnect.", {
+        id: deskPhone.sipId,
+      });
+  }
+  setInterval(checkDeskPhone, config.deskPhoneCheckMs || 10000);
   async function startPhone() {
     if (ua) return;
+    if (desk.deskPhone) return startDeskPhone();
     phoneProblem = t("Connecting your phone…");
     renderCall();
     if (!(await microphone())) return;
@@ -1067,7 +1143,9 @@
   function announceOffer() {
     if (document.hidden && "Notification" in window && Notification.permission === "granted")
       new Notification(t("Incoming call"), {
-        body: t("Return to AlgoDial to answer."),
+        body: deskPhone
+          ? t("Pick up phone {id} to answer.", { id: deskPhone.sipId })
+          : t("Return to AlgoDial to answer."),
         tag: "algodial-incoming",
       });
   }
@@ -1379,6 +1457,7 @@
     draftCall = null;
     connectedAt = callEndedAt = offeredAt = null;
     phoneReady = micReady = liveReady = false;
+    deskPhone = null;
     $("notes").value = "";
     $("remote-audio").srcObject = null;
     $("log").replaceChildren();

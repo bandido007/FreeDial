@@ -11,7 +11,7 @@ from apps.rbac.admin_access import RbacAdminMixin
 class AgentForm(forms.ModelForm):
     class Meta:
         model = Agent
-        fields = ("number", "name", "user", "active")
+        fields = ("number", "name", "user", "phone", "active")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -30,6 +30,7 @@ class AgentForm(forms.ModelForm):
                 user=data.get("user"),
                 except_pk=self.instance.pk,
             )
+            services.validate_phone(data.get("phone"))
         except ApplicationError as exc:
             raise forms.ValidationError(exc.message) from exc
         return data
@@ -54,7 +55,7 @@ class AgentAdmin(RbacAdminMixin, admin.ModelAdmin):
     manage_permission = MANAGE_AGENTS
     form = AgentForm
     inlines = [AgentSkillInline]
-    list_display = ("number", "name", "user", "skill_levels", "active")
+    list_display = ("number", "name", "user", "takes_calls_on", "skill_levels", "active")
     search_fields = ("number", "name", "user__email")
     autocomplete_fields = ("user",)
 
@@ -73,15 +74,25 @@ class AgentAdmin(RbacAdminMixin, admin.ModelAdmin):
                 name=data["name"],
                 user=data["user"],
                 clear_user=data["user"] is None,
+                phone=data["phone"],
+                clear_phone=data["phone"] is None,
             )
             if agent.active != data["active"]:
                 agent.activate() if data["active"] else agent.deactivate()
         else:
             agent = services.create_agent(
-                actor=request.user, number=data["number"], name=data["name"], user=data["user"]
+                actor=request.user,
+                number=data["number"],
+                name=data["name"],
+                user=data["user"],
+                phone=data["phone"],
             )
         obj.pk, obj.uid = agent.pk, agent.uid
         obj.refresh_from_db()
+
+    @admin.display(description="Takes calls on")
+    def takes_calls_on(self, obj):
+        return f"Desk phone {obj.phone.sip_id}" if obj.phone_id else "Browser"
 
     @admin.display(description="Skills")
     def skill_levels(self, obj):
