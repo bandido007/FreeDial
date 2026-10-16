@@ -5,11 +5,12 @@ from datetime import date, datetime, time, timedelta
 from django.db.models import Subquery
 from django.utils import timezone
 
-from apps.agents.models import Agent
+from apps.agents.models import Agent, NotReadyReason
 from apps.ai.models import AiAgent
 from apps.calls.models import Event
 from apps.queues.models import Queue
 from apps.reports.compute import Report, Row, compute
+from apps.reports.experience import measure
 from contracts import messages as m
 
 PRESETS = {
@@ -71,4 +72,33 @@ def build_report(*, since: datetime, until: datetime) -> Report:
     ai_names = {str(ai.uid): ai.name for ai in AiAgent.objects.all()}
     for ai in report.ai:
         ai.name = ai_names.get(ai.ai_agent, ai.ai_agent or "unknown")
+    signals = Event.objects.filter(type__in=EXPERIENCE_SIGNALS, at__gte=since, at__lt=until).order_by(
+        "at", "id"
+    )
+    report.experience = measure(
+        _rows(before) + _rows(states) + _rows(signals),
+        since=since,
+        until=until,
+        not_ready_limits=dict(NotReadyReason.objects.values_list("name", "max_seconds")),
+        agents_created={str(agent.uid): agent.created_at for agent in Agent.objects.all()},
+    )
     return report
+
+
+# What the section 6 metrics read (besides the agents' states, read above).
+EXPERIENCE_SIGNALS = (
+    m.OFFER_ANSWERED,
+    m.OFFER_MISSED,
+    m.WRAPUP_DONE,
+    m.WRAPUP_CODE_CHANGED,
+    m.TRANSFER_STARTED,
+    m.TRANSFER_COMPLETED,
+    m.TRANSFER_CANCELLED,
+    m.TRANSFER_FAILED,
+    m.AI_ENDED,
+    m.UX_AI_SUMMARY_WRONG,
+    m.UX_AI_QUEUE_WRONG,
+    m.AGENT_FORCED,
+    m.UX_ACTION,
+    m.UX_ADMIN_VALIDATION_ERROR,
+)

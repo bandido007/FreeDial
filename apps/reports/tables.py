@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from apps.reports.compute import QueueLine, Report
 
-SECTIONS = ("queues", "agents", "ai")
+SECTIONS = ("queues", "agents", "ai", "experience")
 REASONS = {
     "asked_for_person": "asked for a person",
     "ai_decided": "the AI decided",
@@ -145,4 +145,9 @@ def tables(report: Report) -> dict[str, Table]:
             for line in report.ai
         ],
     )
-    return {"queues": queues, "agents": agents, "ai": ai}
+    experience = Table(
+        "How well AlgoDial works for its users (UX_PRINCIPLES.md section 6)",
+        ["Who", "Goal", "Measure", "Value", "Based on"],
+        [[line.user, line.goal, line.metric, line.value, line.based_on] for line in report.experience],
+    )
+    return {"queues": queues, "agents": agents, "ai": ai, "experience": experience}

@@ -403,7 +403,7 @@ Never run Prettier on this file (it splits template tags).{% endcomment %}
       <ul>
         <li><a href="{% url 'admin:calls_call_changelist' %}">Calls</a>: every call, with who answered, how it ended, the AI's part, transfers and the recording (left ear: the caller; right ear: what they heard). Playing recordings needs the permission to listen to recordings.</li>
         <li><a href="{% url 'admin:calls_callbacktask_changelist' %}">Callback tasks</a>: voicemails left when a queue overflowed. Listen, call the person back, then mark it Called back.</li>
-        <li><a href="{% url 'admin:reports_report_changelist' %}">Reports</a>: calls per queue (service level, abandoned calls, waiting and handling times), agents' time in each state, and what the AI handled, for any period, as PDF, Excel or CSV.</li>
+        <li><a href="{% url 'admin:reports_report_changelist' %}">Reports</a>: calls per queue (service level, abandoned calls, waiting and handling times), agents' time in each state, what the AI handled, and how well AlgoDial works for its users (how fast offers are answered, wrap-up time, transfer success, how quickly supervisors act on long breaks, whether buttons answer within their 1-second budget), for any period, as PDF, Excel or CSV.</li>
         <li><a href="{% url 'admin:agents_agentsession_changelist' %}">Agent sessions</a>: who signed in, when, on which phone.</li>
         <li>Audit logs (Audit &amp; system logs): who changed what in this admin, and when.</li>
       </ul>

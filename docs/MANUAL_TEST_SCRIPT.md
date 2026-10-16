@@ -68,5 +68,5 @@ make dev         # web, brain, writer, live relay, recordings, AI worker
   or is down: the page cannot tell yet (the brain has no heartbeat the page can read).
 - When the AI could not understand the caller, the agent sees the reason but not the AI transcript
   (it is on the call's admin page).
-- The section 6 measurements are recorded but there is no dashboard for them yet.
+- Section 6: the measurements are in Admin -> Reports ("How well AlgoDial works for its users"); the 2-weekly ease survey is not built.
 - Two-question ease survey every 2 weeks (section 6): not built.

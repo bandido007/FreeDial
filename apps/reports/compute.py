@@ -158,6 +158,7 @@ class Report:
     total: QueueLine
     agents: list[AgentLine]
     ai: list[AiLine]
+    experience: list[Any] = field(default_factory=list)  # apps.reports.experience.Measure, section 6
 
 
 @dataclass

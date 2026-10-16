@@ -16,7 +16,7 @@ type Query {
   One report table as a file (PDF, Excel, CSV or Word). permissions=['can_view_reports']
   """
   exportReport(
-    """One of queues, agents, ai"""
+    """One of queues, agents, ai, experience"""
     section: String!
     format: TableExportFormatChoices!
 
@@ -283,6 +283,9 @@ type ReportType {
   total: QueueReportType
   agents: [AgentReportType]
   ai: [AiReportType]
+
+  """How well AlgoDial works for its users"""
+  experience: [ExperienceReportType]
 }
 
 """
@@ -371,6 +374,17 @@ type AiReportType {
 
   """Seconds the caller spent with the AI"""
   averageSeconds: Float
+}
+
+"""
+One HEART metric of UX_PRINCIPLES.md section 6, with what it is based on.
+"""
+type ExperienceReportType {
+  user: String
+  goal: String
+  metric: String
+  value: String
+  basedOn: String
 }
 
 """

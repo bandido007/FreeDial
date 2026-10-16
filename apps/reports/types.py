@@ -49,6 +49,16 @@ class AiReportType(graphene.ObjectType):
     average_seconds = graphene.Float(description="Seconds the caller spent with the AI")
 
 
+class ExperienceReportType(graphene.ObjectType):
+    """One HEART metric of UX_PRINCIPLES.md section 6, with what it is based on."""
+
+    user = graphene.String()
+    goal = graphene.String()
+    metric = graphene.String()
+    value = graphene.String()
+    based_on = graphene.String()
+
+
 class ReportType(graphene.ObjectType):
     since = graphene.DateTime()
     until = graphene.DateTime()
@@ -56,3 +66,4 @@ class ReportType(graphene.ObjectType):
     total = graphene.Field(QueueReportType)
     agents = graphene.List(AgentReportType)
     ai = graphene.List(AiReportType)
+    experience = graphene.List(ExperienceReportType, description="How well AlgoDial works for its users")
