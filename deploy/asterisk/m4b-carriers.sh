@@ -118,8 +118,7 @@ fi
 trap - ERR
 "${GIT[@]}" log --oneline -1
 
-systemctl restart asterisk
-sleep 5
+"$HERE/restart.sh"  # waits until Asterisk has really stopped, then checks it is back
 asterisk -rx "dialplan show from-carrier" | head -n 8
 asterisk -rx "manager show settings" | grep -E "Manager \(AMI\)|Web Manager|TCP Bindaddress" || true
 asterisk -rx "manager show user $AMI_USER" | head -n 6

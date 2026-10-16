@@ -59,8 +59,7 @@ apply_step() {
   "${GIT[@]}" log --oneline -1
 
   if [ "${RELOAD[$step]}" = restart ]; then
-    systemctl restart asterisk
-    sleep 4
+    "$HERE/restart.sh"  # waits until Asterisk has really stopped, then checks it is back
   else
     asterisk -rx "${RELOAD[$step]}"
   fi

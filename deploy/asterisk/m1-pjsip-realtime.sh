@@ -54,7 +54,6 @@ fi
 trap - ERR
 "${GIT[@]}" log --oneline -1
 
-systemctl restart asterisk
-sleep 4
+"$HERE/restart.sh"  # waits until Asterisk has really stopped, then checks it is back
 asterisk -rx "realtime show pgsql status"
 asterisk -rx "pjsip show endpoints" | tail -n 4
