@@ -10,6 +10,7 @@ from typing import Any
 
 from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 
 from apps.agents.live import LOGGED_OUT, live_states
 from apps.agents.models import Agent, NotReadyReason
@@ -19,6 +20,9 @@ from apps.core.exceptions import ApplicationError, ValidationError
 from apps.core.hooks import policy, resolve_permissions
 from apps.queues.models import Queue, QueueMember
 from apps.queues.queries import queue_stats
+from apps.reports.compute import Row
+from apps.reports.experience import team_numbers
+from apps.reports.selectors import period as report_period
 from apps.supervisor.permissions import (
     BARGE_CALLS,
     FORCE_AGENT_STATE,
@@ -241,3 +245,57 @@ def agent_history(user, uid: str) -> list[dict[str, Any]]:
             description = event.type.replace(".", " / ").replace("_", " ")
         rows.append({"at": event.at, "type": event.type, "description": description})
     return rows
+
+
+# ── "How my team is doing" (UX_PRINCIPLES.md section 6, for the supervisor's own teams) ──
+MEASURE_PERIODS = ("today", "yesterday", "last_7_days")
+TEAM_SIGNALS = (
+    m.OFFER_ANSWERED, m.OFFER_MISSED, m.WRAPUP_DONE, m.WRAPUP_CODE_CHANGED, m.TRANSFER_STARTED,
+    m.TRANSFER_COMPLETED, m.UX_AI_SUMMARY_SHOWN, m.UX_AI_SUMMARY_WRONG, m.AGENT_STATE, m.AGENT_FORCED,
+)  # fmt: skip
+
+
+def team_measures(user, *, period: str = "today", team: str | None = None) -> dict[str, Any]:
+    """The supervisor's teams (or one of them) over a period: totals, and a line per agent."""
+    if period not in MEASURE_PERIODS:
+        raise ValidationError("Choose today, yesterday or the last 7 days.", code=BAD_CHOICE)
+    scope = scope_for(user)
+    agents = Agent.objects.filter(active=True)
+    if not scope.everything:
+        agents = agents.filter(uid__in=list(scope.agents))
+    if team:
+        teams = Team.objects.filter(uid=team, active=True)
+        if not scope.everything:
+            teams = teams.filter(supervisors=user)
+        chosen = teams.first()
+        if chosen is None:
+            raise ApplicationError("That team is not yours.", code=NOT_YOURS)
+        agents = agents.filter(user__in=chosen.agents.all())
+    people = {str(agent.uid): agent for agent in agents}
+    since, until = report_period(period)
+    until = min(until, timezone.now())
+    events = Event.objects.filter(
+        type__in=TEAM_SIGNALS, at__gte=since, at__lt=until, data__agent__in=list(people)
+    )
+    before = (  # each agent's state as the period began: a long break may have started before it
+        Event.objects.filter(type=m.AGENT_STATE, at__lt=since, agent_uid__in=list(people))
+        .order_by("agent_uid", "-at", "-id")
+        .distinct("agent_uid")
+    )
+    rows = [Row(e.type, e.at, e.data) for e in [*before, *events.order_by("at", "id")]]
+    numbers = team_numbers(
+        rows,
+        agents=set(people),
+        until=until,
+        not_ready_limits=dict(NotReadyReason.objects.values_list("name", "max_seconds")),
+    )
+    lines = []
+    for line in numbers["agents"]:
+        agent = people[line.pop("agent")]
+        lines.append({**line, "uid": str(agent.uid), "number": agent.number, "name": agent.name})
+    return {
+        "since": since,
+        "until": until,
+        "team": numbers["team"],
+        "agents": sorted(lines, key=lambda line: line["number"]),
+    }

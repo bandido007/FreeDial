@@ -262,3 +262,50 @@ def test_force_not_ready_requires_a_configured_reason(api, centre, redis_keys):
     for reason in ("", "Unconfigured reason"):
         assert gql_as(api, asha, query, {"a": str(centre["juma"].uid), "r": reason})["code"] == 10702
     assert redis_keys() == []
+
+
+# ── "How my team is doing": the supervisor page's measurements ──────────────
+MEASURES = """query M($period: String, $team: String) { myTeamMeasures(period: $period, team: $team) {
+  status code message data { since team { answered missed medianAnswerSeconds overLimit actedOn }
+  agents { uid number name answered missed } } } }"""
+
+
+def test_a_supervisor_sees_measures_for_their_own_team_only(api, make_user, grant):
+    import json
+    import uuid
+
+    from django.utils import timezone
+
+    from apps.agents.models import Agent
+    from apps.calls.models import Event
+    from apps.teams import services as teams
+
+    boss = make_user(email="boss@example.org", account_type="Internal")
+    grant(boss, "can_monitor_calls")
+    mine = make_user(email="mine@example.org", account_type="Internal")
+    theirs = make_user(email="theirs@example.org", account_type="Internal")
+    my_agent = Agent.objects.create(number="2001", name="Mine", user=mine)
+    other = Agent.objects.create(number="2002", name="Theirs", user=theirs)
+    team = teams.create_team(actor=None, name="Front", supervisors=[boss], agents=[mine])
+    now = timezone.now()
+    for agent, seconds in ((my_agent, 5), (other, 9)):
+        Event.objects.create(
+            event_id=uuid.uuid4(), type="offer.answered", at=now, agent_uid=str(agent.uid),
+            data={"agent": str(agent.uid), "seconds": seconds},
+        )  # fmt: skip
+
+    def ask(**variables):
+        response = api(boss).post(
+            "/graphql",
+            data=json.dumps({"query": MEASURES, "variables": variables}),
+            content_type="application/json",
+        )
+        return json.loads(response.content)["data"]["myTeamMeasures"]
+
+    answer = ask(period="today")
+    assert answer["code"] == 9001, answer
+    assert answer["data"]["team"]["answered"] == 1 and answer["data"]["team"]["medianAnswerSeconds"] == 5.0
+    assert [line["name"] for line in answer["data"]["agents"]] == ["Mine"]
+    assert ask(period="today", team=str(team.uid))["data"]["team"]["answered"] == 1
+    refused = ask(period="today", team=str(uuid.uuid4()))
+    assert refused["code"] != 9001, "a team that is not yours"

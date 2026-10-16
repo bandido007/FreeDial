@@ -135,3 +135,35 @@ def test_the_reports_page_and_download_show_the_measures(client, make_user, gran
     assert "6.0 s" in html and "2 offers answered" in html
     csv = client.get("/admin/reports/report/export/experience.csv").content.decode()
     assert "Median seconds to answer" in csv and "Missed offers per 100" in csv
+
+
+# ── the supervisor page's panel: the same signals, for one team, per agent ───
+def test_team_numbers_count_only_the_team_and_split_by_agent():
+    from apps.reports.experience import team_numbers
+
+    rows = [
+        Row("offer.answered", at(1), {"agent": "a", "seconds": 4}),
+        Row("offer.answered", at(2), {"agent": "a", "seconds": 8}),
+        Row("offer.missed", at(3), {"agent": "b", "seconds": 15}),
+        Row("offer.answered", at(4), {"agent": "outsider", "seconds": 1}),
+        Row("wrapup.done", at(5), {"agent": "a", "seconds": 30}),
+        Row("wrapup.code_changed", at(6), {"agent": "a"}),
+        Row("transfer.started", at(7), {"agent": "b", "transfer": "t1"}),
+        Row("transfer.completed", at(8), {"agent": "b", "transfer": "t1"}),
+        Row("ux.ai_summary_shown", at(9), {"agent": "a", "call": "c1", "where": "offer"}),
+        Row("ux.ai_summary_shown", at(9), {"agent": "a", "call": "c1", "where": "call"}),
+        Row("ux.ai_summary_wrong", at(10), {"agent": "a", "call": "c1"}),
+        state(0, "b", "not_ready", "Break"),
+        Row("agent.forced", at(17 * 60), {"agent": "b", "by": "s", "state": "ready"}),
+        state(17 * 60, "b", "ready"),
+    ]
+    numbers = team_numbers(rows, agents={"a", "b"}, until=at(3600), not_ready_limits={"Break": 900})
+    team = numbers["team"]
+    assert (team["answered"], team["missed"], team["median_answer_seconds"]) == (2, 1, 6.0)
+    assert (team["wrapups"], team["corrections"], team["median_wrapup_seconds"]) == (1, 1, 30.0)
+    assert (team["transfers"], team["transfers_completed"]) == (1, 1)
+    assert (team["summaries_shown"], team["summaries_wrong"]) == (1, 1), "one call, shown twice"
+    assert (team["over_limit"], team["acted_on"], team["median_minutes_to_action"]) == (1, 1, 2.0)
+    by_agent = {line["agent"]: line for line in numbers["agents"]}
+    assert by_agent["a"]["answered"] == 2 and by_agent["b"]["missed"] == 1
+    assert "outsider" not in by_agent

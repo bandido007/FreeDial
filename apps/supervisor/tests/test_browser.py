@@ -140,3 +140,39 @@ def test_a_delayed_snapshot_from_the_previous_sign_in_cannot_replace_the_new_des
     expect(page.locator("#desk")).to_be_visible()
     page.evaluate("async()=>{releaseOldSnapshot();await new Promise(resolve=>setTimeout(resolve,0));}")
     expect(page.locator("#me")).to_have_text("Daudi")
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_how_my_team_is_doing_fits_and_follows_team_and_period(page, theme):
+    """The dashboard is a second view of the same panel: the screen still fits without scrolling."""
+    page.evaluate(f"document.documentElement.dataset.theme = '{theme}'")
+    page.click("#tab-measures")
+    expect(page.locator("#measures")).to_be_visible()
+    expect(page.locator("#live-view")).to_be_hidden()
+    expect(page.locator("#measure-cards")).to_contain_text("12")
+    expect(page.locator("#measure-cards")).to_contain_text("2 missed (14 per 100 offers)")
+    expect(page.locator("#measure-cards")).to_contain_text("Median 3.5 min to act")
+    expect(page.locator("#measure-agents tr")).to_have_count(2)
+    assert page.evaluate("__supervisorTest.measured") == {"period": "today", "team": "claims"}
+    page.click("[data-period=last_7_days]")
+    expect(page.locator("#measure-cards")).to_contain_text("80")
+    assert page.evaluate("__supervisorTest.measured.period") == "last_7_days"
+    assert page.evaluate(
+        "document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight"
+    )
+    if not page.evaluate("Boolean(window.axe)"):
+        page.add_script_tag(
+            path=str(HERE.parents[1] / "agentdesk" / "tests" / "vendor" / "axe-4.10.3.min.js")
+        )
+    violations = page.evaluate(
+        "async () => (await axe.run(document, {runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa']}})).violations"
+    )
+    assert not violations, [(v["id"], [n["target"] for n in v["nodes"]]) for v in violations]
+    page.screenshot(path=str(ARTIFACTS / f"measures-{theme}-1366x768.png"))
+    page.click("[data-language=sw]")
+    expect(page.locator("#tab-measures")).to_have_text("Timu yangu inavyofanya")
+    expect(page.locator("#measure-cards")).to_contain_text("Simu zilizopokelewa")
+    page.keyboard.press("Shift+Tab")  # keyboard: arrow keys move between the two views
+    page.focus("#tab-measures")
+    page.keyboard.press("ArrowLeft")
+    expect(page.locator("#live-view")).to_be_visible()

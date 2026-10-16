@@ -51,6 +51,7 @@ make dev         # web, brain, writer, live relay, recordings, AI worker
 | S1 | Find the agent who has been on break too long and act | They are at the top ("Over 15-minute limit"); Change state works |
 | S2 | Monitor a call, then whisper, then barge, then stop | The bar says what each mode means; only the agent hears a whisper |
 | S3 | Read a queue that is over target | The strip says "Over target", not only in colour |
+| S4 | Open "How my team is doing", switch to Last 7 days, then pick one team | The cards and the agent lines change with the period and the team; the page still fits the screen |
 
 ## Check afterwards
 

@@ -304,7 +304,127 @@
     renderCalls();
     renderAgents();
     renderListening();
+    renderMeasures();
   }
+
+  // ── "How my team is doing" (UX_PRINCIPLES.md section 6, for your own teams) ──
+  const MEASURES = `query M($period: String, $team: String) { myTeamMeasures(period: $period, team: $team) {
+    status code message data { until team { answered missed medianAnswerSeconds wrapups medianWrapupSeconds
+      corrections transfers transfersCompleted summariesShown summariesWrong overLimit actedOn endedByAgent
+      medianMinutesToAction }
+    agents { uid number name answered missed medianAnswerSeconds medianWrapupSeconds transfers transfersCompleted } } } }`;
+  let view = "live",
+    measurePeriod = "today",
+    measures = null;
+  const seconds = (value) => (value == null ? "—" : t("{n} s", { n: value.toFixed(1) }));
+  function showView(next) {
+    view = next;
+    for (const [tab, panel, name] of [
+      ["tab-live", "live-view", "live"],
+      ["tab-measures", "measures", "measures"],
+    ]) {
+      $(tab).setAttribute("aria-selected", String(view === name));
+      $(tab).tabIndex = view === name ? 0 : -1;
+      $(panel).hidden = view !== name;
+    }
+    $("team-summary").hidden = view !== "live"; // "4 agents / sorted by attention" describes the live view
+    if (view === "measures") loadMeasures();
+  }
+  async function loadMeasures() {
+    if (!tokens || view !== "measures") return;
+    try {
+      measures = await api(MEASURES, { period: measurePeriod, team: selectedTeam || null });
+      $("measures-note").textContent = t("Updated {time}", {
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      });
+    } catch {
+      $("measures-note").textContent = t("Could not load the measures. They load again in a minute.");
+    }
+    renderMeasures();
+  }
+  function card(label, value, detail) {
+    const box = document.createElement("div");
+    box.className = "measure-card";
+    const name = document.createElement("span"),
+      big = document.createElement("strong"),
+      small = document.createElement("small");
+    name.textContent = t(label);
+    big.textContent = value;
+    big.className = "ui-number";
+    small.textContent = detail || "";
+    box.append(name, big, small);
+    return box;
+  }
+  function renderMeasures() {
+    if (!measures) return;
+    const team = measures.team;
+    const offers = team.answered + team.missed;
+    $("measure-cards").replaceChildren(
+      card(
+        "Calls answered",
+        String(team.answered),
+        t("{missed} missed ({rate} per 100 offers)", {
+          missed: team.missed,
+          rate: offers ? Math.round((100 * team.missed) / offers) : 0,
+        }),
+      ),
+      card("Median time to answer", seconds(team.medianAnswerSeconds), ""),
+      card(
+        "Median wrap-up",
+        seconds(team.medianWrapupSeconds),
+        t(team.corrections === 1 ? "1 code corrected" : "{count} codes corrected", {
+          count: team.corrections,
+        }),
+      ),
+      card(
+        "Transfers completed",
+        t("{done} of {all}", { done: team.transfersCompleted, all: team.transfers }),
+        "",
+      ),
+      card(
+        "AI summaries flagged wrong",
+        t("{done} of {all}", { done: team.summariesWrong, all: team.summariesShown }),
+        "",
+      ),
+      card(
+        "Long breaks acted on",
+        t("{done} of {all}", { done: team.actedOn, all: team.overLimit }),
+        team.medianMinutesToAction == null
+          ? ""
+          : t("Median {minutes} min to act", { minutes: team.medianMinutesToAction.toFixed(1) }),
+      ),
+    );
+    const rows = measures.agents.map((agent) => {
+      const row = document.createElement("tr");
+      cell(row, `${agent.name} ${agent.number}`);
+      cell(row, String(agent.answered));
+      cell(row, String(agent.missed));
+      cell(row, seconds(agent.medianAnswerSeconds));
+      cell(row, seconds(agent.medianWrapupSeconds));
+      cell(row, t("{done} of {all}", { done: agent.transfersCompleted, all: agent.transfers }));
+      return row;
+    });
+    $("measure-agents").replaceChildren(...rows);
+  }
+  $("tab-live").addEventListener("click", () => showView("live"));
+  $("tab-measures").addEventListener("click", () => showView("measures"));
+  for (const tab of ["tab-live", "tab-measures"])
+    $(tab).addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      const next = view === "live" ? "measures" : "live";
+      showView(next);
+      $(next === "live" ? "tab-live" : "tab-measures").focus();
+    });
+  document.querySelectorAll("[data-period]").forEach((choice) =>
+    choice.addEventListener("click", () => {
+      measurePeriod = choice.dataset.period;
+      document
+        .querySelectorAll("[data-period]")
+        .forEach((other) => other.setAttribute("aria-pressed", String(other === choice)));
+      loadMeasures();
+    }),
+  );
+  setInterval(loadMeasures, 60000);
 
   function activeAgents() {
     const team = (desk.teams || []).find((team) => team.uid === selectedTeam);
@@ -650,6 +770,7 @@
   $("team-filter").addEventListener("change", () => {
     selectedTeam = $("team-filter").value;
     render();
+    loadMeasures();
   });
   $("agent-next-state").addEventListener("change", toggleReason);
   $("agent-action-cancel").addEventListener("click", () => $("agent-action").close());

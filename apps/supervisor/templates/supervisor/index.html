@@ -82,7 +82,10 @@
       <main class="team-panel">
         <div class="team-heading">
           <div>
-            <h1 data-i18n="Needs attention first"></h1>
+            <div class="view-tabs" role="tablist" aria-label="Supervisor views"
+              ><button id="tab-live" role="tab" aria-selected="true" aria-controls="live-view" data-i18n="Needs attention first"></button
+              ><button id="tab-measures" role="tab" aria-selected="false" aria-controls="measures" tabindex="-1" data-i18n="How my team is doing"></button
+            ></div>
             <small id="team-summary"></small>
           </div>
           <div class="connection-status">
@@ -90,6 +93,7 @@
             ><button id="reconnect" hidden data-i18n="Reconnect"></button>
           </div>
         </div>
+        <div id="live-view" role="tabpanel" aria-labelledby="tab-live">
         <div class="team-table">
           <table class="team">
             <thead>
@@ -105,6 +109,32 @@
           </table>
         </div>
         <p id="no-agents" class="ui-muted" hidden data-i18n="No agents in this team."></p>
+        </div>
+        <section id="measures" role="tabpanel" aria-labelledby="tab-measures" hidden>
+          <div class="measures-bar">
+            <div class="ui-language period-choice" role="group" aria-label="Period">
+              <button data-period="today" aria-pressed="true" data-i18n="Today"></button
+              ><button data-period="last_7_days" aria-pressed="false" data-i18n="Last 7 days"></button>
+            </div>
+            <small id="measures-note" role="status"></small>
+          </div>
+          <div id="measure-cards" class="measure-cards"></div>
+          <div class="team-table measures-table">
+            <table class="team">
+              <thead>
+                <tr>
+                  <th scope="col" data-i18n="Agent"></th>
+                  <th scope="col" data-i18n="Answered"></th>
+                  <th scope="col" data-i18n="Missed"></th>
+                  <th scope="col" data-i18n="Median time to answer"></th>
+                  <th scope="col" data-i18n="Median wrap-up"></th>
+                  <th scope="col" data-i18n="Transfers completed"></th>
+                </tr>
+              </thead>
+              <tbody id="measure-agents"></tbody>
+            </table>
+          </div>
+        </section>
       </main>
       <footer class="supervisor-footer">
         <span id="update-status" role="status"></span>

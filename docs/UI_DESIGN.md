@@ -169,6 +169,7 @@ Shown on the buttons. Active only when focus is not in a text field, except Answ
 - Actions follow permissions: Monitor, Whisper, Barge, Change state, Sign out, View history. While monitoring, a bar at the top shows "Monitoring Peter" with Switch to whisper, Switch to barge, Stop.
 - The queue strip shows waiting count and longest wait per queue; a queue over its service-level target shows the word "over target", not only a colour.
 - Numbers update live over the WebSocket; no full-page refresh.
+- **How my team is doing** (the panel's second tab, so the screen still fits without scrolling): the team's UX_PRINCIPLES section 6 measures for Today or the Last 7 days, following the team filter. Six cards (calls answered and missed per 100 offers; median time to answer; median wrap-up and codes corrected; transfers completed; AI summaries flagged wrong; long breaks acted on, with the median minutes to act), then one line per agent so the supervisor sees who needs help. Refreshed every minute; numbers come from the API, words from the translation files.
 
 ## 6. Admin pages
 

@@ -39,6 +39,17 @@ type Query {
   mySupervisorDesk: SupervisorDeskResponse
 
   """
+  How your teams are doing (UX_PRINCIPLES.md section 6): answers, missed offers, wrap-up, transfers, AI summaries flagged wrong, minutes to act on long breaks; per agent too. permissions=['can_monitor_calls', 'can_whisper_calls', 'can_barge_calls', 'can_force_agent_state']
+  """
+  myTeamMeasures(
+    """today | yesterday | last_7_days"""
+    period: String
+
+    """One of your teams (uid); empty: all of them"""
+    team: String
+  ): TeamMeasuresResponse
+
+  """
   The signed-in agent, their live state, Not Ready reasons and wrap-up codes. permissions=['can_take_calls']
   """
   myAgentDesk: AgentDeskResponse
@@ -486,6 +497,60 @@ type QueueNowType {
   targetSeconds: Int
   offered: Int
   answered: Int
+}
+
+type TeamMeasuresResponse {
+  status: Boolean
+  code: Int
+  message: String
+  data: TeamMeasuresType
+  dataList: [TeamMeasuresType]
+}
+
+type TeamMeasuresType {
+  since: DateTime
+  until: DateTime
+  team: TeamMeasuresTotalType
+  agents: [AgentMeasuresType]
+}
+
+type TeamMeasuresTotalType {
+  answered: Int
+  missed: Int
+  medianAnswerSeconds: Float
+  wrapups: Int
+  medianWrapupSeconds: Float
+  corrections: Int
+  transfers: Int
+  transfersCompleted: Int
+
+  """AI summaries agents saw (one per call)"""
+  summariesShown: Int
+
+  """Of those, flagged wrong by the agent"""
+  summariesWrong: Int
+
+  """Times an agent stayed Not Ready past the reason's limit"""
+  overLimit: Int
+
+  """Of those, a supervisor changed the agent's state"""
+  actedOn: Int
+  endedByAgent: Int
+  medianMinutesToAction: Float
+}
+
+type AgentMeasuresType {
+  answered: Int
+  missed: Int
+  medianAnswerSeconds: Float
+  wrapups: Int
+  medianWrapupSeconds: Float
+  corrections: Int
+  transfers: Int
+  transfersCompleted: Int
+  uid: String
+  number: String
+  name: String
 }
 
 type AgentDeskResponse {

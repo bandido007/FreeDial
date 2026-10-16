@@ -16,6 +16,9 @@
     if(!String(url).includes('graphql'))return original(url,options);
     const {query,variables:v={}}=JSON.parse(options.body);let data={commandId:'command'},dataList=[];
     if(query.includes('mySupervisorDesk'))data=structuredClone(test.data);
+    else if(query.includes('myTeamMeasures')) {test.measured=v;data={until:new Date().toISOString(),
+      team:{answered:v.period==='today'?12:80,missed:2,medianAnswerSeconds:6.4,wrapups:12,medianWrapupSeconds:41,corrections:1,transfers:3,transfersCompleted:2,summariesShown:5,summariesWrong:1,overLimit:2,actedOn:1,endedByAgent:1,medianMinutesToAction:3.5},
+      agents:[{uid:'halima',number:'7105',name:'Halima',answered:7,missed:0,medianAnswerSeconds:5.1,medianWrapupSeconds:38,transfers:1,transfersCompleted:1},{uid:'peter',number:'7106',name:'Peter',answered:5,missed:2,medianAnswerSeconds:9.8,medianWrapupSeconds:55,transfers:2,transfersCompleted:1}]};}
     else if(query.includes('supervisedAgentHistory')) {data=null;dataList=[{at:new Date().toISOString(),type:'agent.state',description:'not ready / idle: Break'}];}
     else if(query.includes('startSupervisorSession'))data={sipId:'websup1',password:'test-only',domain:'desk.test',wsUrl:'wss://desk.test/sip'};
     else {test.commands.push({query,variables:v});

@@ -263,3 +263,77 @@ def measure(
             Measure("All", "Speed budgets hold", "95th percentile per button", "-", "no presses recorded")
         )
     return out
+
+
+# ── the supervisor page's panel ("How my team is doing") ──────────────────
+def team_numbers(
+    rows: list[Row], *, agents: set[str], until: datetime, not_ready_limits: dict[str, int] | None = None
+) -> dict[str, Any]:
+    """The section 6 signals of these agents only, as numbers (the page writes the words, in English
+    or Swahili): the team's totals, and one line per agent so a supervisor sees who needs help."""
+
+    def blank() -> dict[str, Any]:
+        return {
+            "answered": 0, "missed": 0, "answer": [], "wrapup": [], "corrections": 0,
+            "transfers": 0, "transfers_completed": 0,
+        }  # fmt: skip
+
+    per: dict[str, dict[str, Any]] = {uid: blank() for uid in agents}
+    shown: set[str] = set()
+    wrong: set[str] = set()
+    for row in rows:
+        agent = str(row.data.get("agent") or "")
+        if agent not in per:
+            continue
+        line = per[agent]
+        match row.type:
+            case "offer.answered":
+                line["answered"] += 1
+                line["answer"].append(float(row.data.get("seconds") or 0))
+            case "offer.missed":
+                line["missed"] += 1
+            case "wrapup.done":
+                line["wrapup"].append(float(row.data.get("seconds") or 0))
+            case "wrapup.code_changed":
+                line["corrections"] += 1
+            case "transfer.started":
+                line["transfers"] += 1
+            case "transfer.completed":
+                line["transfers_completed"] += 1
+            case "ux.ai_summary_shown":
+                shown.add(str(row.data.get("call") or ""))
+            case "ux.ai_summary_wrong":
+                wrong.add(str(row.data.get("call") or ""))
+    team_rows = [row for row in rows if str(row.data.get("agent") or "") in per]
+    acted, by_agent = _over_limit(team_rows, not_ready_limits or {}, until)
+
+    def summary(line: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "answered": line["answered"],
+            "missed": line["missed"],
+            "median_answer_seconds": _median(line["answer"]),
+            "wrapups": len(line["wrapup"]),
+            "median_wrapup_seconds": _median(line["wrapup"]),
+            "corrections": line["corrections"],
+            "transfers": line["transfers"],
+            "transfers_completed": line["transfers_completed"],
+        }
+
+    everyone = blank()
+    for line in per.values():
+        for key in ("answered", "missed", "corrections", "transfers", "transfers_completed"):
+            everyone[key] += line[key]
+        everyone["answer"] += line["answer"]
+        everyone["wrapup"] += line["wrapup"]
+    return {
+        "team": {
+            **summary(everyone),
+            "summaries_shown": len(shown),
+            "summaries_wrong": len(wrong & shown) or len(wrong),
+            "over_limit": len(acted) + by_agent,
+            "acted_on": len(acted),
+            "ended_by_agent": by_agent,
+            "median_minutes_to_action": _median(acted),
+        },
+        "agents": [{"agent": uid, **summary(line)} for uid, line in per.items()],
+    }
