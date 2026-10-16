@@ -217,7 +217,10 @@ Never run Prettier on this file (it splits template tags).{% endcomment %}
       <table>
         <thead><tr><th scope="col">Field</th><th scope="col">What to put</th></tr></thead>
         <tbody>
-          <tr><td>Number</td><td>2 to 20 digits, different for each agent, e.g. <code>8003</code>. It shows on the agent page, the supervisor page and in reports.</td></tr>
+          <tr><td>Number</td><td>2 to 20 digits, different for each agent. The form is already filled with the next free number
+            of the agent number range (2000 to 6999 unless changed in <a href="{% url 'admin:configuration_systemsetting_changelist' %}">System settings</a>,
+            "Agent numbers"); keep it, or type another. A number already used, even by a deleted agent, is refused or skipped.
+            It shows on the agent page, the supervisor page and in reports. It is not a number anyone dials: callers dial an entry number.</td></tr>
           <tr><td>Name</td><td>As colleagues and supervisors should see it (the transfer list shows it).</td></tr>
           <tr><td>User</td><td>The person who signs in as this agent (section 3). One person, one agent. Left empty, nobody can sign in as it: only the automatic call tests use such agents.</td></tr>
           <tr><td>Active</td><td>Untick to stop offering calls to this agent while keeping their history.</td></tr>
@@ -356,8 +359,10 @@ Never run Prettier on this file (it splits template tags).{% endcomment %}
         phone, a softphone such as Zoiper, or a test phone. Open
         <a href="{% url 'admin:telephony_sipaccount_add' %}">Telephony &rarr; SIP accounts &rarr; Add</a>:</p>
       <ul>
-        <li><strong>SIP id</strong>: the phone's number and username, e.g. <code>1003</code>.</li>
-        <li><strong>Kind</strong>: <em>SOFTPHONE</em>. (BROWSER accounts, named <code>web…</code>, are made and switched on and off by AlgoDial: do not edit them.)</li>
+        <li><strong>SIP id</strong>: the phone's number and username, e.g. <code>1003</code>. Ids starting with
+          <code>web</code> are refused: they belong to the browser phones AlgoDial makes at sign-in (<code>web2468</code> for agent 2468).</li>
+        <li><strong>Kind</strong>: <em>SOFTPHONE</em>, the only choice when adding. BROWSER accounts (<code>web…</code>) are made,
+          given a new password and switched on and off by AlgoDial: do not edit them.</li>
         <li><strong>Display name</strong>: the name the other side sees.</li>
         <li><strong>New password</strong>: at least 12 characters, or leave it empty and AlgoDial makes one. It is shown <strong>once</strong>, at the top of the page after saving: type it into the phone straight away.</li>
         <li><strong>Codecs</strong> and <strong>Context</strong>: leave empty.</li>
@@ -424,6 +429,7 @@ Never run Prettier on this file (it splits template tags).{% endcomment %}
           <tr><td>All calls ring phones 1001 and 1002 instead of the agent pages</td><td>The brain is stopped, so Asterisk uses its backup queue.</td><td>Start make dev; the checklist's first section shows it.</td></tr>
           <tr><td>A supervisor sees nobody</td><td>They are not the supervisor of a team with those agents.</td><td>Teams &rarr; the team &rarr; Supervisors.</td></tr>
           <tr><td>A call has no recording</td><td>Recording is not switched on in Asterisk, or the recordings service is stopped.</td><td>Ask the telephony administrator (apply.sh m7); check make dev.</td></tr>
+          <tr><td>"SIP account web… was made by hand" when an agent signs in</td><td>A phone was given that agent's browser-phone name before the rule existed.</td><td>SIP accounts &rarr; rename that phone (e.g. to 1003), then sign in again.</td></tr>
           <tr><td>A desk phone will not register</td><td>Wrong domain, port (5062), username or password, or the account is not Active.</td><td>Check the SIP account; set a new password and type it again in the phone.</td></tr>
         </tbody>
       </table>

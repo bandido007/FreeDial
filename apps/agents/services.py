@@ -6,6 +6,7 @@ from django.db import transaction
 
 from apps.agents.models import Agent, AgentSkill, Skill, SkillKind
 from apps.core.exceptions import DuplicateError, NotFoundError, ValidationError
+from apps.core.hooks import policy
 
 NOT_FOUND = 10200
 NUMBER_TAKEN = 10201
@@ -35,6 +36,21 @@ def validate_agent(*, number, name, user=None, except_pk=None) -> tuple[str, str
     if user is not None and Agent.all_objects.filter(user=user).exclude(pk=except_pk).exists():
         raise DuplicateError("This user is already another agent.", code=USER_TAKEN)
     return number, name
+
+
+def number_range() -> tuple[int, int]:
+    """The agent numbers the Add agent form suggests from (System settings)."""
+    return int(policy("AGENT_NUMBER_FIRST", 2000)), int(policy("AGENT_NUMBER_LAST", 6999))
+
+
+def next_free_number() -> str | None:
+    """The lowest number of the range no agent has ever had, or None when the range is full.
+
+    Deleted agents' numbers are skipped too: a new agent with an old number would take over the old
+    agent's browser phone (web<number>) and its sign-in history."""
+    first, last = number_range()
+    used = {int(n) for n in Agent.all_objects.values_list("number", flat=True) if n.isdigit()}
+    return next((str(n) for n in range(first, last + 1) if n not in used), None)
 
 
 @transaction.atomic

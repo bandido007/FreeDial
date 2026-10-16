@@ -27,6 +27,11 @@ class SipAccountForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if not self.instance.pk:  # BROWSER accounts are made by AlgoDial at sign-in, never by hand
+            self.fields["kind"].choices = [
+                (value, label) for value, label in self.fields["kind"].choices if value != "BROWSER"
+            ]
+            self.fields["kind"].initial = "SOFTPHONE"
         self.fields["codecs"].required = False
         self.fields["context"].required = False
 

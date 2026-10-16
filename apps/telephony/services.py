@@ -26,6 +26,10 @@ BAD_SIP_ID = 10002
 WEAK_PASSWORD = 10003
 BAD_KIND = 10004
 BAD_CODECS = 10005
+RESERVED_SIP_ID = 10006
+
+# Browser phones are named by AlgoDial at sign-in: web<agent number> (agentdesk), websup<user> (supervisor).
+BROWSER_PREFIX = "web"
 
 MIN_PASSWORD_LENGTH = 12
 SIP_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{1,39}$")
@@ -72,6 +76,26 @@ def _clean_codecs(codecs, kind) -> str:
     return codecs
 
 
+def _check_name(sip_id, kind) -> None:
+    """ "web…" ids belong to browser phones, and browser phones have "web…" ids.
+
+    Otherwise a hand-made phone named web2468 would be taken over (new password, wrong transport)
+    when agent 2468 signs in, and neither would work."""
+    reserved = sip_id.lower().startswith(BROWSER_PREFIX)
+    browser = kind == SipAccountKindChoices.BROWSER.value
+    if reserved and not browser:
+        raise ValidationError(
+            'SIP ids starting with "web" are kept for the browser phones AlgoDial makes when an agent '
+            "or supervisor signs in. Choose another, for example 1003.",
+            code=RESERVED_SIP_ID,
+        )
+    if browser and not reserved:
+        raise ValidationError(
+            'A browser phone\'s SIP id starts with "web": AlgoDial makes these itself at sign-in.',
+            code=RESERVED_SIP_ID,
+        )
+
+
 def _ensure_free(sip_id, *, except_pk=None) -> None:
     taken = SipAccount.objects.filter(sip_id=sip_id).exclude(pk=except_pk).exists()
     if taken:
@@ -81,6 +105,7 @@ def _ensure_free(sip_id, *, except_pk=None) -> None:
 def validate_sip_account(*, sip_id, kind, password=None, codecs=None, except_pk=None) -> None:
     """Check every rule without writing, for forms that show errors before saving."""
     sip_id, kind = _clean_sip_id(sip_id), _clean_kind(kind)
+    _check_name(sip_id, kind)
     _ensure_free(sip_id, except_pk=except_pk)
     if password:
         _clean_password(password)
@@ -92,6 +117,7 @@ def create_sip_account(
     *, actor, sip_id, kind, password=None, display_name="", codecs=None, context=None
 ) -> SipAccount:
     sip_id, kind = _clean_sip_id(sip_id), _clean_kind(kind)
+    _check_name(sip_id, kind)
     password = generate_password() if not password else _clean_password(password)
     _ensure_free(sip_id)
     account = SipAccount.objects.create(
@@ -125,6 +151,7 @@ def update_sip_account(
         account.codecs = _clean_codecs(codecs if codecs is not None else account.codecs, account.kind)
     if context is not None:
         account.context = context.strip() or settings.PJSIP_DEFAULT_CONTEXT
+    _check_name(account.sip_id, account.kind)
     account.updated_by = actor
     account.save()
     return account
@@ -169,6 +196,12 @@ def issue_browser_phone(*, actor, sip_id, display_name="") -> tuple[SipAccount, 
     """
     password = generate_password()
     account = SipAccount.objects.filter(sip_id=sip_id).first()
+    if account is not None and account.kind != SipAccountKindChoices.BROWSER.value:
+        raise ValidationError(
+            f"SIP account {sip_id} was made by hand as a {account.kind.lower()}. Rename it in "
+            "admin → SIP accounts, then sign in again: this sign-in needs that name for its browser phone.",
+            code=RESERVED_SIP_ID,
+        )
     if account is None:
         account = create_sip_account(
             actor=actor,

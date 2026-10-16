@@ -229,3 +229,45 @@ def test_the_admin_page_creates_and_deletes_an_account(admin, settings):
     assert response.status_code == 302
     assert pjsip_rows("1003") == (None, None, None)
     assert SipAccount.all_objects.get(pk=account.pk).deleted
+
+
+# ── "web…" ids belong to the browser phones AlgoDial makes at sign-in ─────────
+@pytest.mark.parametrize("sip_id", ["web2468", "WEB2468", "websup3", "web-desk"])
+def test_a_hand_made_phone_cannot_take_a_browser_phone_name(manager, sip_id):
+    """Agent 2468's sign-in would take a SOFTPHONE web2468 over and its browser phone would never connect."""
+    with pytest.raises(ValidationError) as refused:
+        services.create_sip_account(actor=manager, sip_id=sip_id, kind="SOFTPHONE", password=PASSWORD)
+    assert refused.value.code == services.RESERVED_SIP_ID
+    with pytest.raises(ValidationError):
+        services.validate_sip_account(sip_id=sip_id, kind="SOFTPHONE")
+    desk = services.create_sip_account(actor=manager, sip_id="1003", kind="SOFTPHONE", password=PASSWORD)
+    with pytest.raises(ValidationError):
+        services.update_sip_account(uid=desk.uid, actor=manager, sip_id=sip_id)
+
+
+def test_a_browser_phone_always_has_a_web_name(manager):
+    with pytest.raises(ValidationError) as refused:
+        services.create_sip_account(actor=manager, sip_id="1003", kind="BROWSER", password=PASSWORD)
+    assert refused.value.code == services.RESERVED_SIP_ID
+    browser = services.issue_browser_phone(actor=manager, sip_id="web2468", display_name="Amina")[0]
+    with pytest.raises(ValidationError):
+        services.update_sip_account(uid=browser.uid, actor=manager, kind="SOFTPHONE")
+
+
+def test_sign_in_never_takes_over_an_old_hand_made_web_phone(manager):
+    """Made before this rule existed: the sign-in says so instead of breaking that phone and itself."""
+    SipAccount.objects.create(
+        sip_id="web2468", kind="SOFTPHONE", password_encrypted="x", codecs="ulaw", context="lab"
+    )
+    with pytest.raises(ValidationError) as refused:
+        services.issue_browser_phone(actor=manager, sip_id="web2468")
+    assert "web2468" in refused.value.message and refused.value.code == services.RESERVED_SIP_ID
+
+
+def test_the_admin_add_form_offers_only_softphones(manager):
+    manager.is_staff = True
+    manager.save()
+    client = Client()
+    client.force_login(manager)
+    html = client.get("/admin/telephony/sipaccount/add/").content.decode()
+    assert 'value="SOFTPHONE"' in html and 'value="BROWSER"' not in html

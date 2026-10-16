@@ -31,6 +31,7 @@ from apps.queues.services import rule_steps
 from apps.rbac.models import UserRole
 from apps.teams.models import Team
 from apps.telephony.models import SipAccount
+from apps.telephony.services import BROWSER_PREFIX
 
 DONE, ATTENTION, TODO, NOT_USED = "done", "attention", "todo", "not_used"
 LABELS = {DONE: "Done", ATTENTION: "Needs attention", TODO: "Not done yet", NOT_USED: "Not used"}
@@ -580,6 +581,15 @@ def phones_section() -> Section:
         )
         for account in softphones
         if _placeholder(account)
+    ]
+    weak += [
+        Line(
+            f"{account.sip_id} has a browser phone's name: the agent or supervisor of that name cannot "
+            "sign in until it is renamed.",
+            change_url(account),
+        )
+        for account in softphones
+        if account.sip_id.lower().startswith(BROWSER_PREFIX)
     ]
     phones = (
         Check(

@@ -13,6 +13,14 @@ class AgentForm(forms.ModelForm):
         model = Agent
         fields = ("number", "name", "user", "active")
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        first, last = services.number_range()
+        self.fields["number"].help_text = (
+            f"Suggested: the next free number from {first} to {last} (the range is in System settings). "
+            "You can type another; a number already used is refused."
+        )
+
     def clean(self):
         data = super().clean()
         try:
@@ -49,6 +57,11 @@ class AgentAdmin(RbacAdminMixin, admin.ModelAdmin):
     list_display = ("number", "name", "user", "skill_levels", "active")
     search_fields = ("number", "name", "user__email")
     autocomplete_fields = ("user",)
+
+    def get_changeform_initial_data(self, request):
+        initial = super().get_changeform_initial_data(request)
+        initial.setdefault("number", services.next_free_number())
+        return initial
 
     def save_model(self, request, obj, form, change):
         data = form.cleaned_data

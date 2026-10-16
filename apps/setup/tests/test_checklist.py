@@ -221,3 +221,13 @@ def test_progress_counts_what_is_done(centre):
     sections = checklist.build(consumers=RUNNING)
     done, total, attention = checklist.progress(sections)
     assert 0 < done < total and attention == 0
+
+
+def test_an_old_hand_made_web_phone_is_named(centre):
+    from apps.telephony.models import SipAccount
+
+    SipAccount.objects.create(
+        sip_id="web8003", kind="SOFTPHONE", password_encrypted="x", codecs="ulaw", context="lab"
+    )
+    item = check("phones.softphones")
+    assert item.status == checklist.ATTENTION and "web8003 has a browser phone's name" in problems(item)
