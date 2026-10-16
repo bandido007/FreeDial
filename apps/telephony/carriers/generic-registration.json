@@ -1,0 +1,6 @@
+{
+  "key": "generic-registration",
+  "name": "Any carrier with a sign-in (registration)",
+  "description": "AlgoDial signs in to the carrier with a username and password, then calls go both ways.",
+  "fields": {"style": "registration", "codecs": "alaw,ulaw", "dtmf_mode": "rfc4733", "country_code": "255", "national_prefix": "0", "international_prefix": "00", "national_length": 9}
+}

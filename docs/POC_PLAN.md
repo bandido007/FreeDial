@@ -70,6 +70,48 @@ to end, wraps up, and every state change appears in the Event table.
 Brain queue with strategies longest_idle, ring_all, round_robin, linear, fewest_calls, random; ring timeout, retry, max wait, max callers, overflow; skill rule sets that widen with wait time; service level stats.
 **Done when:** tests prove each strategy's choice on scripted agent states, and a skill rule widens at the right second.
 
+### M4b: Trunks and outbound routes (no second Asterisk)
+**Models.**
+- **Trunk:**
+  - name, carrier preset, style (ip | registration), hosts;
+  - username and password (a secret);
+  - codecs (default alaw,ulaw), dtmf_mode (default rfc4733), from_user, send_pai, max_channels;
+  - the inbound number rule, to E.164 (country code, national prefix, international prefix);
+  - the outbound rule: strip_digits, prefix, external_prefix;
+  - active.
+
+  It writes `ps_endpoints` (context `from-carrier`, permit/deny = the carrier's IPs), `ps_auths`, `ps_aors` (contact + qualify_frequency), `ps_registrations` and `ps_endpoint_id_ips`.
+- **OutboundRoute:** name, patterns (an allow list; international and premium numbers are blocked by default), trunks in priority order, caller ID, the required permission `can_dial_external`, active.
+- **Carrier presets** are data files in git.
+
+**DIDs are entry points** (decision A, 16 Oct 2026). An entry point's number may be in E.164 (`+255222123456`), next to the internal 800–899, so a DID gets its queue, language, AI and priority, and reports, with no new model.
+
+**`[from-carrier]` knows the DIDs itself** (decision B):
+- AlgoDial writes every form a carrier may send for each DID into a table Asterisk reads (`REALTIME_FIELD`): `+255…`, `00255…`, `255…` and `0…`, each mapped to the E.164 DID.
+- A known DID goes to Stasis already normalised. Anything else is hung up in the dialplan, even with the brain down.
+- With the brain down, a known DID still falls back to `Queue(support)` (rule 5).
+- The brain checks the DID again on arrival (rule 3).
+
+**Behaviour.**
+- The brain dials out with ARI originate `PJSIP/<number>@<trunk>`, after applying the trunk's outbound rule.
+- It enforces max_channels, counting calls in and out.
+- It fails over to the next trunk only on carrier or network failures. Which hangup causes those are is **measured with SIPp**, not guessed (decision C). It never fails over on busy (17), no answer (19) or rejected (21).
+- **Health:**
+  - the ARI endpoint state (qualify), and AMI `PJSIPShowRegistrationsOutbound` through a read-only AMI user;
+  - these feed the trunk status badge and the Setup guide.
+
+**Tests (no second Asterisk).**
+- **Unit:** number normalisation in and out, route matching, the failover decision by hangup cause, channel counting.
+- **Integration**, with SIPp (Ubuntu package `sip-tester`) playing the carrier on 127.0.0.2:
+  - an inbound INVITE to a DID reaches an agent;
+  - an INVITE to an unknown number is hung up;
+  - an INVITE from a non-carrier IP is rejected;
+  - an outbound call is answered by a SIPp UAS;
+  - when the first trunk returns 503, the call goes out on the second;
+  - busy (486) does **not** fail over.
+
+**Done when:** a SIPp "carrier" call to a DID reaches an agent, an agent's transfer to an outside number goes out through the right trunk in the correct E.164 format, and every test above passes.
+
 ### M5: Transfers and conference
 Blind (agent, queue, number, AI agent), consult with complete / cancel, 3-way conference, drop participant. A Transfer record with status.
 **Done when:** each flow works from the agent page, and CEL shows one linkedid for the whole call.

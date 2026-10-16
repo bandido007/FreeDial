@@ -31,8 +31,9 @@ from brain.core.calls import (
     Transfer,
     max_wait_timer,
 )
-from brain.core.config import Config, QueueConfig, Requirement
+from brain.core.config import Config, QueueConfig, Requirement, TrunkConfig
 from contracts import messages as m
+from contracts.carriers import ChannelCount, dialled_to_e164, fail_over, for_trunk, pick_route, to_e164
 
 NUMBER = re.compile(r"^[A-Za-z0-9+*#._-]{1,40}$")
 
@@ -44,6 +45,7 @@ class TransferMixin:
         agents: dict[str, Agent]
         legs: dict[str, str]
         new_id: Callable[[], str]
+        channels: ChannelCount
 
         def _refuse(
             self, command_id: str, kind: str, reason: str, agent: str | None = None
@@ -129,8 +131,20 @@ class TransferMixin:
         if target_kind == "number":
             if not NUMBER.match(target):
                 return refuse("not a dialable number")
-            endpoint = self.config.dial_template.format(number=target)
-            return self._ring_target(call, agent, kind, "number", target, endpoint, None, now)
+            outside = self._outside_number(target)
+            if outside is None:  # an internal number: a SIP id or an extension
+                endpoint = self.config.dial_template.format(number=target)
+                return self._ring_target(call, agent, kind, "number", target, endpoint, None, now)
+            route = pick_route(outside, self.config.routes, self.config.number_plan)
+            if route is None:
+                return refuse(f"no outbound route allows {outside}")
+            trunk, rest = self._trunk_with_room(route.trunks)
+            if trunk is None:
+                return refuse("every line of this number's route is busy")
+            return self._ring_target(
+                call, agent, kind, "number", outside, self._dial(outside, trunk), None, now,
+                outside=(trunk.name, rest, route.caller_id),
+            )  # fmt: skip
         return refuse("a transfer goes to an agent, a queue or a number")
 
     # ── starting ──────────────────────────────────────────────────────────
@@ -197,6 +211,7 @@ class TransferMixin:
         endpoint: str,
         other: Agent | None,
         now: float,
+        outside: tuple[str, tuple[str, ...], str] | None = None,  # trunk, trunks left, caller ID
     ) -> list[a.Action]:
         transfer = Transfer(
             id=self.new_id(),
@@ -207,6 +222,9 @@ class TransferMixin:
             leg=AGENT_LEG_PREFIX + self.new_id(),
             target_agent=other.uid if other else None,
         )
+        if outside is not None:
+            transfer.number, (transfer.trunk, transfer.trunks_left, transfer.caller_id) = target, outside
+            self.channels.take(transfer.trunk, str(transfer.leg))
         call.transfer = transfer
         self.legs[str(transfer.leg)] = call.id
         queue = self.config.queues.get(call.queue)
@@ -228,7 +246,7 @@ class TransferMixin:
                 channel=str(transfer.leg),
                 endpoint=endpoint,
                 app_args=f"transfer,{call.id},{transfer.id}",
-                caller_id=call.caller_id,
+                caller_id=transfer.caller_id or call.caller_id,
                 originator=call.caller,
                 timeout=queue.ring_timeout if queue else 20,
             )
@@ -417,11 +435,82 @@ class TransferMixin:
         ]
         return out + self._release(uid, call, True, now)
 
-    def _transfer_leg_gone(self, call: Call, cause: Any, now: float) -> list[a.Action]:
-        """The target's channel ended: before answering (a failed transfer) or during a consult."""
+    # ── outside numbers (M4b) ─────────────────────────────────────────────
+    def _outside_number(self, target: str) -> str | None:
+        """The E.164 form of a number an agent typed, or None for an internal one (a SIP id, an extension)."""
+        plan = self.config.number_plan
+        found = to_e164(target, plan)
+        for trunk in self.config.trunks.values():
+            if found:
+                break
+            if trunk.rule.external_prefix:
+                found = dialled_to_e164(target, trunk.rule, plan)
+        return found
+
+    def _trunk_with_room(self, names: tuple[str, ...]) -> tuple[TrunkConfig | None, tuple[str, ...]]:
+        """The first of these trunks with a free channel, and the ones after it (to fail over to)."""
+        for n, name in enumerate(names):
+            trunk = self.config.trunks.get(name)
+            if trunk is not None and self.channels.has_room(trunk.name, trunk.max_channels):
+                return trunk, names[n + 1 :]
+        return None, ()
+
+    @staticmethod
+    def _dial(number: str, trunk: TrunkConfig) -> str:
+        return f"PJSIP/{for_trunk(number, trunk.rule)}@{trunk.endpoint}"
+
+    def _next_trunk(self, call: Call, transfer: Transfer, cause: Any) -> list[a.Action] | None:
+        """The carrier or the network failed: ring the same number through the route's next trunk."""
+        trunk, rest = self._trunk_with_room(transfer.trunks_left)
+        if trunk is None or transfer.number is None:
+            return None
+        failed, old = transfer.trunk, transfer.leg
+        transfer.leg, transfer.trunk, transfer.trunks_left = (
+            AGENT_LEG_PREFIX + self.new_id(),
+            trunk.name,
+            rest,
+        )
+        self.legs[transfer.leg] = call.id
+        self.channels.take(trunk.name, transfer.leg)
+        queue = self.config.queues.get(call.queue)
+        return [
+            a.Emit(
+                m.TRUNK_FAILED_OVER,
+                {
+                    "call": call.id,
+                    "transfer": transfer.id,
+                    "trunk": failed,
+                    "cause": cause,
+                    "next_trunk": trunk.name,
+                },
+            ),
+            a.Emit(m.LEG_ENDED, {"call": call.id, "leg": old, "role": "external", "cause": cause}),
+            a.Originate(
+                call.id,
+                channel=transfer.leg,
+                endpoint=self._dial(transfer.number, trunk),
+                app_args=f"transfer,{call.id},{transfer.id}",
+                caller_id=transfer.caller_id or call.caller_id,
+                originator=call.caller,
+                timeout=queue.ring_timeout if queue else 20,
+            ),
+        ]
+
+    def _transfer_leg_gone(
+        self, call: Call, cause: Any, now: float, *, originate_failed: bool = False
+    ) -> list[a.Action]:
+        """The target's channel ended: before answering (a failed transfer) or during a consult.
+        ``originate_failed``: Asterisk could not even start it (an unreachable trunk or phone)."""
         transfer = call.transfer
         assert transfer is not None and transfer.leg is not None
         self.legs.pop(transfer.leg, None)
+        self.channels.release(transfer.leg)
+        if transfer.state == "ringing" and transfer.trunk:
+            numeric = cause if isinstance(cause, int) else None
+            if fail_over(numeric, originate_failed=originate_failed):
+                retried = self._next_trunk(call, transfer, numeric)
+                if retried is not None:
+                    return retried
         if transfer.state == "consulting":
             transfer.leg = None
             return self._cancel_transfer(call, "the other party hung up", now)

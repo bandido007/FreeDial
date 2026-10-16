@@ -11,5 +11,6 @@
   {"code": 10209, "status": false, "messageEn": "A skill with this name already exists.", "messageSw": "Ujuzi wenye jina hili upo tayari."},
   {"code": 10210, "status": false, "messageEn": "An agent's phone is a desk phone or softphone (a SOFTPHONE SIP account).", "messageSw": "Simu ya wakala ni simu ya mezani au programu ya simu (akaunti ya SIP ya aina SOFTPHONE)."},
   {"code": 10211, "status": false, "messageEn": "Your desk phone is in use by another agent who is signed in.", "messageSw": "Simu yako ya mezani inatumiwa na wakala mwingine aliyeingia."},
-  {"code": 10212, "status": false, "messageEn": "Your desk phone is switched off in the admin. Ask your manager.", "messageSw": "Simu yako ya mezani imezimwa kwenye usimamizi. Muulize meneja wako."}
+  {"code": 10212, "status": false, "messageEn": "Your desk phone is switched off in the admin. Ask your manager.", "messageSw": "Simu yako ya mezani imezimwa kwenye usimamizi. Muulize meneja wako."},
+  {"code": 10213, "status": false, "messageEn": "This outside number cannot be called from here.", "messageSw": "Namba hii ya nje haiwezi kupigwa kutoka hapa."}
 ]

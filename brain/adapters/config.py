@@ -12,8 +12,20 @@ from django.db import close_old_connections, connections
 
 from apps.agents.models import Agent, AgentSkill, Skill
 from apps.ai.models import AiAgent
+from apps.core.hooks import policy
 from apps.queues.models import EntryPoint, Queue, QueueMember, RuleRequirement
-from brain.core.config import AgentConfig, AiAgentConfig, Config, EntryConfig, QueueConfig, Requirement, Step
+from apps.telephony.models import OutboundRoute, Trunk
+from brain.core.config import (
+    AgentConfig,
+    AiAgentConfig,
+    Config,
+    EntryConfig,
+    QueueConfig,
+    Requirement,
+    Step,
+    TrunkConfig,
+)
+from contracts.carriers import NumberPlan, OutboundRule, RouteConfig
 
 
 @dataclass(frozen=True)
@@ -123,6 +135,7 @@ def load_config() -> Config:
             if str(entry.queue.uid) in queues
         }
         skills = dict(Skill.objects.filter(active=True).values_list("name", "kind"))
+        trunks, routes, plan = load_carriers()
         return Config(
             agents=agents,
             queues=queues,
@@ -130,6 +143,49 @@ def load_config() -> Config:
             ai_agents=ai_agents,
             skills=skills,
             dial_template=settings.TRANSFER_DIAL_TEMPLATE,
+            trunks=trunks,
+            routes=routes,
+            number_plan=plan,
         )
     finally:
         connections.close_all()  # loads are rare: hold no idle connection in between
+
+
+def load_carriers() -> tuple[dict[str, TrunkConfig], tuple[RouteConfig, ...], NumberPlan]:
+    """M4b: the live trunks, the active routes (their live trunks in order), the centre's number plan."""
+    trunks = {
+        trunk.name: TrunkConfig(
+            name=trunk.name,
+            endpoint=trunk.endpoint,
+            max_channels=trunk.max_channels,
+            rule=OutboundRule(
+                strip_digits=trunk.strip_digits, prefix=trunk.prefix, external_prefix=trunk.external_prefix
+            ),
+            plan=NumberPlan(
+                country_code=trunk.country_code,
+                national_prefix=trunk.national_prefix,
+                international_prefix=trunk.international_prefix,
+                national_length=trunk.national_length,
+            ),
+        )
+        for trunk in Trunk.objects.filter(active=True)
+    }
+    routes = tuple(
+        RouteConfig(
+            name=route.name,
+            patterns=tuple(route.pattern_list()),
+            trunks=tuple(
+                link.trunk.name for link in route.links.select_related("trunk") if link.trunk.name in trunks
+            ),
+            caller_id=route.caller_id,
+        )
+        for route in OutboundRoute.objects.filter(active=True).prefetch_related("links__trunk")
+    )
+    plan = NumberPlan(
+        country_code=str(policy("NUMBER_COUNTRY_CODE", "255")),
+        national_prefix=str(policy("NUMBER_NATIONAL_PREFIX", "0")),
+        international_prefix=str(policy("NUMBER_INTERNATIONAL_PREFIX", "00")),
+        national_length=int(policy("NUMBER_NATIONAL_LENGTH", 9)),
+        premium_prefixes=tuple(policy("NUMBER_PREMIUM_PREFIXES", []) or ()),
+    )
+    return trunks, routes, plan

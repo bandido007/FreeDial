@@ -30,6 +30,7 @@ RESERVED_SIP_ID = 10006
 
 # Browser phones are named by AlgoDial at sign-in: web<agent number> (agentdesk), websup<user> (supervisor).
 BROWSER_PREFIX = "web"
+TRUNK_PREFIX = "trunk-"  # trunks' endpoints (apps.telephony.trunks)
 
 MIN_PASSWORD_LENGTH = 12
 SIP_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{1,39}$")
@@ -81,6 +82,11 @@ def _check_name(sip_id, kind) -> None:
 
     Otherwise a hand-made phone named web2468 would be taken over (new password, wrong transport)
     when agent 2468 signs in, and neither would work."""
+    if sip_id.lower().startswith(TRUNK_PREFIX):
+        raise ValidationError(
+            'SIP ids starting with "trunk-" belong to trunks (carriers). Choose another, for example 1003.',
+            code=RESERVED_SIP_ID,
+        )
     reserved = sip_id.lower().startswith(BROWSER_PREFIX)
     browser = kind == SipAccountKindChoices.BROWSER.value
     if reserved and not browser:

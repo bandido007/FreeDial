@@ -1,0 +1,6 @@
+{
+  "key": "lab-sipp",
+  "name": "Lab: SIPp playing a carrier on this machine",
+  "description": "For the M4b tests only: SIPp on 127.0.0.2 port 5070 is the carrier. Never on a real system.",
+  "fields": {"style": "ip", "hosts": "127.0.0.2:5070", "codecs": "alaw,ulaw", "dtmf_mode": "rfc4733", "max_channels": 4, "country_code": "255", "national_prefix": "0", "international_prefix": "00", "national_length": 9}
+}

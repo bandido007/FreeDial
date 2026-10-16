@@ -77,7 +77,15 @@ def head_revision() -> str:
     return ScriptDirectory.from_config(config).get_current_head() or ""
 
 
-ASTERISK_TABLES = ("ps_endpoints", "ps_auths", "ps_aors")
+# What Asterisk's read-only role may read: PJSIP objects, and (M4b) the DID forms [from-carrier] checks.
+ASTERISK_TABLES = (
+    "ps_endpoints",
+    "ps_auths",
+    "ps_aors",
+    "ps_registrations",
+    "ps_endpoint_id_ips",
+    "queues_carrier_numbers",
+)
 
 
 def grant_asterisk_role(*, user: str, password: str) -> None:

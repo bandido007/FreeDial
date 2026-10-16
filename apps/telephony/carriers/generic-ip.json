@@ -1,0 +1,6 @@
+{
+  "key": "generic-ip",
+  "name": "Any carrier by IP address",
+  "description": "The carrier sends and takes calls by address, with no sign-in. Fill in its IP addresses.",
+  "fields": {"style": "ip", "codecs": "alaw,ulaw", "dtmf_mode": "rfc4733", "country_code": "255", "national_prefix": "0", "international_prefix": "00", "national_length": 9}
+}

@@ -25,6 +25,7 @@ LIMITS = {
     "service_level_percent": (1, 100),
 }
 ENTRY_PATTERN = re.compile(r"^[0-9*#+]{2,40}$")
+E164 = re.compile(r"^\+[1-9]\d{6,14}$")  # M4b: a DID, as the carrier's number in E.164
 
 
 def get_queue(uid) -> Queue:
@@ -79,6 +80,11 @@ def validate_entry_point(*, number, except_pk=None) -> str:
     number = (number or "").strip()
     if not ENTRY_PATTERN.match(number):
         raise ValidationError("An entry point number is 2 to 40 of 0-9 * # +.", code=9005)
+    if number.startswith("+") and not E164.match(number):
+        raise ValidationError(
+            "A DID (a number from a carrier) is written in E.164: + and the country code, e.g. +255222123456.",
+            code=9005,
+        )
     if EntryPoint.objects.filter(number=number).exclude(pk=except_pk).exists():
         raise DuplicateError(f"{number} already leads somewhere.", code=NUMBER_TAKEN)
     return number

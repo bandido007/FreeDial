@@ -245,3 +245,18 @@ def test_an_agents_switched_off_desk_phone_is_named(centre):
     telephony.set_sip_account_active(uid=desk.uid, actor=None, active=False)
     item = check("phones.agents")
     assert item.status == checklist.ATTENTION and "8003 Amina takes calls on phone 1001" in problems(item)
+
+
+def test_carriers_are_checked(centre, monkeypatch):
+    from apps.telephony import trunks
+
+    monkeypatch.setattr(trunks, "reload_registrations", lambda: None)
+    assert check("phones.carriers").status == checklist.NOT_USED
+    queues.save_entry_point(actor=None, number="+255222123456", queue=centre["support"])
+    item = check("phones.carriers")
+    assert item.status == checklist.ATTENTION and "+255222123456 have no live trunk" in problems(item)
+    trunk = trunks.save_trunk(actor=None, name="lab-carrier", preset="lab-sipp")
+    item = check("phones.carriers")
+    assert item.status == checklist.DONE and "lab-carrier is in no outbound route" in item.notes[0].text
+    trunks.save_route(actor=None, name="Mobiles", patterns="+2557", trunks=[trunk])
+    assert check("phones.carriers").summary == "1 trunk, 1 DID, 1 outbound route."

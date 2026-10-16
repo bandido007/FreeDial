@@ -17,7 +17,9 @@ from apps.agents.live import LOGGED_OUT, live_state, live_states
 from apps.agents.models import Agent, AgentSession, NotReadyReason, WrapupCode
 from apps.calls import asterisk, bus
 from apps.core.exceptions import ApplicationError, ValidationError
+from apps.core.hooks import resolve_permissions
 from apps.queues.models import Queue
+from apps.telephony import numbers
 from apps.telephony import services as telephony
 from contracts import messages as m
 
@@ -25,6 +27,7 @@ NOT_AN_AGENT = 10204
 ON_A_CALL = 10205
 NOT_LISTED = 10206
 PHONE_IN_USE = 10211
+NO_ROUTE = 10213
 PHONE_OFF = 10212
 
 
@@ -257,6 +260,18 @@ def transfer_targets(agent: Agent) -> dict[str, Any]:
     }
 
 
+def _may_dial(user, target: str) -> None:
+    """M4b: an outside number needs a route that allows it, and that route's permission."""
+    number = numbers.outside_number(target)
+    if number is None:
+        return  # an internal number: a SIP id or an extension
+    route = numbers.route_for(number)
+    if route is None:
+        raise ApplicationError(f"{number} cannot be called: no outbound route allows it.", code=NO_ROUTE)
+    if not (user.is_superuser or route.required_permission in resolve_permissions(user)):
+        raise ApplicationError("You are not allowed to call outside numbers.", code=NO_ROUTE)
+
+
 def transfer(
     user, *, kind: str, target_kind: str, target: str, skills: dict[str, int] | None = None
 ) -> dict[str, Any]:
@@ -265,6 +280,8 @@ def transfer(
         raise ValidationError(
             "A transfer is blind or consult, to an agent, a queue or a number.", code=NOT_LISTED
         )
+    if target_kind == "number":
+        _may_dial(user, target.strip())
     data: dict[str, Any] = {
         "agent": str(agent.uid),
         "kind": kind,

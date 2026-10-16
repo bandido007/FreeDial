@@ -100,6 +100,7 @@ Never run Prettier on this file (it splits template tags).{% endcomment %}
         <li><a href="#manual-ai">The AI agent</a></li>
         <li><a href="#manual-teams">Teams and supervisors</a></li>
         <li><a href="#manual-phones">Phones (SIP accounts)</a></li>
+        <li><a href="#manual-carriers">Carriers: trunks, DIDs and outbound routes</a></li>
         <li><a href="#manual-testing">Testing that it works</a></li>
         <li><a href="#manual-daily">Every day: calls, callbacks, reports</a></li>
         <li><a href="#manual-changes">When you change something</a></li>
@@ -314,7 +315,7 @@ Never run Prettier on this file (it splits template tags).{% endcomment %}
       <table>
         <thead><tr><th scope="col">Field</th><th scope="col">What it means</th></tr></thead>
         <tbody>
-          <tr><td>Number</td><td><strong>800 to 899</strong>: Asterisk hands only these to AlgoDial. Another number needs a dialplan change by the telephony administrator first.</td></tr>
+          <tr><td>Number</td><td><strong>800 to 899</strong> for numbers dialled inside the centre (Asterisk hands only these to AlgoDial), or a <strong>DID</strong>: a number from a carrier, written in E.164 (<code>+255222123456</code>). See "Carriers" below.</td></tr>
           <tr><td>Name</td><td>A label for you and for reports.</td></tr>
           <tr><td>Queue</td><td>Where callers go.</td></tr>
           <tr><td>AI agent</td><td>Optional: the AI answers first and hands the caller to a person (section 11). Empty: straight to the queue.</td></tr>
@@ -379,6 +380,32 @@ Never run Prettier on this file (it splits template tags).{% endcomment %}
         At sign-in the agent page checks that the phone is registered; if not, it says so and the agent cannot go Ready until it is.</p>
       <p>To change a password, type a new one in New password, save, and type it in the phone too. Untick Active
         to stop a phone at once.</p>
+    </article>
+
+    <article id="manual-carriers">
+      <h3>Carriers: trunks, DIDs and outbound routes</h3>
+      <p>A <strong>trunk</strong> connects AlgoDial to a carrier, so the public can call in and agents can transfer calls out.
+        Open <a href="{% url 'admin:telephony_trunk_add' %}">Telephony &rarr; Trunks &rarr; Add</a> and start from a <strong>preset</strong>:</p>
+      <ul>
+        <li><strong>Name</strong>: lower-case, e.g. <code>vodacom</code>. Its Asterisk endpoint is <code>trunk-vodacom</code>.</li>
+        <li><strong>Style</strong>: <em>IP</em> (the carrier sends and takes calls by address) or <em>Registration</em> (AlgoDial signs in with the carrier's username and password).</li>
+        <li><strong>Hosts</strong>: the carrier's IP addresses (with <code>:port</code> if not 5060). Only these addresses may use the trunk.</li>
+        <li><strong>Max channels</strong>: calls in and out at once; more are refused (0 = no limit).</li>
+        <li><strong>Numbers in</strong> (country code, national and international prefix, national length): how the carrier writes numbers, so every form becomes one E.164 number.</li>
+        <li><strong>Numbers out</strong> (strip digits, prefix): what the carrier wants. E.164 as it is: 0 and empty. National: strip 4 (<code>+255</code>), prefix <code>0</code>.
+          <strong>External prefix</strong>: what agents may type first for an outside line (e.g. <code>9</code>).</li>
+      </ul>
+      <p>A <strong>DID</strong> is a number a carrier sends you. Make it an <a href="{% url 'admin:queues_entrypoint_add' %}">entry point</a> in E.164 (<code>+255222123456</code>):
+        it gets its queue, language, AI agent and priority like any entry number. Calls to numbers that are not DIDs are refused by Asterisk itself, even when AlgoDial is restarting.</p>
+      <p>An <strong>outbound route</strong> says which outside numbers may be called, and through which trunks
+        (<a href="{% url 'admin:telephony_outboundroute_add' %}">Telephony &rarr; Outbound routes &rarr; Add</a>):</p>
+      <ul>
+        <li><strong>Patterns</strong>: one E.164 prefix per line, e.g. <code>+2557</code> and <code>+2556</code> for mobiles. Anything no route names is refused: other countries need a route naming them (<code>+254</code>), and premium numbers (System settings &rarr; Phone numbers) a route naming the premium prefix.</li>
+        <li><strong>Trunks</strong>, in order: the first is tried first. The next is tried only when the carrier or the network fails, never when the person is busy, does not answer or refuses.</li>
+        <li><strong>Caller ID</strong>: the number the person called sees.</li>
+        <li><strong>Required permission</strong>: agents need it to call these numbers (<em>Call outside numbers</em>, <code>can_dial_external</code>, given through a role).</li>
+      </ul>
+      <p>Agents reach an outside number with <strong>Transfer &rarr; Number</strong>, typing it as they would on a phone (<code>0712 345 678</code>).</p>
     </article>
 
     <article id="manual-testing">

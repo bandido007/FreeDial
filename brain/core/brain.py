@@ -55,6 +55,7 @@ from brain.core.config import Config, EntryConfig, OverflowAction, QueueConfig, 
 from brain.core.supervision import SUPERVISOR_COMMANDS, Supervision, SupervisionMixin
 from brain.core.transfers import TransferMixin
 from contracts import messages as m
+from contracts.carriers import ChannelCount, to_e164
 
 WRAPUP_EDIT_SECONDS = 120  # UX_PRINCIPLES.md section 4: a wrap-up code is correctable this long
 FORCEABLE = (m.AGENT_READY, m.AGENT_NOT_READY, m.AGENT_LOGOUT)  # with "by": a supervisor forced it
@@ -71,6 +72,7 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
         self.last_rung: dict[str, str] = {}  # queue uid -> agent uid (round robin)
         self.answered: dict[str, dict[str, int]] = {}  # queue uid -> agent uid -> calls answered
         self.supervisions: dict[str, Supervision] = {}  # supervisor uid -> what they supervise
+        self.channels = ChannelCount()  # M4b: each trunk's calls in and out
         self.load_config(config, now=0.0)
 
     # ── configuration and restart ─────────────────────────────────────────
@@ -154,6 +156,9 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
         if call is None:
             return []
         if isinstance(action, a.Originate):
+            if call.transfer is not None and action.channel == call.transfer.leg:
+                # Asterisk could not start it (an unreachable trunk or an offline phone): cause 3, no route
+                return self._transfer_leg_gone(call, 3, now, originate_failed=True)
             if action.channel not in call.offers:
                 return []
             return self._offer_failed(call, action.channel, "offline", None, now)
@@ -273,6 +278,11 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
     ) -> list[a.Action]:
         """Asterisk is the truth (rule 1). After (re)connecting, make memory match what really exists."""
         live = {str(channel["id"]): channel for channel in channels}
+        self.channels = ChannelCount()  # each trunk's channels, counted again from what exists
+        for cid, channel in live.items():
+            trunk = self._trunk_of_channel(str(channel.get("name") or ""))
+            if trunk is not None:
+                self.channels.take(trunk.name, cid)
         out: list[a.Action] = []
         adopted: list[str] = []
         hung_up: list[str] = []
@@ -387,6 +397,11 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
         return out + self._offer_waiting(now)
 
     # ── calls ─────────────────────────────────────────────────────────────
+    def _trunk_of_channel(self, name: str):
+        """PJSIP/trunk-first-0000001a -> the trunk "first" (a channel to or from a carrier)."""
+        endpoint = name.removeprefix("PJSIP/").rsplit("-", 1)[0]
+        return next((t for t in self.config.trunks.values() if t.endpoint == endpoint), None)
+
     def _inbound(self, channel: dict[str, Any], args: list[str], now: float) -> list[a.Action]:
         entry = args[1]
         endpoint = args[2] if len(args) > 2 else ""
@@ -397,6 +412,15 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
             return self._reject(channel, args, f"no entry point {entry}")
         if call_id in self.calls:
             return []
+        trunk = next((t for t in self.config.trunks.values() if t.endpoint == endpoint), None)
+        if trunk is not None:  # M4b: a call from a carrier takes one of its channels
+            if not self.channels.has_room(trunk.name, trunk.max_channels):
+                return self._reject(
+                    channel, args, f"trunk {trunk.name} is at its limit of {trunk.max_channels} calls"
+                )
+            self.channels.take(trunk.name, str(channel["id"]))
+            number = str((channel.get("caller") or {}).get("number") or "")
+            endpoint = to_e164(number, trunk.plan) or number  # the caller, not the trunk
         waiting = sum(1 for other in self.calls.values() if other.queue == queue.uid and other.state in OPEN)
         full = 0 < queue.max_callers <= waiting
 
@@ -611,6 +635,7 @@ class Brain(TransferMixin, SupervisionMixin, AiMixin):
         return out
 
     def _leg_gone(self, leg: str, cause: Any, now: float) -> list[a.Action]:
+        self.channels.release(leg)  # a trunk's channel is free again, whatever the leg was
         call = self.calls.get(self.legs.get(leg, ""))
         if call is None:
             self.legs.pop(leg, None)

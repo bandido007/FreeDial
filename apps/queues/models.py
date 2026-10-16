@@ -198,3 +198,19 @@ class RuleRequirement(models.Model):
     def __str__(self):
         until = f"< {self.until_seconds}s" if self.until_seconds is not None else "forever"
         return f"{until}: {self.skill} >= {self.min_level}"
+
+
+class CarrierNumber(models.Model):
+    """Every form a carrier may send for a DID (an entry point in E.164), and that DID. Asterisk's
+    [from-carrier] reads it (REALTIME_FIELD), so only known DIDs reach the brain, even with the brain
+    down. Rebuilt from the entry points and the trunks' number plans (``apps.queues.carriers``)."""
+
+    form = models.CharField(max_length=40, unique=True, help_text="As the carrier sends it, e.g. 0222123456")
+    did = models.CharField(max_length=40, help_text="The entry point's number, E.164")
+
+    class Meta:
+        db_table = "queues_carrier_numbers"
+        ordering = ["did", "form"]
+
+    def __str__(self):
+        return f"{self.form} -> {self.did}"

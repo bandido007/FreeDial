@@ -5,5 +5,9 @@
   {"code": 10003, "status": false, "messageEn": "A SIP password needs at least 12 characters.", "messageSw": "Nenosiri la SIP linahitaji angalau herufi 12."},
   {"code": 10004, "status": false, "messageEn": "Kind must be SOFTPHONE or BROWSER.", "messageSw": "Aina lazima iwe SOFTPHONE au BROWSER."},
   {"code": 10005, "status": false, "messageEn": "Codecs are a comma-separated list, e.g. ulaw,alaw.", "messageSw": "Kodeki ni orodha iliyotenganishwa kwa koma, mfano ulaw,alaw."},
-  {"code": 10006, "status": false, "messageEn": "SIP ids starting with \"web\" are kept for the browser phones AlgoDial makes at sign-in.", "messageSw": "Vitambulisho vya SIP vinavyoanza na \"web\" vimehifadhiwa kwa simu za kivinjari ambazo AlgoDial hutengeneza wakati wa kuingia."}
+  {"code": 10006, "status": false, "messageEn": "SIP ids starting with \"web\" are kept for the browser phones AlgoDial makes at sign-in.", "messageSw": "Vitambulisho vya SIP vinavyoanza na \"web\" vimehifadhiwa kwa simu za kivinjari ambazo AlgoDial hutengeneza wakati wa kuingia."},
+  {"code": 10010, "status": false, "messageEn": "This trunk cannot work as entered: see the message.", "messageSw": "Trunk hii haiwezi kufanya kazi kama ilivyoandikwa: angalia ujumbe."},
+  {"code": 10011, "status": false, "messageEn": "A trunk with this name already exists.", "messageSw": "Trunk yenye jina hili tayari ipo."},
+  {"code": 10012, "status": false, "messageEn": "This outbound route cannot work as entered: see the message.", "messageSw": "Njia hii ya kupiga nje haiwezi kufanya kazi kama ilivyoandikwa: angalia ujumbe."},
+  {"code": 10013, "status": false, "messageEn": "Trunk or route not found.", "messageSw": "Trunk au njia haipatikani."}
 ]

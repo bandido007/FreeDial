@@ -92,6 +92,8 @@ TRANSFER_ANSWERED = "transfer.answered"
 TRANSFER_COMPLETED = "transfer.completed"
 TRANSFER_CANCELLED = "transfer.cancelled"
 TRANSFER_FAILED = "transfer.failed"  # reason: rejected, no_answer, offline, failed
+# M4b: a carrier or the network failed on a transfer out; the next trunk of the route is tried.
+TRUNK_FAILED_OVER = "trunk.failed_over"  # trunk, cause (None: Asterisk could not reach it), next_trunk
 CONFERENCE_STARTED = "conference.started"
 CALL_PARTY_LEFT = "call.party_left"  # someone left a conference; the call goes on
 SUPERVISE_STARTED = "supervise.started"
@@ -144,6 +146,7 @@ EVENTS: dict[str, tuple[str, ...]] = {
     TRANSFER_COMPLETED: ("call", "transfer"),
     TRANSFER_CANCELLED: ("call", "transfer", "reason"),
     TRANSFER_FAILED: ("call", "transfer", "reason"),
+    TRUNK_FAILED_OVER: ("call", "transfer", "trunk", "cause", "next_trunk"),
     CONFERENCE_STARTED: ("call", "transfer", "legs"),
     CALL_PARTY_LEFT: ("call", "leg", "reason"),
     SUPERVISE_STARTED: ("call", "supervisor", "mode", "agent"),

@@ -8,6 +8,8 @@ Routing follows docs/ROUTING_DESIGN.md.
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from contracts.carriers import NumberPlan, OutboundRule, RouteConfig
+
 LANGUAGE = "$language"  # in a requirement: the call's language skill (e.g. swahili)
 
 
@@ -91,12 +93,25 @@ class AiAgentConfig:
 
 
 @dataclass(frozen=True)
+class TrunkConfig:
+    """M4b: a carrier. Its Asterisk endpoint, how many calls it carries at once, its number formats."""
+
+    name: str
+    endpoint: str  # trunk-<name>
+    max_channels: int = 0  # calls in and out at once; 0 = no limit
+    rule: OutboundRule = field(default_factory=OutboundRule)  # E.164 -> what the carrier wants
+    plan: NumberPlan = field(default_factory=NumberPlan)  # how its callers' numbers are written
+
+
+@dataclass(frozen=True)
 class Config:
     agents: dict[str, AgentConfig] = field(default_factory=dict)
     queues: dict[str, QueueConfig] = field(default_factory=dict)
     entries: dict[str, EntryConfig] = field(default_factory=dict)  # number dialled -> entry
     ai_agents: dict[str, AiAgentConfig] = field(default_factory=dict)  # uid -> AI agent
     skills: dict[str, str] = field(default_factory=dict)  # skill name -> kind (language, topic, tier)
-    dial_template: str = (
-        "PJSIP/{number}"  # how a transfer to a number is dialled (a trunk: PJSIP/{number}@trunk)
-    )
+    dial_template: str = "PJSIP/{number}"  # an internal number (a SIP id, an extension) is dialled so
+    # M4b: an outside number (one that reads as E.164) goes through an outbound route's trunks.
+    trunks: dict[str, TrunkConfig] = field(default_factory=dict)  # name -> trunk
+    routes: tuple[RouteConfig, ...] = ()
+    number_plan: NumberPlan = field(default_factory=NumberPlan)  # how agents write numbers

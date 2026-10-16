@@ -28,6 +28,11 @@ class Transfer:
     target_agent: str | None = None
     bridge: str | None = None  # consult: the agent and the target talk here, the customer on hold
     state: str = "ringing"  # ringing | consulting
+    # M4b, an outside number: the E.164 number, the trunk rung now, the route's trunks still to try
+    number: str | None = None
+    trunk: str | None = None
+    trunks_left: tuple[str, ...] = ()
+    caller_id: str = ""
 
 
 BRIDGE_PREFIX = "algodial-call-"

@@ -653,7 +653,53 @@ def phones_section() -> Section:
     return Section(
         "Phones",
         "Desk and test phones (SIP accounts). Agents' browser phones need nothing.",
-        [phones, desk],
+        [phones, desk, carriers_check()],
+    )
+
+
+def carriers_check() -> Check:
+    """M4b: carriers. DIDs need a live trunk to arrive; a route needs a live trunk to dial out."""
+    from apps.queues.models import EntryPoint
+    from apps.telephony.models import OutboundRoute, Trunk
+
+    live = list(Trunk.objects.filter(active=True))
+    dids = list(
+        EntryPoint.objects.filter(active=True, number__startswith="+").values_list("number", flat=True)
+    )
+    routes = list(OutboundRoute.objects.filter(active=True).prefetch_related("links__trunk"))
+    if not live and not dids and not routes:
+        return Check(
+            "phones.carriers",
+            "Carriers are connected",
+            NOT_USED,
+            "No carriers: calls come only from phones inside the centre.",
+            manual="manual-carriers",
+        )
+    problems = []
+    if dids and not live:
+        problems.append(Line(f"DIDs {', '.join(dids)} have no live trunk to arrive on.", list_url(Trunk)))
+    for route in routes:
+        if not any(link.trunk.active and not link.trunk.deleted for link in route.links.all()):
+            problems.append(
+                Line(
+                    f"Route {route.name} has no live trunk: its numbers cannot be called.", change_url(route)
+                )
+            )
+    used = {link.trunk_id for route in routes for link in route.links.all()}
+    notes = [
+        Line(f"Trunk {trunk.name} is in no outbound route: it only takes calls in.", change_url(trunk))
+        for trunk in live
+        if trunk.pk not in used
+    ]
+    return item(
+        "phones.carriers",
+        "Carriers are connected",
+        problems,
+        notes,
+        done=f"{len(live)} trunk{'s' * (len(live) != 1)}, {len(dids)} DID{'s' * (len(dids) != 1)}, "
+        f"{len(routes)} outbound route{'s' * (len(routes) != 1)}.",
+        fix=Line("Trunks", list_url(Trunk)),
+        manual="manual-carriers",
     )
 
 
