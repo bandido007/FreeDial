@@ -1,9 +1,10 @@
 from django import forms
 from django.contrib import admin, messages
+from django.core.cache import cache
 
 from apps.core.exceptions import ApplicationError
 from apps.rbac.admin_access import RbacAdminMixin
-from apps.telephony import services, trunks
+from apps.telephony import health, services, trunks
 from apps.telephony.models import OutboundRoute, RouteTrunk, SipAccount, Trunk
 from apps.telephony.permissions import MANAGE_SIP_ACCOUNTS, MANAGE_TRUNKS, VIEW_SIP_ACCOUNTS, VIEW_TRUNKS
 
@@ -132,8 +133,19 @@ class TrunkAdmin(RbacAdminMixin, admin.ModelAdmin):
     view_permission = VIEW_TRUNKS
     manage_permission = MANAGE_TRUNKS
     form = TrunkForm
-    list_display = ("name", "style", "hosts", "max_channels", "active", "updated_at")
+    list_display = ("name", "style", "hosts", "health", "max_channels", "active", "updated_at")
     search_fields = ("name", "hosts")
+
+    @admin.display(description="Health")
+    def health(self, obj):
+        """Reachable (Asterisk's 30-second check, over ARI) and, for sign-in trunks, registered (AMI)."""
+        if not obj.is_live:
+            return "Switched off"
+        registration = None
+        if obj.style == "registration":
+            found = cache.get_or_set("telephony.trunk-registrations", health.registrations, 10)
+            registration = "unknown" if found is None else found.get(obj.endpoint, "Unregistered")
+        return health.TrunkHealth(health.reachable(obj.endpoint), registration).label
 
     def save_model(self, request, obj, form, change):
         data = dict(form.cleaned_data)

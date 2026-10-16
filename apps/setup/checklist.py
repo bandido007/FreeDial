@@ -685,6 +685,20 @@ def carriers_check() -> Check:
                     f"Route {route.name} has no live trunk: its numbers cannot be called.", change_url(route)
                 )
             )
+    from apps.telephony import health
+
+    for name, state in health.trunk_health().items():
+        if state.reachable == "offline":
+            problems.append(
+                Line(
+                    f"Trunk {name} is not reachable: Asterisk's checks of the carrier get no answer.",
+                    list_url(Trunk),
+                )
+            )
+        if state.registration not in (None, "Registered", "unknown"):
+            problems.append(
+                Line(f"Trunk {name} is not signed in to its carrier ({state.registration}).", list_url(Trunk))
+            )
     used = {link.trunk_id for route in routes for link in route.links.all()}
     notes = [
         Line(f"Trunk {trunk.name} is in no outbound route: it only takes calls in.", change_url(trunk))

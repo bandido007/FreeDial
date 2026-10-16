@@ -165,7 +165,7 @@ deploy-check: ## Prove the production settings load and pass Django's deployment
 	DJANGO_SETTINGS_MODULE=config.settings.production $(MANAGE) check --deploy --fail-level ERROR
 
 # ── project ── AlgoDial ─────────────────────────────────────────────────────
-.PHONY: brain brain-check writer live dev sim seed-demo calltests agentcheck deskphonecheck agent-login pjsip-schema
+.PHONY: brain brain-check writer live dev sim seed-demo calltests agentcheck deskphonecheck carriercheck agent-login pjsip-schema
 
 ## AlgoDial
 brain: ## Run the brain (call control): manage.py run_brain
@@ -197,6 +197,9 @@ sim: ## A virtual busy hour through the real brain core, every queue strategy co
 
 agentcheck: ## M3, M5-M8 in real browsers: agent call, recording, supervisor, AI handoff, every transfer (stop your brain first)
 	$(PY) lab/agentpage.py
+
+carriercheck: ## M4b on the real lab: SIPp plays two carriers (127.0.0.2/.3:5090); measures hangup causes, then DIDs in, transfers out, failover (make dev must be running)
+	$(PY) lab/carrier_check.py
 
 deskphonecheck: ## An agent whose Phone is a desk phone gets the call on it (real lab; make dev must be running)
 	$(PY) lab/deskphone_check.py

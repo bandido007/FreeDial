@@ -31,7 +31,7 @@ def commands(settings):
 
 @pytest.fixture(autouse=True)
 def mobiles(monkeypatch):
-    monkeypatch.setattr(trunks, "reload_registrations", lambda: None)
+    monkeypatch.setattr(trunks, "reload_asterisk", lambda **kwargs: None)
     trunk = trunks.save_trunk(actor=None, name="lab-carrier", preset="lab-sipp")
     trunks.save_route(actor=None, name="Mobiles", patterns="+2557", trunks=[trunk])
 

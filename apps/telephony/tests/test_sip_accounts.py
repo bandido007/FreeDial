@@ -271,3 +271,15 @@ def test_the_admin_add_form_offers_only_softphones(manager):
     client.force_login(manager)
     html = client.get("/admin/telephony/sipaccount/add/").content.decode()
     assert 'value="SOFTPHONE"' in html and 'value="BROWSER"' not in html
+
+
+def test_a_long_display_name_is_shortened_to_fit_asterisks_column(manager):
+    """ps_endpoints.callerid is varchar(40): a long name used to make the save fail."""
+    services.create_sip_account(
+        actor=manager, sip_id="lab-carrier-agent", kind="SOFTPHONE", password=PASSWORD,
+        display_name="Carrier check agent",
+    )  # fmt: skip
+    callerid = PsEndpoint.objects.get(id="lab-carrier-agent").callerid
+    assert (
+        len(callerid) <= 40 and callerid.endswith("<lab-carrier-agent>") and callerid.startswith('"Carrier')
+    )

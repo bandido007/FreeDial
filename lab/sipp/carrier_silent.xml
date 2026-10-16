@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+<!-- AlgoDial M4b: SIPp plays a carrier that answers Asterisk's OPTIONS but never answers an INVITE
+     (no response at all): what does Asterisk report then? -->
+<scenario name="AlgoDial carrier says nothing">
+  <recv request="OPTIONS" optional="true" next="options"/>
+  <recv request="INVITE"/>
+  <pause milliseconds="40000"/>
+  <nop next="end"/>
+  <label id="options"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+    ]]>
+  </send>
+  <label id="end"/>
+</scenario>

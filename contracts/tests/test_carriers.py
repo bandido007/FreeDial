@@ -101,14 +101,14 @@ def test_an_inactive_route_is_never_taken():
 
 
 # ── failover: only on carrier or network failures ───────────────────────────
-@pytest.mark.parametrize("cause", [17, 19, 21, 16, 1, 28])
+@pytest.mark.parametrize("cause", [17, 19, 21, 16, 1, 28])  # measured: 486, 480, 603, 404
 def test_the_person_or_the_number_decided_so_no_other_trunk_is_tried(cause):
     """Busy, no answer, rejected, a normal hangup, an unallocated or malformed number: another carrier
     would get the same answer."""
     assert not fail_over(cause)
 
 
-@pytest.mark.parametrize("cause", [34, 38, 41, 42, 47, 102])
+@pytest.mark.parametrize("cause", [18, 27, 34, 38, 41, 42, 47, 102])
 def test_the_carrier_or_the_network_failed_so_the_next_trunk_is_tried(cause):
     assert fail_over(cause)
 

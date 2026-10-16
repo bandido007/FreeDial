@@ -688,6 +688,11 @@ ARI_URL = env("ARI_URL", default="http://127.0.0.1:8091/ari").rstrip("/")
 ARI_USER = env("ARI_USER", default="algodial")
 ARI_PASSWORD = env("ARI_PASSWORD", default="")
 ARI_APP = env("ARI_APP", default="algodial")
+# M4b: trunk registrations are read over AMI (deploy/asterisk/m4b-carriers.sh: 127.0.0.1 only,
+# one user with write=reporting). Empty password: no registration status is shown.
+AMI_URL = env("AMI_URL", default="127.0.0.1:5038")
+AMI_USER = env("AMI_USER", default="algodial-health")
+AMI_PASSWORD = env("AMI_PASSWORD", default="")
 
 # The bus between web, brain and writer: Redis Streams (docs: CLAUDE.md, "Messaging").
 BUS_REDIS_URL = env("BUS_REDIS_URL", default="redis://127.0.0.1:6392/4")

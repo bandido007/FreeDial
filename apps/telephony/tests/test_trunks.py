@@ -26,12 +26,12 @@ SECRET = "Carrier-secret-123"
 def no_ari(monkeypatch):
     """Asterisk is asked to re-read registrations after a save; not in these tests."""
     calls = []
-    monkeypatch.setattr(trunks, "reload_registrations", lambda: calls.append(1))
+    monkeypatch.setattr(trunks, "reload_asterisk", lambda **kwargs: calls.append(kwargs))
     return calls
 
 
 def test_an_ip_trunk_is_an_endpoint_that_only_its_carrier_may_use():
-    trunk = trunks.save_trunk(actor=None, name="lab-carrier", style="ip", hosts="127.0.0.2:5070")
+    trunk = trunks.save_trunk(actor=None, name="lab-carrier", style="ip", hosts="127.0.0.2:5090")
     endpoint = PsEndpoint.objects.get(id="trunk-lab-carrier")
     assert (endpoint.context, endpoint.transport, endpoint.aors) == (
         "from-carrier",
@@ -41,7 +41,7 @@ def test_an_ip_trunk_is_an_endpoint_that_only_its_carrier_may_use():
     assert (endpoint.allow, endpoint.dtmf_mode, endpoint.direct_media) == ("alaw,ulaw", "rfc4733", "no")
     assert (endpoint.deny, endpoint.permit) == ("0.0.0.0/0.0.0.0", "127.0.0.2/255.255.255.255")
     aor = PsAor.objects.get(id="trunk-lab-carrier")
-    assert (aor.contact, aor.qualify_frequency) == ("sip:127.0.0.2:5070", 30)
+    assert (aor.contact, aor.qualify_frequency) == ("sip:127.0.0.2:5090", 30)
     assert PsEndpointIdIp.objects.get(id="trunk-lab-carrier").match == "127.0.0.2"
     assert not PsRegistration.objects.filter(id="trunk-lab-carrier").exists()
     assert not PsAuth.objects.filter(id="trunk-lab-carrier").exists(), "an IP trunk has no credentials"
@@ -75,13 +75,13 @@ def _check_registration(no_ari):
     assert (registration.outbound_auth, registration.endpoint) == ("trunk-voip", "trunk-voip")
     endpoint = PsEndpoint.objects.get(id="trunk-voip")
     assert (endpoint.outbound_auth, endpoint.from_user, endpoint.send_pai) == ("trunk-voip", "2550001", "yes")
-    assert no_ari, "Asterisk re-reads its registrations"
+    assert no_ari == [{"registrations": True}], "Asterisk re-reads its SIP objects and registrations"
 
 
 def test_a_switched_off_trunk_disappears_from_asterisk():
-    trunk = trunks.save_trunk(actor=None, name="lab-carrier", style="ip", hosts="127.0.0.2:5070")
+    trunk = trunks.save_trunk(actor=None, name="lab-carrier", style="ip", hosts="127.0.0.2:5090")
     trunks.save_trunk(
-        actor=None, uid=trunk.uid, name="lab-carrier", style="ip", hosts="127.0.0.2:5070", active=False
+        actor=None, uid=trunk.uid, name="lab-carrier", style="ip", hosts="127.0.0.2:5090", active=False
     )
     assert not PsEndpoint.objects.filter(id="trunk-lab-carrier").exists()
     assert not PsAor.objects.filter(id="trunk-lab-carrier").exists()
@@ -113,7 +113,7 @@ def test_carrier_presets_fill_the_defaults():
     names = {preset.key for preset in trunks.presets()}
     assert {"generic-ip", "generic-registration", "lab-sipp"} <= names
     trunk = trunks.save_trunk(actor=None, name="lab-carrier", preset="lab-sipp")
-    assert (trunk.style, trunk.hosts, trunk.max_channels) == ("ip", "127.0.0.2:5070", 4)
+    assert (trunk.style, trunk.hosts, trunk.max_channels) == ("ip", "127.0.0.2:5090", 4)
     assert (trunk.country_code, trunk.national_prefix, trunk.international_prefix) == ("255", "0", "00")
 
 
@@ -141,7 +141,7 @@ def test_a_did_entry_point_must_be_e164():
 
 def test_an_outbound_route_allows_e164_prefixes_and_tries_its_trunks_in_order():
     first = trunks.save_trunk(actor=None, name="first", preset="lab-sipp")
-    second = trunks.save_trunk(actor=None, name="second", preset="lab-sipp", hosts="127.0.0.3:5070")
+    second = trunks.save_trunk(actor=None, name="second", preset="lab-sipp", hosts="127.0.0.3:5090")
     route = trunks.save_route(actor=None, name="Mobiles", patterns="+2556\n+2557", trunks=[second, first])
     assert route.pattern_list() == ["+2556", "+2557"]
     assert [link.trunk.name for link in route.links.order_by("position")] == ["second", "first"]
@@ -171,7 +171,7 @@ def test_the_admin_adds_a_trunk_from_a_preset_and_a_route(client, make_user, gra
     response = client.post(
         "/admin/telephony/trunk/add/",
         {
-            "name": "lab-carrier", "preset": "lab-sipp", "style": "ip", "hosts": "127.0.0.2:5070",
+            "name": "lab-carrier", "preset": "lab-sipp", "style": "ip", "hosts": "127.0.0.2:5090",
             "codecs": "alaw,ulaw", "dtmf_mode": "rfc4733", "max_channels": "4", "country_code": "255",
             "national_prefix": "0", "international_prefix": "00", "national_length": "9",
             "strip_digits": "0", "prefix": "", "external_prefix": "", "active": "on",

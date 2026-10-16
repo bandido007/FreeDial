@@ -111,6 +111,7 @@ Brain queue with strategies longest_idle, ring_all, round_robin, linear, fewest_
   - busy (486) does **not** fail over.
 
 **Done when:** a SIPp "carrier" call to a DID reaches an agent, an agent's transfer to an outside number goes out through the right trunk in the correct E.164 format, and every test above passes.
+*Done 16 Oct 2026: `make carriercheck`, 19 checks on the real lab; the measured hangup causes are in `contracts/carriers.py`.*
 
 ### M5: Transfers and conference
 Blind (agent, queue, number, AI agent), consult with complete / cancel, 3-way conference, drop participant. A Transfer record with status.

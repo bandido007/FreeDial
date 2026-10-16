@@ -25,9 +25,20 @@ def password_digest(username: str, realm: str, password: str) -> str:
     return "MD5:" + hashlib.md5(f"{username}:{realm}:{password}".encode()).hexdigest()  # noqa: S324
 
 
+CALLERID_MAX = 40  # ps_endpoints.callerid is varchar(40) in Asterisk's schema
+
+
+def caller_id(name: str, sip_id: str) -> str | None:
+    """'"Name" <id>' for Asterisk; the name is shortened (never the id) so it fits the column."""
+    if not name:
+        return None
+    room = CALLERID_MAX - len(f'"" <{sip_id}>')
+    return f'"{name[: max(room, 0)].strip()}" <{sip_id}>' if room > 0 else None
+
+
 def write(account: SipAccount) -> None:
     browser = account.kind == SipAccountKindChoices.BROWSER.value
-    callerid = f'"{account.display_name}" <{account.sip_id}>' if account.display_name else None
+    callerid = caller_id(account.display_name, account.sip_id)
     PsEndpoint.objects.update_or_create(
         id=account.sip_id,
         defaults={

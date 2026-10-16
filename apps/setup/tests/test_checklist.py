@@ -248,9 +248,15 @@ def test_an_agents_switched_off_desk_phone_is_named(centre):
 
 
 def test_carriers_are_checked(centre, monkeypatch):
-    from apps.telephony import trunks
+    from apps.telephony import health, trunks
 
-    monkeypatch.setattr(trunks, "reload_registrations", lambda: None)
+    monkeypatch.setattr(trunks, "reload_asterisk", lambda **kwargs: None)
+    reachable = {"lab-carrier": "online"}
+    monkeypatch.setattr(
+        health,
+        "trunk_health",
+        lambda: {name: health.TrunkHealth(state, None) for name, state in reachable.items()},
+    )
     assert check("phones.carriers").status == checklist.NOT_USED
     queues.save_entry_point(actor=None, number="+255222123456", queue=centre["support"])
     item = check("phones.carriers")
@@ -260,3 +266,5 @@ def test_carriers_are_checked(centre, monkeypatch):
     assert item.status == checklist.DONE and "lab-carrier is in no outbound route" in item.notes[0].text
     trunks.save_route(actor=None, name="Mobiles", patterns="+2557", trunks=[trunk])
     assert check("phones.carriers").summary == "1 trunk, 1 DID, 1 outbound route."
+    reachable["lab-carrier"] = "offline"
+    assert "lab-carrier is not reachable" in problems(check("phones.carriers"))

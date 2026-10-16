@@ -124,14 +124,19 @@ def pick_route(e164: str, routes: Sequence[RouteConfig], plan: NumberPlan) -> Ro
 # Hangup causes (Q.850, as Asterisk reports them) that mean the carrier or the network failed, so
 # another trunk may succeed. Busy (17), no answer (19), rejected (21), a normal hangup (16) and a
 # wrong number (1, 28) are the callee's or the number's answer: every carrier would give the same.
+# Measured on the lab's Asterisk 22.11 with SIPp as the carrier (lab/carrier_check.py --measure,
+# 16 Oct 2026): 503 -> 34, 502 -> 27, no response or carrier not running -> 18 (after 32 s);
+# 486 -> 17, 404 -> 1, 480 -> 19, 603 -> 21. The others are the standard carrier failures.
 CARRIER_FAILURES = frozenset(
     {
-        34,  # no circuit/channel available (SIP 503)
-        38,  # network out of order (SIP 502)
-        41,  # temporary failure
+        18,  # no user responding: the carrier never answered the INVITE (measured)
+        27,  # destination out of order (SIP 502, measured)
+        34,  # no circuit/channel available (SIP 503, measured)
+        38,  # network out of order
+        41,  # temporary failure (SIP 500)
         42,  # switching equipment congestion
         47,  # resource unavailable
-        102,  # recovery on timer expiry (no response: SIP 408)
+        102,  # recovery on timer expiry (SIP 504)
     }
 )
 

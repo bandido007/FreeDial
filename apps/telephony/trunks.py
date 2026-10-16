@@ -8,8 +8,9 @@ A live trunk is, under the id ``trunk-<name>``:
 - ``ps_endpoint_id_ips``: calls from those addresses are this trunk's;
 - ``ps_auths`` (with credentials) and ``ps_registrations`` (style "registration"): AlgoDial signs in.
 
-Asterisk reads endpoints, aors and identifies on every request; registrations only when its
-outbound-registration module reloads, so a save asks it to (over ARI, after the transaction).
+Asterisk reads endpoints and identifies on every request, but schedules a trunk's qualify (its
+health) and reads registrations only when its SIP modules reload, so a save asks it to (over ARI,
+after the transaction).
 Outbound authentication needs the plain password: it is in ``ps_auths`` (readable only by Asterisk's
 role) and encrypted in ``Trunk``; never in git (rule 9).
 """
@@ -162,8 +163,8 @@ def save_trunk(*, actor, name, uid=None, preset=None, password=None, active=True
     if old_endpoint and old_endpoint != trunk.name:
         remove(TRUNK_PREFIX + old_endpoint)
     sync(trunk)
-    if was_registration or trunk.style == TrunkStyleChoices.REGISTRATION:
-        transaction.on_commit(reload_registrations)
+    registrations = was_registration or trunk.style == TrunkStyleChoices.REGISTRATION
+    transaction.on_commit(lambda: reload_asterisk(registrations=registrations))
     logger.info("[telephony] trunk %s saved by %s", trunk.name, getattr(actor, "pk", None))
     return trunk
 
@@ -176,8 +177,7 @@ def delete_trunk(*, uid) -> None:
     registration = trunk.style == TrunkStyleChoices.REGISTRATION
     trunk.delete()
     remove(trunk.endpoint)
-    if registration:
-        transaction.on_commit(reload_registrations)
+    transaction.on_commit(lambda: reload_asterisk(registrations=registration))
 
 
 def sync(trunk: Trunk) -> None:
@@ -265,17 +265,23 @@ def remove(endpoint: str) -> None:
         model.objects.filter(id=endpoint).delete()
 
 
-def reload_registrations() -> None:
-    """Asterisk reads outbound registrations only when the module reloads (ARI, no CLI needed)."""
-    try:
-        response = requests.put(
-            f"{settings.ARI_URL}/asterisk/modules/res_pjsip_outbound_registration.so",
-            auth=(settings.ARI_USER, settings.ARI_PASSWORD),
-            timeout=5,
-        )
-        response.raise_for_status()
-    except requests.RequestException:
-        logger.warning("[telephony] could not ask Asterisk to reload its registrations", exc_info=True)
+def reload_asterisk(registrations: bool = False) -> None:
+    """Asterisk notices a new or changed trunk only when its SIP modules reload (ARI, no CLI needed).
+
+    Measured on the lab (16 Oct 2026): a trunk added while Asterisk runs is never qualified until
+    res_pjsip reloads; then it shows online within about 20 s. Outbound registrations are read when
+    their own module reloads. Neither reload drops calls or phones' registrations."""
+    modules = ["res_pjsip.so"] + (["res_pjsip_outbound_registration.so"] if registrations else [])
+    for module in modules:
+        try:
+            response = requests.put(
+                f"{settings.ARI_URL}/asterisk/modules/{module}",
+                auth=(settings.ARI_USER, settings.ARI_PASSWORD),
+                timeout=10,
+            )
+            response.raise_for_status()
+        except requests.RequestException:
+            logger.warning("[telephony] could not ask Asterisk to reload %s", module, exc_info=True)
 
 
 # ── outbound routes ─────────────────────────────────────────────────────────
