@@ -40,9 +40,9 @@ PWNED_PASSWORD_CHECK = env.bool("PWNED_PASSWORD_CHECK", default=False)
 # exercised without editing .env first.
 ALLOW_SELF_REGISTRATION = env.bool("ALLOW_SELF_REGISTRATION", default=True)
 
-# E-mail: the console by default; set EMAIL_HOST=localhost EMAIL_PORT=1025 and
+# E-mail: the console by default; set EMAIL_HOST=localhost EMAIL_PORT=1035 and
 # EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend to use the Mailpit
-# container from docker-compose (inbox at http://localhost:8025).
+# container from docker-compose (inbox at http://localhost:8035).
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
 SMS_ALLOW_LOG_PROVIDER = env.bool("SMS_ALLOW_LOG_PROVIDER", default=True)
 

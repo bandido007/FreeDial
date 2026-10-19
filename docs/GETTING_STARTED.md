@@ -34,7 +34,7 @@ make run           # API on http://127.0.0.1:8000
 shipped workflow designs, the first-party OAuth2 application and — when
 `DEFAULT_ADMIN_PASSWORD` is set in `.env` (init sets one) — the first
 administrator. E-mails sent in development land in Mailpit at
-<http://localhost:8025>.
+<http://localhost:8035>.
 
 Try it in GraphiQL at <http://127.0.0.1:8000/graphql>:
 
