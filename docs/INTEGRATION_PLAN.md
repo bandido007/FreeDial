@@ -1,6 +1,6 @@
 # Integrating AlgoDial with other systems: plan
 
-Status: **draft for Tostao's decisions** (section 7), 19 October 2026. Nothing here is built yet.
+Status: **decisions D3, D4 and M10 taken** (19 October 2026, section 7); D1, D2 and D5 open. Nothing here is built yet.
 
 ## 1. What other systems want from AlgoDial
 
@@ -64,15 +64,20 @@ incidents, AlgoDial owns calls, and the call id plus incident id join them.
 7. **Versioned contracts.** Additive changes within a version; a breaking change is a new version
    (already AlgoDial's rule for `contracts/`).
 
-## 4. What must exist first: AlgoDial reachable over HTTPS
+## 4. Where it runs for now: local, no HTTPS (decided 19 Oct 2026)
 
-Today the browser phone talks to Asterisk at `ws://127.0.0.1:8091`, so it works only on the server itself.
-An iframe inside another system (served over HTTPS) needs:
-- AlgoDial served over **HTTPS** under a real name;
-- Asterisk's WebSocket as **WSS** (TLS) reachable from agents' computers, with a TURN/STUN setup if
-  networks need it.
+AlgoDial is developed and integrated **locally** with the other developers; no HTTPS or WSS for now.
+Browsers allow the microphone only in a secure context: HTTPS, or `localhost`. So, without HTTPS:
 
-This is the deployment step (`docs/DEPLOYMENT.md`) and comes before the widget.
+- **Works:** each developer runs AlgoDial on their own machine (`make up`, `make dev`, Asterisk) and opens
+  it at `http://localhost:8000`. An ERCP page on that same machine can embed the widget with the browser
+  phone, because `localhost` counts as secure.
+- **Works:** a developer on another computer takes calls on a **desk phone** (Zoiper registered to the
+  lab Asterisk on 5062; Agents -> Phone), so the browser needs no microphone.
+- **Does not work:** the browser phone on `http://<another machine's IP>:8000`: the page loads but the
+  browser blocks the microphone, and the browser phone's WebSocket listens on 127.0.0.1 only.
+
+HTTPS/WSS returns as a milestone when AlgoDial is deployed for real users.
 
 ## 5. The design, part by part
 
@@ -157,13 +162,13 @@ Each follows the house rule: tests for "Done when" first, then the code, then th
 
 | Milestone | What | Done when |
 | --- | --- | --- |
-| **M10 Deployment over HTTPS/WSS** (prerequisite) | AlgoDial on HTTPS with a real name; Asterisk WSS reachable from agents' computers | An agent on another computer signs in and takes a call with the browser phone |
+| **M10 Local setup for the developers** (HTTPS/WSS postponed, section 4) | A one-page "run AlgoDial on your machine" guide for the other developers (Asterisk, `make up`, `make dev`, lab data), and the desk-phone way for those using the lab machine | A second developer, on their own machine, signs in and takes a call; another takes one on Zoiper against the lab Asterisk |
 | **M11 Integrations and machine sign-in** | `apps/integrations`: clients (client credentials), roles, allowed origins, audit, rate limits; the integration API documented | An outside script with its client id and secret reads today's report and the calls list, is refused outside its role, and each request is in the audit log |
 | **M12 Webhooks** | `run_webhooks`; signed deliveries; retries; delivery log and replay in admin | A test receiver gets `call.started` and `call.ended` within 2 s and verifies the signature; a receiver that fails gets the retries, and Replay resends one |
 | **M13 Call data and agent outbound calls** | `call.attach`; click-to-dial internal and outside (Milestone 4b routes), recorded; conference up to 5 with a participants list | From the agent page an agent dials a number through a trunk (SIPp in the lab), attaches `incident_id`, and the call, its recording and its events carry it; a 5-party conference adds and drops a party |
 | **M14 Embeddable widget and SDK** | `/embed/agent/`, `algodial-embed.js`, origin checks, CSP `frame-ancestors`, popup sign-in | A sample host page (an ERCP-like incident screen) embeds the widget: the incoming call pops the caller's number into the form, the page attaches the incident id and dials out; a page from a non-allowed origin cannot frame it; keyboard, Swahili and 1366x768 hold |
 | **M15 Data for other systems** | Calls with a cursor, queues and agents now, recordings by signed link | A BI-style script pulls yesterday's calls page by page with no duplicates and no gaps, and a recording link stops working after it expires |
-| **M16 Video** | Video provider in admin; escalate to video; caller's audio into the meeting through Jigasi or BBB dial-in as a trunk | On the lab, an agent moves a call into a meeting and the phone caller is heard in it |
+| **M16 Video: Jitsi and BigBlueButton** (both, D3) | Video providers in admin (one kind per provider: Jitsi or BBB, behind one interface, so a third is one more class); escalate to video; caller's audio into the meeting through Jigasi or BBB's dial-in as a trunk | On the lab, an agent moves a call into a Jitsi meeting and into a BBB meeting, and the phone caller is heard in each |
 | **M17 ERCP pilot** | ERCP embeds the widget in its incident screen; conferences with SDC agents; follow-up calls | ERCP's DHARURA-CALL-001, 003 and 005 pass in a joint test with the ERCP team |
 
 M11–M13 are useful to every integration. M14 and M17 are ERCP's path. M15 serves dashboards. M16 is independent and can move earlier if a customer needs it first.
@@ -174,8 +179,9 @@ M11–M13 are useful to every integration. M14 and M17 are ERCP's path. M15 serv
 | --- | --- | --- | --- |
 | D1 | What API do outside systems use? | (a) A small REST API, `/api/v1/…`, with an OpenAPI description, built on the same services; GraphQL stays for AlgoDial's own pages. (b) Only the existing GraphQL. | **(a)**: what Amazon Connect, Genesys and Twilio offer integrators; government teams and BI tools expect REST and can generate clients from OpenAPI. It is a thin layer over the same services, so no logic is duplicated. CLAUDE.md names GraphQL as the API, so this changes the architecture and is your call |
 | D2 | How does the embedded widget sign in? | (a) A popup with AlgoDial's own sign-in. (b) The host's single sign-on hands over a token. | **(a) first**, as Amazon Connect does by default; add (b) when ERCP has an identity provider to trust |
-| D3 | Which video tool first? | Jitsi (IFrame API, JWT, Jigasi for phones) or BBB (create/join API with checksum, FreeSWITCH dial-in, plugin SDK) | **The one ERCP and your customers already run.** If none, BBB, since you already build BBB plugins; Jitsi is the quicker of the two to embed |
-| D4 | For ERCP: who owns the incident form? | (a) ERCP, with AlgoDial embedded in it. (b) AlgoDial hosts configurable forms. | **(a)**: matches ERCP's design (its form, RAS and maps are one flow), and keeps AlgoDial a call centre |
+| D3 | Which video tool? | Jitsi, BBB | **Decided: both.** One "video provider" interface with a Jitsi and a BBB implementation, chosen per provider in admin |
+| D4 | For ERCP: who owns the incident form? | (a) ERCP, with AlgoDial embedded in it. (b) AlgoDial hosts configurable forms. | **Decided: (a)**, ERCP owns the form and embeds AlgoDial |
+| M10 | HTTPS/WSS now? | Deploy with HTTPS/WSS, or stay local | **Decided: local, no HTTPS** for now (section 4) |
 | D5 | ERCP's Telegram chat (CHAT-002) | (a) Out of AlgoDial for now; ERCP's chat stays where it is. (b) A chat channel in AlgoDial (omnichannel) | **(a) now**; chat is a product of its own (a new milestone after M17 if wanted) |
 
 ## Sources
@@ -186,4 +192,5 @@ M11–M13 are useful to every integration. M14 and M17 are ERCP's path. M15 serv
 - Webhook signatures, timestamps and idempotency (Stripe's scheme, Standard Webhooks): <https://dev.to/eventdock/webhook-signature-verification-compared-stripe-paddle-hubspot-slack-twilio-4jfk>, <https://webhookrelay.com/verify-standard-webhooks-signature.md>
 - CloudEvents (vendor-neutral event format, CNCF): <https://cloudevents.io/>
 - Jitsi IFrame API and JWT: <https://jitsi.org/iframe>; Jigasi room addressing: <https://github.com/jitsi-contrib/jigate>
+- Microphone access needs a secure context (HTTPS or localhost): <https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia>
 - BigBlueButton API (`create`, `join`, checksum, `voiceBridge`): <https://docs.bigbluebutton.org/development/api/>; dial-in over a SIP trunk: <https://github.com/manishkatyan/bbb-twilio>
