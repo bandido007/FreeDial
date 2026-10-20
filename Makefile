@@ -212,3 +212,18 @@ calltests: ## Call tests 1-20 on the real lab with scripted phones (stop your br
 
 pjsip-schema: ## Asterisk's PJSIP realtime tables (its own Alembic) + Asterisk's read-only role + rewrite accounts
 	$(MANAGE) pjsip_schema
+
+# Angular workspace (existing AlgoDial features, SCC-derived architecture and design).
+.PHONY: frontend frontend-build frontend-test
+frontend: ## Angular development server on 4240; Django runs separately on 8000
+	npm start --prefix frontend
+
+frontend-build: ## Build the independent Angular app, served by Django at /app/
+	npm ci --prefix frontend --legacy-peer-deps --ignore-scripts
+	$(PY) scripts/sync_desk_frontend.py --check
+	npm run build --prefix frontend
+
+frontend-test: ## Angular unit checks and actual browser/API workflows
+	npm run typecheck --prefix frontend
+	npm test --prefix frontend
+	DJANGO_SETTINGS_MODULE=$(TEST_SETTINGS) ANGULAR_TEST_URL=live $(PY) -m pytest apps/workspace/tests --no-cov

@@ -1,0 +1,132 @@
+ad-agent,
+ad-supervisor {
+  --paper: var(--color-canvas);
+  --surface: var(--color-surface);
+  --ink: var(--color-fg);
+  --muted: var(--color-fg-muted);
+  --line: var(--color-line);
+  --accent: var(--color-brand);
+  --ready: #1e7047;
+  --offered: #b04a12;
+  --talking: #1f5a9e;
+  --hold: #8a5a00;
+  --wrap: #6a4c9c;
+  --notready: #9a3b3b;
+  --offline: #5e6668;
+  --state-ink: #fff;
+}
+:root[data-theme="dark"] ad-agent,
+:root[data-theme="dark"] ad-supervisor {
+  --ready: #5cc08a;
+  --offered: #f08a4b;
+  --talking: #6fa8e8;
+  --hold: #e0b04a;
+  --wrap: #b79be6;
+  --notready: #e58a8a;
+  --offline: #9aa4a6;
+  --state-ink: #141c1e;
+}
+.desk-runtime {
+  outline: none;
+  min-width: 0;
+}
+.desk-runtime .ui-header,
+.desk-runtime .topbar,
+.desk-runtime #desk > .top {
+  display: none !important;
+}
+.desk-runtime #signin {
+  display: none !important;
+}
+.desk-runtime .agent-layout,
+.desk-runtime .workspace {
+  height: auto;
+  min-height: 470px;
+}
+.desk-runtime .state-bar,
+.desk-runtime .statebar,
+.desk-runtime .superbar {
+  border-radius: var(--radius-control);
+  margin: 0 0 16px;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+.desk-runtime .queue-strip,
+.desk-runtime .team-panel,
+.desk-runtime .monitor-bar,
+.desk-runtime .supervisor-footer {
+  margin-left: 0;
+  margin-right: 0;
+}
+.desk-runtime .team-panel {
+  box-shadow: var(--shadow-shell);
+}
+@media (max-height: 800px) {
+  .main-content.desk-content {
+    padding: 16px;
+  }
+  ad-agent .desk-runtime .statebar,
+  ad-supervisor .desk-runtime .superbar {
+    min-height: 88px;
+    padding: 16px 20px;
+  }
+  ad-agent .desk-runtime .workspace,
+  ad-agent .desk-runtime .offer {
+    margin: 16px 0 12px;
+  }
+  ad-agent .desk-runtime .zone {
+    padding: 16px;
+  }
+  ad-agent .desk-runtime .workspace h2 {
+    margin-bottom: 12px;
+  }
+  ad-agent .desk-runtime .state-title {
+    font-size: 22px;
+  }
+  ad-agent .desk-runtime .state-time {
+    font-size: 28px;
+  }
+  ad-agent .desk-runtime .bottom {
+    margin: 12px 0;
+  }
+}
+
+// Apply AlgoDial's surfaces to the existing operational desk components.
+ad-agent .desk-runtime .workspace {
+  border-radius: 12px;
+  border-color: var(--color-line);
+  box-shadow: var(--shadow-shell);
+}
+ad-agent .desk-runtime .zone > h2 {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--color-fg-muted);
+}
+ad-agent .desk-runtime .metadata > span {
+  border-radius: 6px;
+  background: var(--color-surface-muted);
+}
+ad-agent .desk-runtime .statebar,
+ad-supervisor .desk-runtime .superbar {
+  border-radius: 12px;
+}
+ad-supervisor .desk-runtime .queue-strip {
+  border: 0;
+  padding: 0;
+  gap: 12px;
+}
+ad-supervisor .desk-runtime .queue-strip > section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  min-width: 220px;
+}
+ad-supervisor .desk-runtime .team-panel {
+  border-radius: 12px;
+  overflow: hidden;
+}
+ad-supervisor .desk-runtime .monitor-bar {
+  border-radius: 10px;
+  background: var(--color-brand-soft);
+}

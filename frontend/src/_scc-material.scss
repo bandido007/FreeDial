@@ -1,0 +1,2118 @@
+// ---------------------------------------------------------------------------------------------
+// SCC global Angular Material restyle + overlay helper classes.
+//
+// Everything here is expressed with the design tokens (--color-*, --radius-*, --shadow-*,
+// --font-*) so dark mode works purely by the token flip on :root[data-theme='dark'].
+//
+// Token overrides are emitted under `:root, :root[data-theme]` so they have the same specificity
+// as the theme's dark-mode selector and (loading later) win over both light and dark themes.
+// Plain CSS that collides with Material's own component styles (which are injected at runtime,
+// after this stylesheet) always carries one extra class so it out-specifies them.
+// ---------------------------------------------------------------------------------------------
+
+@use "sass:map";
+@use "@angular/material" as mat;
+
+$scc-root: ":root, :root[data-theme]";
+
+// Button flavours (token namespaces) and the Material button classes whose icons are resized below.
+$scc-btn-types: filled, protected, outlined, text, tonal;
+$scc-btn-icon-sel: ".mat-mdc-button .mat-icon, .mat-mdc-unelevated-button .mat-icon, .mat-mdc-raised-button .mat-icon, .mat-mdc-outlined-button .mat-icon, .mat-tonal-button .mat-icon";
+
+// ------------------------------------------------------------------------------------------------
+// Helpers
+// ------------------------------------------------------------------------------------------------
+
+// Builds a token map with the same value for every button flavour: ('filled-<suffix>': v, ...).
+@function scc-btn-tokens($suffix, $value, $types: $scc-btn-types) {
+  $result: ();
+  @each $type in $types {
+    $result: map.set($result, "#{$type}-#{$suffix}", $value);
+  }
+  @return $result;
+}
+
+// Merges any number of maps (later maps win).
+@function scc-merge($maps...) {
+  $result: ();
+  @each $m in $maps {
+    $result: map.merge($result, $m);
+  }
+  @return $result;
+}
+
+// Size preset for every button flavour (height, label size/weight, horizontal padding, radius).
+@mixin scc-button-size($height, $font-size, $weight, $padding, $radius) {
+  @include mat.button-overrides(
+    scc-merge(
+      scc-btn-tokens("container-height", $height),
+      scc-btn-tokens("label-text-size", $font-size),
+      scc-btn-tokens("label-text-weight", $weight),
+      scc-btn-tokens("container-shape", $radius),
+      scc-btn-tokens("horizontal-padding", $padding, (filled, protected, tonal, text)),
+      (
+        outlined-horizontal-padding: $padding - 1px,
+        text-with-icon-horizontal-padding: $padding,
+      )
+    )
+  );
+}
+
+// Colour tokens for a Material palette (primary / accent / warn) on every button flavour.
+@mixin scc-button-palette($bg, $fg, $text, $outline-fg, $outline) {
+  @include mat.button-overrides(
+    (
+      filled-container-color: $bg,
+      filled-label-text-color: $fg,
+      filled-state-layer-color: $fg,
+      filled-ripple-color: color-mix(in srgb, #{$fg} 24%, transparent),
+      protected-container-color: $bg,
+      protected-label-text-color: $fg,
+      protected-state-layer-color: $fg,
+      protected-ripple-color: color-mix(in srgb, #{$fg} 24%, transparent),
+      tonal-container-color: $bg,
+      tonal-label-text-color: $fg,
+      tonal-state-layer-color: $fg,
+      tonal-ripple-color: color-mix(in srgb, #{$fg} 24%, transparent),
+      text-label-text-color: $text,
+      text-state-layer-color: $text,
+      text-ripple-color: color-mix(in srgb, #{$text} 16%, transparent),
+      outlined-label-text-color: $outline-fg,
+      outlined-state-layer-color: $outline-fg,
+      outlined-outline-color: $outline,
+      outlined-ripple-color: color-mix(in srgb, #{$outline-fg} 14%, transparent),
+    )
+  );
+}
+
+// ------------------------------------------------------------------------------------------------
+// 1. Buttons
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.button-overrides(
+    scc-merge(
+      scc-btn-tokens("label-text-font", var(--font-sans)),
+      scc-btn-tokens("label-text-size", 14px),
+      scc-btn-tokens("label-text-weight", 600),
+      scc-btn-tokens("label-text-tracking", 0),
+      scc-btn-tokens("container-height", 40px),
+      scc-btn-tokens("container-shape", var(--radius-control)),
+      scc-btn-tokens("horizontal-padding", 18px, (filled, protected, tonal, text)),
+      (
+        outlined-horizontal-padding: 17px,
+        outlined-outline-width: 1px,
+        text-with-icon-horizontal-padding: 18px,
+      ),
+      scc-btn-tokens("icon-offset", 0),
+      scc-btn-tokens("icon-spacing", 8px),
+      // No MDC state layer on hover/focus (the background changes instead); subtle on press.
+      scc-btn-tokens("hover-state-layer-opacity", 0),
+      scc-btn-tokens("focus-state-layer-opacity", 0),
+      scc-btn-tokens("pressed-state-layer-opacity", 0.08)
+    )
+  );
+
+  @include mat.button-overrides(
+    (
+      // Filled / raised / tonal base colours (also used by buttons with no `color`)
+      filled-container-color: var(--color-brand),
+      filled-label-text-color: var(--color-on-brand),
+      filled-state-layer-color: var(--color-on-brand),
+      filled-ripple-color: color-mix(in srgb, var(--color-on-brand) 24%, transparent),
+      filled-disabled-container-color: var(--color-surface-hover),
+      filled-disabled-label-text-color: var(--color-fg-disabled),
+      filled-disabled-state-layer-color: var(--color-fg-disabled),
+      protected-container-color: var(--color-brand),
+      protected-label-text-color: var(--color-on-brand),
+      protected-state-layer-color: var(--color-on-brand),
+      protected-ripple-color: color-mix(in srgb, var(--color-on-brand) 24%, transparent),
+      protected-disabled-container-color: var(--color-surface-hover),
+      protected-disabled-label-text-color: var(--color-fg-disabled),
+      protected-disabled-state-layer-color: var(--color-fg-disabled),
+      protected-container-elevation-shadow: none,
+      protected-hover-container-elevation-shadow: none,
+      protected-focus-container-elevation-shadow: none,
+      protected-pressed-container-elevation-shadow: none,
+      protected-disabled-container-elevation-shadow: none,
+      tonal-container-color: var(--color-brand-soft),
+      tonal-label-text-color: var(--color-brand-soft-fg),
+      tonal-state-layer-color: var(--color-brand-soft-fg),
+      tonal-ripple-color: color-mix(in srgb, var(--color-brand-soft-fg) 18%, transparent),
+      tonal-disabled-container-color: var(--color-surface-hover),
+      tonal-disabled-label-text-color: var(--color-fg-disabled),
+      tonal-disabled-state-layer-color: var(--color-fg-disabled),
+      // Stroked
+      outlined-label-text-color: var(--color-fg),
+      outlined-outline-color: var(--color-line-strong),
+      outlined-state-layer-color: var(--color-fg),
+      outlined-ripple-color: color-mix(in srgb, var(--color-fg) 12%, transparent),
+      outlined-disabled-label-text-color: var(--color-fg-disabled),
+      outlined-disabled-outline-color: var(--color-line),
+      outlined-disabled-state-layer-color: var(--color-fg-disabled),
+      // Text
+      text-label-text-color: var(--color-brand),
+      text-state-layer-color: var(--color-brand),
+      text-ripple-color: color-mix(in srgb, var(--color-brand) 16%, transparent),
+      text-disabled-label-text-color: var(--color-fg-disabled),
+      text-disabled-state-layer-color: var(--color-fg-disabled)
+    )
+  );
+
+  // Icon buttons
+  @include mat.icon-button-overrides(
+    (
+      container-shape: var(--radius-control),
+      icon-size: 20px,
+      state-layer-size: 40px,
+      icon-color: var(--color-fg-secondary),
+      state-layer-color: var(--color-fg),
+      ripple-color: color-mix(in srgb, var(--color-fg) 12%, transparent),
+      hover-state-layer-opacity: 0,
+      focus-state-layer-opacity: 0,
+      pressed-state-layer-opacity: 0.08,
+      disabled-icon-color: var(--color-fg-disabled),
+      disabled-state-layer-color: var(--color-fg-disabled),
+    )
+  );
+
+  // FABs
+  @include mat.fab-overrides(
+    (
+      container-shape: var(--radius-control),
+      small-container-shape: var(--radius-control),
+      extended-container-shape: var(--radius-control),
+      container-color: var(--color-brand),
+      foreground-color: var(--color-on-brand),
+      state-layer-color: var(--color-on-brand),
+      ripple-color: color-mix(in srgb, var(--color-on-brand) 24%, transparent),
+      small-container-color: var(--color-brand),
+      small-foreground-color: var(--color-on-brand),
+      small-state-layer-color: var(--color-on-brand),
+      small-ripple-color: color-mix(in srgb, var(--color-on-brand) 24%, transparent),
+      container-elevation-shadow: var(--shadow-overlay),
+      hover-container-elevation-shadow: var(--shadow-overlay),
+      focus-container-elevation-shadow: var(--shadow-overlay),
+      pressed-container-elevation-shadow: var(--shadow-overlay),
+      small-container-elevation-shadow: var(--shadow-overlay),
+      small-hover-container-elevation-shadow: var(--shadow-overlay),
+      small-focus-container-elevation-shadow: var(--shadow-overlay),
+      small-pressed-container-elevation-shadow: var(--shadow-overlay),
+      extended-container-elevation-shadow: var(--shadow-overlay),
+      extended-hover-container-elevation-shadow: var(--shadow-overlay),
+      extended-focus-container-elevation-shadow: var(--shadow-overlay),
+      extended-pressed-container-elevation-shadow: var(--shadow-overlay),
+      hover-state-layer-opacity: 0,
+      focus-state-layer-opacity: 0,
+      pressed-state-layer-opacity: 0.08,
+      small-hover-state-layer-opacity: 0,
+      small-focus-state-layer-opacity: 0,
+      small-pressed-state-layer-opacity: 0.08,
+      disabled-state-container-color: var(--color-surface-hover),
+      disabled-state-foreground-color: var(--color-fg-disabled),
+      small-disabled-state-container-color: var(--color-surface-hover),
+      small-disabled-state-foreground-color: var(--color-fg-disabled),
+      extended-label-text-font: var(--font-sans),
+      extended-label-text-size: 14px,
+      extended-label-text-weight: 600,
+      extended-label-text-tracking: 0,
+    )
+  );
+
+  // Palette colours (colour theme sets these per `color` input; re-pointed at the tokens)
+  .mat-mdc-button.mat-primary,
+  .mat-mdc-unelevated-button.mat-primary,
+  .mat-mdc-raised-button.mat-primary,
+  .mat-mdc-outlined-button.mat-primary,
+  .mat-tonal-button.mat-primary,
+  .mat-mdc-button.mat-unthemed,
+  .mat-mdc-unelevated-button.mat-unthemed,
+  .mat-mdc-raised-button.mat-unthemed,
+  .mat-mdc-outlined-button.mat-unthemed,
+  .mat-tonal-button.mat-unthemed {
+    @include scc-button-palette(
+      var(--color-brand),
+      var(--color-on-brand),
+      var(--color-brand),
+      var(--color-fg),
+      var(--color-line-strong)
+    );
+  }
+
+  .mat-mdc-button.mat-accent,
+  .mat-mdc-unelevated-button.mat-accent,
+  .mat-mdc-raised-button.mat-accent,
+  .mat-mdc-outlined-button.mat-accent,
+  .mat-tonal-button.mat-accent {
+    @include scc-button-palette(
+      var(--color-sun-400),
+      var(--color-slate-900),
+      var(--color-brand),
+      var(--color-fg),
+      var(--color-line-strong)
+    );
+  }
+
+  .mat-mdc-button.mat-warn,
+  .mat-mdc-unelevated-button.mat-warn,
+  .mat-mdc-raised-button.mat-warn,
+  .mat-mdc-outlined-button.mat-warn,
+  .mat-tonal-button.mat-warn {
+    @include scc-button-palette(
+      var(--color-danger),
+      var(--color-on-danger),
+      var(--color-danger-strong),
+      var(--color-danger-strong),
+      color-mix(in srgb, var(--color-danger) 35%, transparent)
+    );
+  }
+
+  // `.scc-tonal` on a flat button (declared after the palettes so it wins ties)
+  .mat-mdc-unelevated-button.scc-tonal {
+    @include mat.button-overrides(
+      (
+        filled-container-color: var(--color-brand-soft),
+        filled-label-text-color: var(--color-brand-soft-fg),
+        filled-state-layer-color: var(--color-brand-soft-fg),
+        filled-ripple-color: color-mix(in srgb, var(--color-brand-soft-fg) 18%, transparent),
+      )
+    );
+  }
+
+  // Palette colours for icon buttons and FABs
+  .mat-mdc-icon-button.mat-primary,
+  .mat-mdc-icon-button.mat-accent {
+    @include mat.icon-button-overrides(
+      (
+        icon-color: var(--color-brand),
+        state-layer-color: var(--color-brand),
+        ripple-color: color-mix(in srgb, var(--color-brand) 16%, transparent),
+      )
+    );
+  }
+
+  .mat-mdc-icon-button.mat-warn {
+    @include mat.icon-button-overrides(
+      (
+        icon-color: var(--color-danger-strong),
+        state-layer-color: var(--color-danger-strong),
+        ripple-color: color-mix(in srgb, var(--color-danger) 16%, transparent),
+      )
+    );
+  }
+
+  .mat-mdc-fab.mat-primary,
+  .mat-mdc-mini-fab.mat-primary {
+    @include mat.fab-overrides(
+      (
+        container-color: var(--color-brand),
+        foreground-color: var(--color-on-brand),
+        state-layer-color: var(--color-on-brand),
+        small-container-color: var(--color-brand),
+        small-foreground-color: var(--color-on-brand),
+        small-state-layer-color: var(--color-on-brand),
+      )
+    );
+  }
+
+  .mat-mdc-fab.mat-accent,
+  .mat-mdc-mini-fab.mat-accent {
+    @include mat.fab-overrides(
+      (
+        container-color: var(--color-sun-400),
+        foreground-color: var(--color-slate-900),
+        state-layer-color: var(--color-slate-900),
+        small-container-color: var(--color-sun-400),
+        small-foreground-color: var(--color-slate-900),
+        small-state-layer-color: var(--color-slate-900),
+      )
+    );
+  }
+
+  .mat-mdc-fab.mat-warn,
+  .mat-mdc-mini-fab.mat-warn {
+    @include mat.fab-overrides(
+      (
+        container-color: var(--color-danger),
+        foreground-color: var(--color-on-danger),
+        state-layer-color: var(--color-on-danger),
+        small-container-color: var(--color-danger),
+        small-foreground-color: var(--color-on-danger),
+        small-state-layer-color: var(--color-on-danger),
+      )
+    );
+  }
+}
+
+// Size modifiers (tokens on the element so the ripple radius follows too)
+.mat-mdc-button-base.scc-sm {
+  @include scc-button-size(32px, 13px, 600, 12px, 8px);
+}
+
+.mat-mdc-button-base.scc-lg {
+  @include scc-button-size(48px, 15px, 700, 22px, 12px);
+}
+
+.mat-mdc-icon-button.scc-sm {
+  @include mat.icon-button-overrides(
+    (
+      state-layer-size: 32px,
+    )
+  );
+}
+
+.mat-mdc-button-base.scc-block {
+  width: 100%;
+}
+
+// Coarse pointers get 44px icon buttons
+@media (pointer: coarse) {
+  #{$scc-root} {
+    @include mat.icon-button-overrides(
+      (
+        state-layer-size: 44px,
+      )
+    );
+  }
+
+  .mat-mdc-icon-button.scc-sm {
+    @include mat.icon-button-overrides(
+      (
+        state-layer-size: 36px,
+      )
+    );
+  }
+}
+
+// Icons inside text / filled / raised / stroked buttons
+#{$scc-btn-icon-sel} {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  line-height: 18px;
+}
+
+// Icon buttons
+.mat-mdc-icon-button .mat-icon {
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+  line-height: 20px;
+}
+
+.mat-mdc-icon-button:not(.mat-mdc-button-disabled):not(:disabled):hover {
+  background-color: var(--color-surface-hover);
+}
+
+// Hover colours (the background changes instead of a state layer)
+.mat-mdc-unelevated-button:not(:disabled):not(.mat-mdc-button-disabled):hover,
+.mat-mdc-raised-button:not(:disabled):not(.mat-mdc-button-disabled):hover,
+.mat-tonal-button.mat-primary:not(:disabled):not(.mat-mdc-button-disabled):hover {
+  background-color: var(--color-brand-hover);
+}
+
+.mat-mdc-unelevated-button.mat-accent:not(:disabled):not(.mat-mdc-button-disabled):hover,
+.mat-mdc-raised-button.mat-accent:not(:disabled):not(.mat-mdc-button-disabled):hover {
+  background-color: color-mix(in srgb, var(--color-sun-400) 88%, var(--color-slate-900));
+}
+
+.mat-mdc-unelevated-button.mat-warn:not(:disabled):not(.mat-mdc-button-disabled):hover,
+.mat-mdc-raised-button.mat-warn:not(:disabled):not(.mat-mdc-button-disabled):hover {
+  background-color: var(--color-danger-hover);
+}
+
+.mat-mdc-unelevated-button.scc-tonal:not(:disabled):not(.mat-mdc-button-disabled):hover {
+  background-color: color-mix(in srgb, var(--color-brand) 18%, var(--color-surface));
+}
+
+.mat-mdc-outlined-button:not(:disabled):not(.mat-mdc-button-disabled) {
+  background-color: var(--color-surface);
+}
+
+.mat-mdc-outlined-button:not(:disabled):not(.mat-mdc-button-disabled):hover {
+  background-color: var(--color-surface-hover);
+}
+
+.mat-mdc-outlined-button.mat-warn:not(:disabled):not(.mat-mdc-button-disabled):hover {
+  background-color: var(--color-danger-soft);
+}
+
+.mat-mdc-button:not(:disabled):not(.mat-mdc-button-disabled):hover {
+  background-color: var(--color-brand-soft);
+}
+
+.mat-mdc-button.mat-warn:not(:disabled):not(.mat-mdc-button-disabled):hover {
+  background-color: var(--color-danger-soft);
+}
+
+.mat-mdc-fab.mat-primary:not(:disabled):not(.mat-mdc-button-disabled):hover,
+.mat-mdc-mini-fab.mat-primary:not(:disabled):not(.mat-mdc-button-disabled):hover,
+.mat-mdc-fab.mat-unthemed:not(:disabled):not(.mat-mdc-button-disabled):hover,
+.mat-mdc-mini-fab.mat-unthemed:not(:disabled):not(.mat-mdc-button-disabled):hover {
+  background-color: var(--color-brand-hover);
+}
+
+.mat-mdc-fab.mat-warn:not(:disabled):not(.mat-mdc-button-disabled):hover,
+.mat-mdc-mini-fab.mat-warn:not(:disabled):not(.mat-mdc-button-disabled):hover {
+  background-color: var(--color-danger-hover);
+}
+
+// Disabled: neutral fill, muted label, hairline border (all flavours that have a fill)
+.mat-mdc-unelevated-button[disabled],
+.mat-mdc-unelevated-button.mat-mdc-button-disabled,
+.mat-mdc-raised-button[disabled],
+.mat-mdc-raised-button.mat-mdc-button-disabled,
+.mat-tonal-button[disabled],
+.mat-tonal-button.mat-mdc-button-disabled {
+  border: 1px solid var(--color-line);
+  background-color: var(--color-surface-hover);
+  color: var(--color-fg-disabled);
+}
+
+.mat-mdc-outlined-button[disabled],
+.mat-mdc-outlined-button.mat-mdc-button-disabled {
+  background-color: var(--color-surface-hover);
+}
+
+// Focus ring (replaces Material's focus indicator for buttons)
+.mat-mdc-button-base:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.mat-mdc-button-base:focus-visible > .mat-focus-indicator::before,
+.mat-mdc-button-base.mat-focus-indicator:focus-visible::before {
+  content: none;
+  display: none;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 22 (part). Loading buttons
+// ------------------------------------------------------------------------------------------------
+.scc-btn-spinner {
+  display: inline-block;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  margin-inline-end: 8px;
+  border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  vertical-align: middle;
+  animation: scc-spin 0.8s linear infinite;
+}
+
+.mat-mdc-button-base > .scc-btn-spinner {
+  position: relative;
+  z-index: 1;
+  align-self: center;
+}
+
+.mat-mdc-icon-button > .scc-btn-spinner,
+.mat-mdc-fab > .scc-btn-spinner,
+.mat-mdc-mini-fab > .scc-btn-spinner {
+  margin-inline-end: 0;
+}
+
+.scc-is-loading {
+  cursor: progress;
+  pointer-events: none;
+}
+
+@keyframes scc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// ------------------------------------------------------------------------------------------------
+// 2. Form field (outline is the app default; fill supported)
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.form-field-overrides(
+    (
+      container-height: 40px,
+      container-vertical-padding: 10px,
+      filled-with-label-container-padding-top: 20px,
+      filled-with-label-container-padding-bottom: 4px,
+      container-text-font: var(--font-sans),
+      container-text-size: 14px,
+      container-text-line-height: 20px,
+      container-text-weight: 400,
+      container-text-tracking: 0,
+      subscript-text-font: var(--font-sans),
+      subscript-text-size: 12px,
+      subscript-text-line-height: 16px,
+      subscript-text-weight: 400,
+      subscript-text-tracking: 0,
+      // Outlined
+      outlined-container-shape: var(--radius-control),
+      outlined-outline-width: 1.5px,
+      outlined-focus-outline-width: 1.5px,
+      outlined-outline-color: var(--color-line-strong),
+      outlined-hover-outline-color: var(--color-fg-muted),
+      outlined-focus-outline-color: var(--color-brand),
+      outlined-error-outline-color: var(--color-danger),
+      outlined-error-hover-outline-color: var(--color-danger),
+      outlined-error-focus-outline-color: var(--color-danger),
+      outlined-disabled-outline-color: var(--color-line),
+      outlined-label-text-font: var(--font-sans),
+      outlined-label-text-size: 14px,
+      outlined-label-text-weight: 400,
+      outlined-label-text-tracking: 0,
+      outlined-label-text-color: var(--color-fg-secondary),
+      outlined-hover-label-text-color: var(--color-fg-secondary),
+      outlined-focus-label-text-color: var(--color-brand),
+      outlined-error-label-text-color: var(--color-danger-strong),
+      outlined-error-hover-label-text-color: var(--color-danger-strong),
+      outlined-error-focus-label-text-color: var(--color-danger-strong),
+      outlined-disabled-label-text-color: var(--color-fg-disabled),
+      outlined-input-text-color: var(--color-fg),
+      outlined-input-text-placeholder-color: var(--color-fg-muted),
+      outlined-disabled-input-text-color: var(--color-fg-disabled),
+      outlined-caret-color: var(--color-brand),
+      outlined-error-caret-color: var(--color-danger),
+      // Filled
+      filled-container-shape: var(--radius-control),
+      filled-container-color: var(--color-surface-hover),
+      filled-disabled-container-color: var(--color-surface-muted),
+      filled-active-indicator-height: 0,
+      filled-focus-active-indicator-height: 0,
+      filled-active-indicator-color: transparent,
+      filled-hover-active-indicator-color: transparent,
+      filled-focus-active-indicator-color: transparent,
+      filled-disabled-active-indicator-color: transparent,
+      filled-error-active-indicator-color: transparent,
+      filled-error-hover-active-indicator-color: transparent,
+      filled-error-focus-active-indicator-color: transparent,
+      filled-label-text-font: var(--font-sans),
+      filled-label-text-size: 14px,
+      filled-label-text-weight: 400,
+      filled-label-text-tracking: 0,
+      filled-label-text-color: var(--color-fg-secondary),
+      filled-hover-label-text-color: var(--color-fg-secondary),
+      filled-focus-label-text-color: var(--color-brand),
+      filled-error-label-text-color: var(--color-danger-strong),
+      filled-error-hover-label-text-color: var(--color-danger-strong),
+      filled-error-focus-label-text-color: var(--color-danger-strong),
+      filled-disabled-label-text-color: var(--color-fg-disabled),
+      filled-input-text-color: var(--color-fg),
+      filled-input-text-placeholder-color: var(--color-fg-muted),
+      filled-disabled-input-text-color: var(--color-fg-disabled),
+      filled-caret-color: var(--color-brand),
+      filled-error-caret-color: var(--color-danger),
+      disabled-input-text-placeholder-color: var(--color-fg-disabled),
+      // Shared
+      error-text-color: var(--color-danger-strong),
+      leading-icon-color: var(--color-fg-muted),
+      trailing-icon-color: var(--color-fg-muted),
+      disabled-leading-icon-color: var(--color-fg-disabled),
+      disabled-trailing-icon-color: var(--color-fg-disabled),
+      error-trailing-icon-color: var(--color-danger),
+      error-hover-trailing-icon-color: var(--color-danger),
+      error-focus-trailing-icon-color: var(--color-danger),
+      select-option-text-color: var(--color-fg),
+      select-disabled-option-text-color: var(--color-fg-disabled),
+      enabled-select-arrow-color: var(--color-fg-muted),
+      disabled-select-arrow-color: var(--color-fg-disabled),
+      focus-select-arrow-color: var(--color-brand),
+      state-layer-color: transparent,
+      hover-state-layer-opacity: 0,
+      focus-state-layer-opacity: 0,
+    )
+  );
+}
+
+.mat-mdc-form-field {
+  width: 100%;
+}
+
+// Container surface + focus halo
+.mat-mdc-form-field .mat-mdc-text-field-wrapper.mdc-text-field--outlined {
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  transition: box-shadow 150ms var(--ease-out);
+}
+
+.mat-mdc-form-field .mat-mdc-text-field-wrapper.mdc-text-field--outlined.mdc-text-field--disabled {
+  background-color: var(--color-surface-muted);
+}
+
+.mat-mdc-form-field.mat-focused .mat-mdc-text-field-wrapper.mdc-text-field--outlined {
+  box-shadow: 0 0 0 4px var(--color-focus-halo);
+}
+
+.mat-mdc-form-field.mat-form-field-invalid.mat-focused .mat-mdc-text-field-wrapper.mdc-text-field--outlined {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-danger) 18%, transparent);
+}
+
+.mat-mdc-form-field.mat-focused .mat-mdc-text-field-wrapper.mdc-text-field--filled {
+  box-shadow: 0 0 0 4px var(--color-focus-halo);
+}
+
+.mat-mdc-form-field.mat-form-field-invalid.mat-focused .mat-mdc-text-field-wrapper.mdc-text-field--filled {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-danger) 18%, transparent);
+}
+
+// Fill appearance: flat tinted box, no underline glow
+.mat-mdc-form-field.mat-form-field-appearance-fill .mdc-line-ripple {
+  display: none;
+}
+
+.mat-mdc-form-field.mat-form-field-appearance-fill .mat-mdc-text-field-wrapper.mdc-text-field--filled {
+  border-radius: var(--radius-control);
+}
+
+.mat-mdc-form-field.mat-form-field-appearance-fill
+  .mat-mdc-text-field-wrapper.mdc-text-field--filled.mdc-text-field--disabled {
+  background-color: var(--color-surface-muted);
+}
+
+// Hint + error text
+.mat-mdc-form-field .mat-mdc-form-field-hint {
+  color: var(--color-fg-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.mat-mdc-form-field .mat-mdc-form-field-error {
+  color: var(--color-danger-strong);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+// Prefix / suffix icons
+.mat-mdc-form-field .mat-mdc-form-field-icon-prefix > .mat-icon,
+.mat-mdc-form-field .mat-mdc-form-field-icon-suffix > .mat-icon {
+  width: 18px;
+  height: 18px;
+  padding: 0 10px;
+  box-sizing: content-box;
+  font-size: 18px;
+  line-height: 18px;
+  color: var(--color-fg-muted);
+}
+
+.mat-mdc-form-field .mat-mdc-form-field-icon-prefix .mat-mdc-icon-button,
+.mat-mdc-form-field .mat-mdc-form-field-icon-suffix .mat-mdc-icon-button {
+  @include mat.icon-button-overrides(
+    (
+      state-layer-size: 32px,
+      icon-size: 18px,
+    )
+  );
+}
+
+.mat-mdc-form-field .mat-mdc-form-field-icon-prefix .mat-mdc-icon-button .mat-icon,
+.mat-mdc-form-field .mat-mdc-form-field-icon-suffix .mat-mdc-icon-button .mat-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  line-height: 18px;
+}
+
+.mat-mdc-form-field-icon-prefix {
+  white-space: nowrap;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 3. Select / autocomplete / menu / datepicker panels and options
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.select-overrides(
+    (
+      panel-background-color: var(--color-surface-raised),
+      container-elevation-shadow: var(--shadow-overlay),
+      enabled-trigger-text-color: var(--color-fg),
+      disabled-trigger-text-color: var(--color-fg-disabled),
+      placeholder-text-color: var(--color-fg-muted),
+      enabled-arrow-color: var(--color-fg-muted),
+      focused-arrow-color: var(--color-brand),
+      disabled-arrow-color: var(--color-fg-disabled),
+      invalid-arrow-color: var(--color-danger),
+      trigger-text-font: var(--font-sans),
+      trigger-text-size: 14px,
+      trigger-text-line-height: 20px,
+      trigger-text-weight: 400,
+      trigger-text-tracking: 0,
+    )
+  );
+
+  @include mat.autocomplete-overrides(
+    (
+      background-color: var(--color-surface-raised),
+      container-shape: var(--radius-menu),
+      container-elevation-shadow: var(--shadow-overlay),
+    )
+  );
+
+  @include mat.option-overrides(
+    (
+      label-text-color: var(--color-fg),
+      label-text-font: var(--font-sans),
+      label-text-size: 14px,
+      label-text-line-height: 20px,
+      label-text-weight: 400,
+      label-text-tracking: 0,
+      hover-state-layer-color: var(--color-surface-hover),
+      focus-state-layer-color: var(--color-surface-hover),
+      selected-state-layer-color: var(--color-brand-soft),
+      selected-state-label-text-color: var(--color-brand-soft-fg),
+    )
+  );
+
+  @include mat.pseudo-checkbox-overrides(
+    (
+      minimal-selected-checkmark-color: var(--color-brand),
+      minimal-disabled-selected-checkmark-color: var(--color-fg-disabled),
+      full-selected-icon-color: var(--color-brand),
+      full-selected-checkmark-color: var(--color-on-brand),
+      full-unselected-icon-color: var(--color-line-strong),
+      full-disabled-selected-icon-color: var(--color-fg-disabled),
+      full-disabled-selected-checkmark-color: var(--color-surface),
+      full-disabled-unselected-icon-color: var(--color-fg-disabled),
+    )
+  );
+
+  @include mat.menu-overrides(
+    (
+      container-color: var(--color-surface-raised),
+      container-shape: var(--radius-menu),
+      container-elevation-shadow: var(--shadow-overlay),
+      divider-color: var(--color-line),
+      divider-top-spacing: 6px,
+      divider-bottom-spacing: 6px,
+      item-label-text-color: var(--color-fg),
+      item-label-text-font: var(--font-sans),
+      item-label-text-size: 14px,
+      item-label-text-line-height: 20px,
+      item-label-text-weight: 500,
+      item-label-text-tracking: 0,
+      item-icon-color: var(--color-fg-secondary),
+      item-icon-size: 18px,
+      item-hover-state-layer-color: var(--color-surface-hover),
+      item-focus-state-layer-color: var(--color-surface-hover),
+      item-spacing: 10px,
+      item-leading-spacing: 10px,
+      item-trailing-spacing: 10px,
+      item-with-icon-leading-spacing: 10px,
+      item-with-icon-trailing-spacing: 10px,
+    )
+  );
+
+  @include mat.datepicker-overrides(
+    (
+      calendar-container-background-color: var(--color-surface-raised),
+      calendar-container-text-color: var(--color-fg),
+      calendar-container-shape: 14px,
+      calendar-container-touch-shape: 14px,
+      calendar-container-elevation-shadow: var(--shadow-overlay),
+      calendar-container-touch-elevation-shadow: var(--shadow-dialog),
+      calendar-text-font: var(--font-sans),
+      calendar-text-size: 13px,
+      calendar-header-text-color: var(--color-fg-muted),
+      calendar-header-text-size: 14px,
+      calendar-header-text-weight: 700,
+      calendar-header-divider-color: var(--color-line),
+      calendar-period-button-text-color: var(--color-fg),
+      calendar-period-button-text-size: 14px,
+      calendar-period-button-text-weight: 700,
+      calendar-period-button-icon-color: var(--color-fg-secondary),
+      calendar-navigation-button-icon-color: var(--color-fg-secondary),
+      calendar-body-label-text-color: var(--color-fg-muted),
+      calendar-body-label-text-size: 13px,
+      calendar-body-label-text-weight: 600,
+      calendar-date-text-color: var(--color-fg),
+      calendar-date-outline-color: transparent,
+      calendar-date-disabled-state-text-color: var(--color-fg-disabled),
+      calendar-date-hover-state-background-color: var(--color-surface-hover),
+      calendar-date-focus-state-background-color: var(--color-surface-hover),
+      calendar-date-selected-state-background-color: var(--color-brand),
+      calendar-date-selected-state-text-color: var(--color-on-brand),
+      calendar-date-selected-disabled-state-background-color: var(--color-fg-disabled),
+      calendar-date-today-outline-color: var(--color-brand),
+      calendar-date-today-selected-state-outline-color: var(--color-on-brand),
+      calendar-date-today-disabled-state-outline-color: var(--color-fg-disabled),
+      calendar-date-in-range-state-background-color: var(--color-brand-soft),
+      calendar-date-in-comparison-range-state-background-color: var(--color-surface-hover),
+      calendar-date-in-overlap-range-state-background-color: var(--color-brand-soft),
+      calendar-date-in-overlap-range-selected-state-background-color: var(--color-brand),
+      calendar-date-preview-state-outline-color: var(--color-brand),
+      toggle-icon-color: var(--color-fg-secondary),
+      toggle-active-state-icon-color: var(--color-brand),
+      range-input-separator-color: var(--color-fg-muted),
+      range-input-disabled-state-separator-color: var(--color-fg-disabled),
+      range-input-disabled-state-text-color: var(--color-fg-disabled),
+    )
+  );
+}
+
+// Panels
+.mat-mdc-select-panel.mat-mdc-select-panel,
+.mat-mdc-autocomplete-panel.mat-mdc-autocomplete-panel {
+  padding: 6px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-menu);
+  background-color: var(--color-surface-raised);
+  box-shadow: var(--shadow-overlay);
+}
+
+.mat-mdc-menu-panel.mat-mdc-menu-panel {
+  border: 1px solid var(--color-line);
+}
+
+.mat-mdc-menu-panel .mat-mdc-menu-content {
+  padding: 6px;
+}
+
+// Options
+.mat-mdc-option.mat-mdc-option {
+  min-height: 36px;
+  margin-block: 1px;
+  padding-inline: 10px;
+  border-radius: 8px;
+  color: var(--color-fg);
+}
+
+.mat-mdc-option.mat-mdc-option.mdc-list-item--selected:not(.mdc-list-item--disabled)
+  .mdc-list-item__primary-text {
+  font-weight: 600;
+}
+
+.mat-mdc-option.mat-mdc-option.mdc-list-item--disabled {
+  color: var(--color-fg-disabled);
+}
+
+// Menu items
+.mat-mdc-menu-panel .mat-mdc-menu-item {
+  min-height: 36px;
+  border-radius: 8px;
+}
+
+.mat-mdc-menu-panel .mat-mdc-menu-item .mat-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  line-height: 18px;
+  color: var(--color-fg-secondary);
+}
+
+.mat-mdc-menu-panel .mat-mdc-menu-item.scc-danger {
+  @include mat.menu-overrides(
+    (
+      item-label-text-color: var(--color-danger-strong),
+      item-icon-color: var(--color-danger-strong),
+      item-hover-state-layer-color: var(--color-danger-soft),
+      item-focus-state-layer-color: var(--color-danger-soft),
+    )
+  );
+}
+
+.mat-mdc-menu-panel .mat-mdc-menu-item.scc-danger .mat-icon {
+  color: var(--color-danger-strong);
+}
+
+.mat-mdc-menu-panel .mat-divider {
+  border-top-color: var(--color-line);
+}
+
+// Datepicker calendar
+.mat-calendar-body-cell .mat-calendar-body-cell-content {
+  top: 50%;
+  left: 50%;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  transform: translate(-50%, -50%);
+}
+
+.mat-calendar-body-cell
+  .mat-calendar-body-cell-content.mat-calendar-body-today:not(.mat-calendar-body-selected) {
+  border-color: var(--color-brand);
+}
+
+.mat-calendar-body-cell .mat-calendar-body-cell-content.mat-calendar-body-selected {
+  font-weight: 700;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 4. Dialog, backdrop and overlay classes
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.dialog-overrides(
+    (
+      container-color: var(--color-surface-raised),
+      container-shape: var(--radius-dialog),
+      container-elevation-shadow: var(--shadow-dialog),
+      subhead-color: var(--color-fg),
+      subhead-font: var(--font-sans),
+      subhead-size: 18px,
+      subhead-line-height: 26px,
+      subhead-weight: 700,
+      subhead-tracking: 0,
+      supporting-text-color: var(--color-fg-secondary),
+      supporting-text-font: var(--font-sans),
+      supporting-text-size: 14px,
+      supporting-text-line-height: 22px,
+      supporting-text-weight: 400,
+      supporting-text-tracking: 0,
+      // The surface itself carries the legacy padding, so Material's own insets are reduced.
+      headline-padding: 0 0 8px,
+      content-padding: 8px 0,
+      with-actions-content-padding: 8px 0,
+      actions-padding: 8px 0 0,
+    )
+  );
+}
+
+.cdk-global-overlay-wrapper {
+  overflow-y: auto;
+}
+
+// Backdrops
+.cdk-overlay-backdrop.scc-backdrop,
+.cdk-overlay-backdrop.cdk-overlay-dark-backdrop {
+  background-color: var(--color-backdrop);
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  backdrop-filter: blur(6px) saturate(120%);
+  transition: opacity 150ms var(--ease-out);
+}
+
+.cdk-overlay-backdrop.scc-backdrop.cdk-overlay-backdrop-showing,
+.cdk-overlay-backdrop.cdk-overlay-dark-backdrop.cdk-overlay-backdrop-showing {
+  opacity: 1;
+}
+
+.cdk-overlay-backdrop.scc-backdrop.scc-backdrop--drawer {
+  -webkit-backdrop-filter: blur(4px) saturate(120%);
+  backdrop-filter: blur(4px) saturate(120%);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .cdk-overlay-backdrop.scc-backdrop,
+  .cdk-overlay-backdrop.cdk-overlay-dark-backdrop {
+    background-color: rgba(20, 27, 46, 0.55);
+  }
+
+  :root[data-theme="dark"] .cdk-overlay-backdrop.scc-backdrop,
+  :root[data-theme="dark"] .cdk-overlay-backdrop.cdk-overlay-dark-backdrop {
+    background-color: rgba(3, 6, 14, 0.78);
+  }
+}
+
+// Dialog surfaces
+.mat-mdc-dialog-container .mat-mdc-dialog-surface.mat-mdc-dialog-surface {
+  padding: 20px 24px;
+  border-radius: var(--radius-dialog);
+  background-color: var(--color-surface-raised);
+  box-shadow: var(--shadow-dialog);
+  color: var(--color-fg);
+}
+
+.mat-mdc-dialog-container .mat-mdc-dialog-surface.mat-mdc-dialog-surface:has(.scc-dialog__header) {
+  padding: 0;
+}
+
+.cdk-overlay-pane.scc-dialog .mat-mdc-dialog-container .mat-mdc-dialog-surface.mat-mdc-dialog-surface {
+  border-radius: var(--radius-dialog) !important;
+  animation: scc-dialog-in 180ms var(--ease-out) backwards;
+}
+
+@keyframes scc-dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes scc-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scc-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+// Dialog sizes
+.cdk-overlay-pane.scc-dialog--sm {
+  width: min(400px, calc(100vw - 32px)) !important;
+}
+
+.cdk-overlay-pane.scc-dialog--md {
+  width: min(560px, calc(100vw - 32px)) !important;
+}
+
+.cdk-overlay-pane.scc-dialog--lg {
+  width: min(720px, calc(100vw - 32px)) !important;
+}
+
+.cdk-overlay-pane.scc-dialog--sm,
+.cdk-overlay-pane.scc-dialog--md,
+.cdk-overlay-pane.scc-dialog--lg {
+  max-width: calc(100vw - 32px) !important;
+}
+
+// Phones: dialogs become bottom sheets
+@media (max-width: 599.98px) {
+  .cdk-global-overlay-wrapper:has(> .cdk-overlay-pane.scc-dialog:not(.scc-palette)) {
+    align-items: flex-end !important;
+    justify-content: center !important;
+  }
+
+  .cdk-overlay-pane.scc-dialog:not(.scc-palette) {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+  }
+
+  .cdk-overlay-pane.scc-dialog:not(.scc-palette)
+    .mat-mdc-dialog-container
+    .mat-mdc-dialog-surface.mat-mdc-dialog-surface {
+    max-height: 92dvh;
+    border-radius: 20px 20px 0 0 !important;
+    animation-name: scc-sheet-in;
+  }
+}
+
+// Dialog structure
+.scc-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 20px 4px 24px;
+}
+
+// Doubled class outranks `.mat-typography h2/p` margins
+.scc-dialog__title.scc-dialog__title {
+  margin: 0;
+  color: var(--color-fg);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 26px;
+}
+
+.scc-dialog__subtitle.scc-dialog__subtitle {
+  margin: 4px 0 0;
+  color: var(--color-fg-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.scc-dialog__close {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background-color: var(--color-surface-hover);
+  color: var(--color-fg-secondary);
+  cursor: pointer;
+}
+
+.scc-dialog__close:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--color-fg) 8%, var(--color-surface-hover));
+}
+
+.scc-dialog__close .mat-icon,
+.scc-dialog__close .material-icons,
+.scc-dialog__close .material-icons-outlined {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  line-height: 18px;
+  color: var(--color-fg-secondary);
+}
+
+.mat-mdc-icon-button.scc-dialog__close {
+  @include mat.icon-button-overrides(
+    (
+      state-layer-size: 36px,
+      icon-size: 18px,
+      container-shape: 10px,
+    )
+  );
+}
+
+.mat-mdc-icon-button.scc-dialog__close:not(.mat-mdc-button-disabled):not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--color-fg) 8%, var(--color-surface-hover));
+}
+
+.scc-dialog__body {
+  padding: 16px 24px 20px;
+  overflow: auto;
+  max-height: min(70vh, 640px);
+  color: var(--color-fg-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.scc-dialog__footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--color-line);
+  background-color: var(--color-surface-muted);
+}
+
+.scc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.scc-actions > .mat-mdc-button-base {
+  margin: 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 5. Drawer
+// ------------------------------------------------------------------------------------------------
+.cdk-overlay-pane.scc-drawer {
+  height: calc(100dvh - 16px) !important;
+  max-height: calc(100dvh - 16px) !important;
+}
+
+.cdk-overlay-pane.scc-drawer--360 {
+  width: min(360px, calc(100vw - 16px)) !important;
+}
+
+.cdk-overlay-pane.scc-drawer--480 {
+  width: min(480px, calc(100vw - 16px)) !important;
+}
+
+.cdk-overlay-pane.scc-drawer--640 {
+  width: min(640px, calc(100vw - 16px)) !important;
+}
+
+.cdk-overlay-pane.scc-drawer .mat-mdc-dialog-container,
+.cdk-overlay-pane.scc-drawer .mat-mdc-dialog-inner-container {
+  height: 100%;
+}
+
+.cdk-overlay-pane.scc-drawer .mat-mdc-dialog-container .mat-mdc-dialog-surface.mat-mdc-dialog-surface {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0;
+  border-radius: 18px !important;
+  animation: scc-drawer-in 200ms var(--ease-out) backwards;
+}
+
+.cdk-overlay-pane.scc-drawer .scc-dialog__body {
+  flex: 1;
+  max-height: none;
+}
+
+@media (max-width: 599.98px) {
+  .cdk-overlay-pane.scc-drawer {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+  }
+
+  .cdk-overlay-pane.scc-drawer .mat-mdc-dialog-container .mat-mdc-dialog-surface.mat-mdc-dialog-surface {
+    border-radius: 0 !important;
+  }
+}
+
+// ------------------------------------------------------------------------------------------------
+// 6. Command palette
+// ------------------------------------------------------------------------------------------------
+.cdk-global-overlay-wrapper:has(> .cdk-overlay-pane.scc-palette) {
+  align-items: flex-start !important; // vertical offset comes from the dialog position (top: 12vh)
+}
+
+.cdk-overlay-pane.scc-palette {
+  width: min(640px, calc(100vw - 32px)) !important;
+  max-width: calc(100vw - 32px) !important;
+}
+
+.cdk-overlay-pane.scc-palette .mat-mdc-dialog-container .mat-mdc-dialog-surface.mat-mdc-dialog-surface {
+  padding: 0;
+  overflow: hidden;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 7. Tooltip
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.tooltip-overrides(
+    (
+      container-color: var(--color-inverse),
+      container-shape: 8px,
+      supporting-text-color: var(--color-on-inverse),
+      supporting-text-font: var(--font-sans),
+      supporting-text-size: 12.5px,
+      supporting-text-line-height: 18px,
+      supporting-text-weight: 500,
+      supporting-text-tracking: 0,
+    )
+  );
+}
+
+.mat-mdc-tooltip .mat-mdc-tooltip-surface {
+  max-width: 280px;
+  min-height: 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background-color: var(--color-inverse);
+  color: var(--color-on-inverse);
+}
+
+// ------------------------------------------------------------------------------------------------
+// 8. Snack bar fallback
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.snack-bar-overrides(
+    (
+      container-color: var(--color-inverse),
+      container-shape: var(--radius-menu),
+      supporting-text-color: var(--color-on-inverse),
+      supporting-text-font: var(--font-sans),
+      supporting-text-size: 14px,
+      supporting-text-line-height: 20px,
+      supporting-text-weight: 500,
+      button-color: var(--color-lake-300),
+    )
+  );
+}
+
+.mat-mdc-snack-bar-container .mdc-snackbar__surface,
+.mat-mdc-snack-bar-container .mat-mdc-snackbar-surface {
+  border-radius: var(--radius-menu);
+  background-color: var(--color-inverse);
+  color: var(--color-on-inverse);
+  box-shadow: var(--shadow-overlay);
+}
+
+.mat-mdc-snack-bar-container .mat-mdc-snack-bar-actions .mat-mdc-button,
+.mat-mdc-snack-bar-container .mat-mdc-snack-bar-actions .mat-mdc-button:not(:disabled) {
+  color: var(--color-lake-300);
+}
+
+// ------------------------------------------------------------------------------------------------
+// 9. Checkbox + radio
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.checkbox-overrides(
+    (
+      label-text-color: var(--color-fg-secondary),
+      label-text-font: var(--font-sans),
+      label-text-size: 14px,
+      label-text-line-height: 20px,
+      label-text-weight: 400,
+      label-text-tracking: 0,
+      disabled-label-color: var(--color-fg-disabled),
+      unselected-icon-color: var(--color-line-strong),
+      unselected-hover-icon-color: var(--color-fg-muted),
+      unselected-focus-icon-color: var(--color-line-strong),
+      selected-icon-color: var(--color-brand),
+      selected-hover-icon-color: var(--color-brand),
+      selected-focus-icon-color: var(--color-brand),
+      selected-pressed-icon-color: var(--color-brand),
+      selected-checkmark-color: var(--color-on-brand),
+      disabled-unselected-icon-color: var(--color-fg-disabled),
+      disabled-selected-icon-color: var(--color-fg-disabled),
+      disabled-selected-checkmark-color: var(--color-surface),
+      unselected-hover-state-layer-color: var(--color-fg),
+      unselected-focus-state-layer-color: var(--color-fg),
+      unselected-pressed-state-layer-color: var(--color-brand),
+      selected-hover-state-layer-color: var(--color-brand),
+      selected-focus-state-layer-color: var(--color-brand),
+      selected-pressed-state-layer-color: var(--color-brand),
+    )
+  );
+
+  @include mat.radio-overrides(
+    (
+      label-text-color: var(--color-fg-secondary),
+      label-text-font: var(--font-sans),
+      label-text-size: 14px,
+      label-text-line-height: 20px,
+      label-text-weight: 400,
+      label-text-tracking: 0,
+      disabled-label-color: var(--color-fg-disabled),
+      unselected-icon-color: var(--color-line-strong),
+      unselected-hover-icon-color: var(--color-fg-muted),
+      unselected-focus-icon-color: var(--color-line-strong),
+      unselected-pressed-icon-color: var(--color-fg-muted),
+      selected-icon-color: var(--color-brand),
+      selected-hover-icon-color: var(--color-brand),
+      selected-focus-icon-color: var(--color-brand),
+      selected-pressed-icon-color: var(--color-brand),
+      disabled-unselected-icon-color: var(--color-fg-disabled),
+      disabled-selected-icon-color: var(--color-fg-disabled),
+      ripple-color: var(--color-fg),
+      checked-ripple-color: var(--color-brand),
+    )
+  );
+}
+
+.mat-mdc-checkbox .mdc-checkbox .mdc-checkbox__background {
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  border-width: 1.5px;
+  border-radius: 4px;
+}
+
+.mat-mdc-radio-button .mdc-radio .mdc-radio__background {
+  transform: scale(0.9);
+}
+
+.mat-mdc-radio-button .mdc-radio .mdc-radio__outer-circle {
+  border-width: 1.5px;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 10. Slide toggle
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.slide-toggle-overrides(
+    (
+      track-width: 44px,
+      track-height: 26px,
+      track-shape: 999px,
+      track-outline-width: 0,
+      selected-track-outline-width: 0,
+      disabled-unselected-track-outline-width: 0,
+      handle-shape: 50%,
+      handle-width: 20px,
+      handle-height: 20px,
+      unselected-handle-size: 20px,
+      selected-handle-size: 20px,
+      pressed-handle-size: 20px,
+      with-icon-handle-size: 20px,
+      unselected-handle-horizontal-margin: 0 3px,
+      unselected-with-icon-handle-horizontal-margin: 0 3px,
+      unselected-pressed-handle-horizontal-margin: 0 3px,
+      selected-handle-horizontal-margin: 0 -3px,
+      selected-with-icon-handle-horizontal-margin: 0 -3px,
+      selected-pressed-handle-horizontal-margin: 0 -3px,
+      unselected-track-color: var(--color-line-strong),
+      unselected-hover-track-color: var(--color-line-strong),
+      unselected-focus-track-color: var(--color-line-strong),
+      unselected-pressed-track-color: var(--color-line-strong),
+      selected-track-color: var(--color-brand),
+      selected-hover-track-color: var(--color-brand),
+      selected-focus-track-color: var(--color-brand),
+      selected-pressed-track-color: var(--color-brand),
+      unselected-handle-color: var(--color-slate-0),
+      unselected-hover-handle-color: var(--color-slate-0),
+      unselected-focus-handle-color: var(--color-slate-0),
+      unselected-pressed-handle-color: var(--color-slate-0),
+      selected-handle-color: var(--color-slate-0),
+      selected-hover-handle-color: var(--color-slate-0),
+      selected-focus-handle-color: var(--color-slate-0),
+      selected-pressed-handle-color: var(--color-slate-0),
+      handle-surface-color: var(--color-slate-0),
+      handle-elevation-shadow: 0 1px 3px rgba(20, 27, 46, 0.28),
+      disabled-handle-elevation-shadow: none,
+      disabled-unselected-track-color: var(--color-line-strong),
+      disabled-selected-track-color: var(--color-brand),
+      disabled-unselected-handle-color: var(--color-slate-0),
+      disabled-selected-handle-color: var(--color-slate-0),
+      unselected-hover-state-layer-opacity: 0,
+      unselected-focus-state-layer-opacity: 0,
+      unselected-pressed-state-layer-opacity: 0,
+      selected-hover-state-layer-opacity: 0,
+      selected-focus-state-layer-opacity: 0,
+      selected-pressed-state-layer-opacity: 0,
+      label-text-color: var(--color-fg-secondary),
+      disabled-label-text-color: var(--color-fg-disabled),
+      label-text-font: var(--font-sans),
+      label-text-size: 14px,
+      label-text-line-height: 20px,
+      label-text-weight: 400,
+      label-text-tracking: 0,
+    )
+  );
+}
+
+.mat-mdc-slide-toggle .mdc-switch .mdc-switch__icons {
+  display: none;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 11. Button toggle group (segmented control)
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.button-toggle-overrides(
+    (
+      shape: 8px,
+      height: 34px,
+      background-color: transparent,
+      text-color: var(--color-fg-secondary),
+      divider-color: transparent,
+      selected-state-background-color: var(--color-surface),
+      selected-state-text-color: var(--color-fg),
+      disabled-state-background-color: transparent,
+      disabled-state-text-color: var(--color-fg-disabled),
+      disabled-selected-state-background-color: var(--color-surface-muted),
+      disabled-selected-state-text-color: var(--color-fg-disabled),
+      state-layer-color: var(--color-fg),
+      hover-state-layer-opacity: 0.04,
+      focus-state-layer-opacity: 0.06,
+      label-text-font: var(--font-sans),
+      label-text-size: 13px,
+      label-text-line-height: 20px,
+      label-text-weight: 500,
+      label-text-tracking: 0,
+    )
+  );
+}
+
+.mat-button-toggle-group.mat-button-toggle-group-appearance-standard {
+  gap: 2px;
+  padding: 3px;
+  border: 0;
+  border-radius: 10px;
+  background-color: var(--color-surface-hover);
+}
+
+.mat-button-toggle-group .mat-button-toggle.mat-button-toggle-appearance-standard {
+  border: 0;
+  border-radius: 8px;
+  background-color: transparent;
+}
+
+.mat-button-toggle-group .mat-button-toggle + .mat-button-toggle {
+  border-left: 0;
+}
+
+[dir="rtl"] .mat-button-toggle-group .mat-button-toggle + .mat-button-toggle {
+  border-right: 0;
+}
+
+.mat-button-toggle-group .mat-button-toggle.mat-button-toggle-checked {
+  background-color: var(--color-surface);
+  box-shadow: 0 1px 2px rgba(20, 27, 46, 0.08);
+  color: var(--color-fg);
+}
+
+.mat-button-toggle-group .mat-button-toggle.mat-button-toggle-checked .mat-button-toggle-label-content {
+  font-weight: 700;
+}
+
+.mat-button-toggle-group .mat-button-toggle .mat-button-toggle-label-content {
+  line-height: 34px;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 12. Tabs
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.tabs-overrides(
+    (
+      container-height: 44px,
+      divider-height: 1px,
+      divider-color: var(--color-line),
+      active-indicator-height: 2px,
+      active-indicator-shape: 0,
+      active-indicator-color: var(--color-brand),
+      active-focus-indicator-color: var(--color-brand),
+      active-hover-indicator-color: var(--color-brand),
+      label-text-font: var(--font-sans),
+      label-text-size: 14px,
+      label-text-line-height: 20px,
+      label-text-weight: 500,
+      label-text-tracking: 0,
+      inactive-label-text-color: var(--color-fg-secondary),
+      inactive-hover-label-text-color: var(--color-fg),
+      inactive-focus-label-text-color: var(--color-fg),
+      active-label-text-color: var(--color-brand-soft-fg),
+      active-hover-label-text-color: var(--color-brand-soft-fg),
+      active-focus-label-text-color: var(--color-brand-soft-fg),
+      active-ripple-color: var(--color-brand),
+      inactive-ripple-color: var(--color-fg),
+      pagination-icon-color: var(--color-fg-secondary),
+      background-color: transparent,
+      foreground-color: var(--color-fg-secondary),
+    )
+  );
+}
+
+.mat-mdc-tab.mdc-tab,
+.mat-mdc-tab-link.mdc-tab {
+  padding: 0 14px;
+  background-color: transparent;
+}
+
+.mat-mdc-tab.mdc-tab:hover,
+.mat-mdc-tab-link.mdc-tab:hover {
+  background-color: transparent;
+}
+
+.mat-mdc-tab.mdc-tab.mdc-tab--active .mdc-tab__text-label,
+.mat-mdc-tab-link.mdc-tab.mdc-tab--active .mdc-tab__text-label {
+  font-weight: 700;
+}
+
+.mat-mdc-tab.mdc-tab:hover .mdc-tab__ripple::before,
+.mat-mdc-tab-link.mdc-tab:hover .mdc-tab__ripple::before {
+  opacity: 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 13. Chips
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.chips-overrides(
+    (
+      container-height: 32px,
+      container-shape-radius: 999px,
+      outline-width: 1px,
+      flat-selected-outline-width: 1px,
+      outline-color: var(--color-line-strong),
+      focus-outline-color: var(--color-line-strong),
+      disabled-outline-color: var(--color-line),
+      elevated-container-color: var(--color-surface),
+      elevated-selected-container-color: var(--color-brand-soft),
+      elevated-disabled-container-color: var(--color-surface-muted),
+      flat-disabled-selected-container-color: var(--color-surface-muted),
+      label-text-font: var(--font-sans),
+      label-text-size: 13px,
+      label-text-line-height: 20px,
+      label-text-weight: 500,
+      label-text-tracking: 0,
+      label-text-color: var(--color-fg-secondary),
+      selected-label-text-color: var(--color-brand-soft-fg),
+      disabled-label-text-color: var(--color-fg-disabled),
+      with-icon-icon-size: 16px,
+      with-icon-icon-color: var(--color-fg-secondary),
+      with-icon-selected-icon-color: var(--color-brand),
+      with-icon-disabled-icon-color: var(--color-fg-disabled),
+      with-trailing-icon-trailing-icon-color: var(--color-fg-muted),
+      selected-trailing-icon-color: var(--color-brand-soft-fg),
+      with-trailing-icon-disabled-trailing-icon-color: var(--color-fg-disabled),
+      selected-disabled-trailing-icon-color: var(--color-fg-disabled),
+      hover-state-layer-color: var(--color-fg),
+      hover-state-layer-opacity: 0.04,
+      focus-state-layer-color: var(--color-fg),
+      focus-state-layer-opacity: 0.06,
+      selected-hover-state-layer-color: var(--color-brand),
+      selected-hover-state-layer-opacity: 0.08,
+      selected-focus-state-layer-color: var(--color-brand),
+      selected-focus-state-layer-opacity: 0.1,
+    )
+  );
+}
+
+.mat-mdc-chip-option.mat-mdc-standard-chip.mdc-evolution-chip--selected
+  .mdc-evolution-chip__action--primary::before {
+  border-color: var(--color-brand);
+}
+
+.mat-mdc-chip-option.mat-mdc-standard-chip.mdc-evolution-chip--selected .mdc-evolution-chip__text-label {
+  font-weight: 600;
+}
+
+.mat-mdc-chip-option.mat-mdc-standard-chip .mdc-evolution-chip__checkmark {
+  color: var(--color-brand);
+}
+
+// Input chips (mat-chip-row)
+.mat-mdc-chip-row.mat-mdc-standard-chip {
+  @include mat.chips-overrides(
+    (
+      container-height: 26px,
+      container-shape-radius: 6px,
+      outline-width: 0,
+      flat-selected-outline-width: 0,
+      elevated-container-color: var(--color-brand-soft),
+      elevated-selected-container-color: var(--color-brand-soft),
+      label-text-size: 13px,
+      label-text-weight: 600,
+      label-text-color: var(--color-brand-soft-fg),
+      selected-label-text-color: var(--color-brand-soft-fg),
+      with-trailing-icon-trailing-icon-color: var(--color-brand-soft-fg),
+      selected-trailing-icon-color: var(--color-brand-soft-fg),
+      hover-state-layer-color: var(--color-brand),
+      hover-state-layer-opacity: 0.08,
+      focus-state-layer-color: var(--color-brand),
+      focus-state-layer-opacity: 0.12,
+    )
+  );
+}
+
+.mat-mdc-chip-row.mat-mdc-standard-chip .mdc-evolution-chip__text-label {
+  font-weight: 600;
+}
+
+.mat-mdc-chip-row.mat-mdc-standard-chip .mat-mdc-chip-remove,
+.mat-mdc-chip-row.mat-mdc-standard-chip .mdc-evolution-chip__icon--trailing {
+  width: 14px;
+  height: 14px;
+  font-size: 14px;
+  line-height: 14px;
+}
+
+.mat-mdc-chip-row.mat-mdc-standard-chip .mat-mdc-chip-remove .mat-icon {
+  width: 14px;
+  height: 14px;
+  font-size: 14px;
+  line-height: 14px;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 14. Table / sort / paginator
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.table-overrides(
+    (
+      background-color: var(--color-surface),
+      header-container-height: 44px,
+      header-headline-color: var(--color-fg-secondary),
+      header-headline-font: var(--font-sans),
+      header-headline-size: 12px,
+      header-headline-line-height: 18px,
+      header-headline-weight: 700,
+      header-headline-tracking: 0,
+      row-item-container-height: 56px,
+      row-item-label-text-color: var(--color-fg),
+      row-item-label-text-font: var(--font-sans),
+      row-item-label-text-size: 14px,
+      row-item-label-text-line-height: 22px,
+      row-item-label-text-weight: 400,
+      row-item-label-text-tracking: 0,
+      row-item-outline-color: var(--color-line),
+      row-item-outline-width: 1px,
+    )
+  );
+
+  @include mat.sort-overrides(
+    (
+      arrow-color: var(--color-brand),
+    )
+  );
+
+  @include mat.paginator-overrides(
+    (
+      container-background-color: var(--color-surface),
+      container-text-color: var(--color-fg-secondary),
+      container-text-font: var(--font-sans),
+      container-text-size: 13px,
+      container-text-line-height: 20px,
+      container-text-weight: 400,
+      container-text-tracking: 0,
+      select-trigger-text-size: 13px,
+      enabled-icon-color: var(--color-fg-secondary),
+      disabled-icon-color: var(--color-fg-disabled),
+      form-field-container-height: 32px,
+      form-field-container-vertical-padding: 6px,
+      page-size-select-width: 72px,
+      container-size: 52px,
+    )
+  );
+}
+
+.mat-mdc-table.mat-mdc-table {
+  background-color: var(--color-surface);
+}
+
+.mat-mdc-table .mat-mdc-header-row.mat-mdc-header-row {
+  height: 44px;
+  background-color: var(--color-surface-muted);
+}
+
+.mat-mdc-table .mat-mdc-header-cell.mat-mdc-header-cell {
+  background-color: var(--color-surface-muted);
+  border-bottom-color: var(--color-line);
+  color: var(--color-fg-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.mat-mdc-table .mat-mdc-row.mat-mdc-row {
+  height: 56px;
+}
+
+.mat-mdc-table .mat-mdc-cell.mat-mdc-cell {
+  border-bottom-color: var(--color-line);
+  color: var(--color-fg);
+  font-size: 14px;
+}
+
+.mat-mdc-table .mat-mdc-row.mat-mdc-row:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.mat-mdc-table .mat-mdc-row.mat-mdc-row.scc-row-selected,
+.mat-mdc-table .mat-mdc-row.mat-mdc-row.scc-row-selected:hover {
+  background-color: color-mix(in srgb, var(--color-brand) 6%, var(--color-surface));
+}
+
+.scc-row-selected {
+  background-color: color-mix(in srgb, var(--color-brand) 6%, var(--color-surface));
+}
+
+.mat-sort-header-arrow .mat-sort-header-stem,
+.mat-sort-header-arrow .mat-sort-header-indicator,
+.mat-sort-header-arrow .mat-sort-header-pointer-left,
+.mat-sort-header-arrow .mat-sort-header-pointer-right,
+.mat-sort-header-sorted .mat-sort-header-arrow {
+  color: var(--color-brand);
+}
+
+.mat-mdc-paginator .mat-mdc-icon-button {
+  @include mat.icon-button-overrides(
+    (
+      state-layer-size: 32px,
+    )
+  );
+}
+
+.mat-mdc-paginator .mat-mdc-paginator-container {
+  min-height: 52px;
+  color: var(--color-fg-secondary);
+  font-size: 13px;
+}
+
+.mat-mdc-paginator .mat-mdc-paginator-page-size-select {
+  width: 72px;
+}
+
+.scc-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 15. Progress bar + spinner
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.progress-bar-overrides(
+    (
+      active-indicator-color: var(--color-brand),
+      track-color: var(--color-brand-soft),
+      active-indicator-height: 3px,
+      track-height: 3px,
+      track-shape: 0,
+    )
+  );
+
+  @include mat.progress-spinner-overrides(
+    (
+      active-indicator-color: var(--color-brand),
+    )
+  );
+}
+
+.mat-mdc-progress-bar.scc-progress-6 {
+  @include mat.progress-bar-overrides(
+    (
+      active-indicator-height: 6px,
+      track-height: 6px,
+      track-shape: 99px,
+    )
+  );
+  overflow: hidden;
+  border-radius: 99px;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 17. Stepper
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.stepper-overrides(
+    (
+      container-color: transparent,
+      line-color: var(--color-line),
+      header-height: 64px,
+      header-icon-background-color: var(--color-surface-hover),
+      header-icon-foreground-color: var(--color-fg-muted),
+      header-selected-state-icon-background-color: var(--color-brand),
+      header-selected-state-icon-foreground-color: var(--color-on-brand),
+      header-done-state-icon-background-color: var(--color-brand),
+      header-done-state-icon-foreground-color: var(--color-on-brand),
+      header-edit-state-icon-background-color: var(--color-brand),
+      header-edit-state-icon-foreground-color: var(--color-on-brand),
+      header-error-state-icon-background-color: transparent,
+      header-error-state-icon-foreground-color: var(--color-danger),
+      header-label-text-font: var(--font-sans),
+      header-label-text-size: 13px,
+      header-label-text-weight: 500,
+      header-label-text-color: var(--color-fg-secondary),
+      header-selected-state-label-text-size: 13px,
+      header-selected-state-label-text-weight: 700,
+      header-selected-state-label-text-color: var(--color-fg),
+      header-error-state-label-text-size: 13px,
+      header-error-state-label-text-color: var(--color-danger-strong),
+      header-optional-label-text-color: var(--color-fg-muted),
+      header-hover-state-layer-color: var(--color-surface-hover),
+      header-focus-state-layer-color: var(--color-surface-hover),
+      container-text-font: var(--font-sans),
+    )
+  );
+}
+
+.mat-step-header .mat-step-icon {
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+}
+
+.mat-step-header .mat-step-icon .mat-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  line-height: 16px;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 18. Expansion panel
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.expansion-overrides(
+    (
+      container-background-color: var(--color-surface),
+      container-text-color: var(--color-fg-secondary),
+      container-shape: var(--radius-card),
+      container-elevation-shadow: none,
+      container-text-font: var(--font-sans),
+      container-text-size: 14px,
+      container-text-line-height: 22px,
+      container-text-weight: 400,
+      container-text-tracking: 0,
+      actions-divider-color: var(--color-line),
+      header-text-color: var(--color-fg),
+      header-text-font: var(--font-sans),
+      header-text-size: 14px,
+      header-text-line-height: 20px,
+      header-text-weight: 600,
+      header-text-tracking: 0,
+      header-description-color: var(--color-fg-muted),
+      header-indicator-color: var(--color-fg-muted),
+      header-disabled-state-text-color: var(--color-fg-disabled),
+      header-hover-state-layer-color: var(--color-surface-hover),
+      header-focus-state-layer-color: var(--color-surface-hover),
+      header-collapsed-state-height: 52px,
+      header-expanded-state-height: 52px,
+    )
+  );
+}
+
+.mat-expansion-panel.mat-expansion-panel {
+  border: 1px solid var(--color-line);
+  box-shadow: none;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 19. Card
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.card-overrides(
+    (
+      elevated-container-color: var(--color-surface),
+      elevated-container-shape: var(--radius-card),
+      elevated-container-elevation: none,
+      filled-container-color: var(--color-surface),
+      filled-container-shape: var(--radius-card),
+      filled-container-elevation: none,
+      outlined-container-color: var(--color-surface),
+      outlined-container-shape: var(--radius-card),
+      outlined-container-elevation: none,
+      outlined-outline-color: var(--color-line),
+      outlined-outline-width: 1px,
+      title-text-font: var(--font-sans),
+      subtitle-text-font: var(--font-sans),
+      subtitle-text-color: var(--color-fg-muted),
+    )
+  );
+}
+
+.mat-mdc-card.mat-mdc-card {
+  border: 1px solid var(--color-line);
+  box-shadow: none;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 20. Badge
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.badge-overrides(
+    (
+      background-color: var(--color-danger),
+      text-color: var(--color-on-danger),
+      disabled-state-background-color: var(--color-fg-disabled),
+      disabled-state-text-color: var(--color-slate-0),
+      text-font: var(--font-sans),
+      text-size: 10px,
+      text-weight: 700,
+      line-height: 16px,
+      container-size: 16px,
+      small-size-container-size: 16px,
+      large-size-container-size: 16px,
+      small-size-text-size: 10px,
+      large-size-text-size: 10px,
+      small-size-line-height: 16px,
+      large-size-line-height: 16px,
+      container-shape: 999px,
+    )
+  );
+}
+
+// Ring in the surface colour separates the badge from its host (equivalent to a 2px border)
+.mat-badge .mat-badge-content {
+  box-shadow: 0 0 0 2px var(--color-surface);
+}
+
+// ------------------------------------------------------------------------------------------------
+// 21. Sidenav, list, divider
+// ------------------------------------------------------------------------------------------------
+#{$scc-root} {
+  @include mat.sidenav-overrides(
+    (
+      container-background-color: transparent,
+      content-background-color: transparent,
+      container-text-color: var(--color-fg),
+      content-text-color: var(--color-fg),
+      container-shape: 0,
+      container-divider-color: transparent,
+      container-elevation-shadow: none,
+      scrim-color: var(--color-backdrop),
+    )
+  );
+
+  @include mat.list-overrides(
+    (
+      list-item-label-text-color: var(--color-fg-secondary),
+      list-item-leading-icon-color: var(--color-fg-secondary),
+      list-item-trailing-icon-color: var(--color-fg-secondary),
+      list-item-supporting-text-color: var(--color-fg-muted),
+      list-item-hover-state-layer-color: var(--color-surface-hover),
+      list-item-hover-state-layer-opacity: 1,
+      list-item-focus-state-layer-color: var(--color-surface-hover),
+      list-item-focus-state-layer-opacity: 1,
+      list-item-hover-label-text-color: var(--color-fg),
+      list-item-focus-label-text-color: var(--color-fg),
+      list-item-selected-container-color: var(--color-brand-soft),
+      list-item-disabled-label-text-color: var(--color-fg-disabled),
+      list-item-label-text-font: var(--font-sans),
+      list-item-label-text-size: 14px,
+      list-item-label-text-weight: 500,
+      list-item-label-text-tracking: 0,
+    )
+  );
+
+  @include mat.divider-overrides(
+    (
+      color: var(--color-line),
+      width: 1px,
+    )
+  );
+}
+
+.mat-drawer-container.mat-drawer-container,
+.mat-drawer.mat-drawer {
+  background-color: transparent;
+}
+
+.mat-drawer-side.mat-drawer-side {
+  border-right: 0;
+  border-left: 0;
+  box-shadow: none;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 22. Global
+// ------------------------------------------------------------------------------------------------
+.scc-canvas {
+  background-color: var(--color-canvas);
+  background-image: radial-gradient(var(--color-canvas-dot) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+// Thin scrollbars
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-color: var(--color-line-strong);
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+@supports (-moz-appearance: none) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+}
+
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+// Programmatically focused containers (dialog / overlay hosts) must not get a ring
+[tabindex="-1"]:focus-visible {
+  outline: none;
+}
+
+// ------------------------------------------------------------------------------------------------
+// 23. Reduced motion
+// ------------------------------------------------------------------------------------------------
+@media (prefers-reduced-motion: reduce) {
+  .cdk-overlay-pane.scc-dialog .mat-mdc-dialog-container .mat-mdc-dialog-surface.mat-mdc-dialog-surface,
+  .cdk-overlay-pane.scc-drawer .mat-mdc-dialog-container .mat-mdc-dialog-surface.mat-mdc-dialog-surface {
+    animation: none !important;
+  }
+
+  .cdk-overlay-backdrop.scc-backdrop,
+  .cdk-overlay-backdrop.cdk-overlay-dark-backdrop {
+    transition: none !important;
+  }
+
+  .mat-mdc-form-field .mat-mdc-text-field-wrapper.mdc-text-field--outlined {
+    transition: none;
+  }
+
+  .scc-btn-spinner {
+    animation-duration: 1.6s;
+  }
+}

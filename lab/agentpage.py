@@ -60,6 +60,7 @@ import agent_login  # noqa: E402
 CHECK_AGENT = next(spec for spec in agent_login.AGENTS if spec[0] == "LAB_CHECK_AGENT")
 
 PORT = 8017
+ANGULAR = False
 EMAIL = agent_login.env_value("LAB_CHECK_AGENT_EMAIL") or CHECK_AGENT[1]
 LOG = ROOT / "lab" / "agentpage-stack.log"
 
@@ -103,12 +104,23 @@ def second_agent():
     return email, password, str(agent.uid)
 
 
+def desk_url(kind):
+    return f"http://127.0.0.1:{PORT}/app/{kind}" if ANGULAR else f"http://127.0.0.1:{PORT}/{kind}/"
+
+
+async def sign_out(page):
+    if ANGULAR:
+        await page.locator(".app-topbar").get_by_role("button", name="Sign out", exact=True).click()
+    else:
+        await page.click("#signout")
+
+
 async def signed_in(browser, email, password, admin_session):
     context = await browser.new_context()
     await context.add_cookies([{"name": "sessionid", "value": admin_session, "url": f"http://127.0.0.1:{PORT}"}])
     page = await context.new_page()
     page.on("console", lambda message: message.type == "error" and say(f"  browser ({email}): {message.text}"))
-    await page.goto(f"http://127.0.0.1:{PORT}/agent/")
+    await page.goto(desk_url("agent"))
     await page.fill("#email", email)
     await page.fill("#password", password)
     await page.click("button[type=submit]")
@@ -264,7 +276,7 @@ async def transfers_from_the_page(playwright, show, customer, admin_session, che
         await outside.close()
     await done_wrapping_up(first)
     for page in (first, second):
-        await page.click("#signout")
+        await sign_out(page)
     await browser.close()
 
 
@@ -310,7 +322,7 @@ async def supervision_from_the_page(playwright, show, customer, admin_session, c
     context = await sup_browser.new_context()
     sup = await context.new_page()
     sup.on("console", lambda message: message.type == "error" and say(f"  browser (supervisor): {message.text}"))
-    await sup.goto(f"http://127.0.0.1:{PORT}/supervisor/")
+    await sup.goto(desk_url("supervisor"))
     await sup.fill("#email", email)
     await sup.fill("#password", sup_password)
     await sup.click("button[type=submit]")
@@ -347,8 +359,8 @@ async def supervision_from_the_page(playwright, show, customer, admin_session, c
     check("stop: the supervisor's phone call ends, the call goes on", not call.ended.is_set())
     await call.hangup()
     await done_wrapping_up(agent)
-    await agent.click("#signout")
-    await sup.click("#signout")
+    await sign_out(agent)
+    await sign_out(sup)
     await agent_browser.close()
     await sup_browser.close()
 
@@ -532,7 +544,7 @@ async def ai_from_the_page(playwright, show, customer, admin_session, check, pas
             "the call's admin page shows the interaction and the transcript",
             "Interaction" in html and "Saturday" in html and "Information given" in html,
         )
-    await page.click("#signout")
+    await sign_out(page)
     await browser.close()
 
 
@@ -618,7 +630,7 @@ async def main(show, transfers=True, supervision=True, ai=True, use_running_stac
             await context.add_cookies([{"name": "sessionid", "value": admin_session, "url": f"http://127.0.0.1:{PORT}"}])
             page = await context.new_page()
             page.on("console", lambda message: message.type == "error" and say(f"  browser: {message.text}"))
-            await page.goto(f"http://127.0.0.1:{PORT}/agent/")
+            await page.goto(desk_url("agent"))
 
             say("── sign in")
             await page.fill("#email", EMAIL)
@@ -673,8 +685,8 @@ async def main(show, transfers=True, supervision=True, ai=True, use_running_stac
             await go_not_ready(page, "Break")
             await until(page, "document.getElementById('state-title').textContent.includes('Break')", 10)
             check("Not Ready with a reason", True)
-            await page.click("#signout")
-            await page.wait_for_selector("#signin:not([hidden])", timeout=10000)
+            await sign_out(page)
+            await page.wait_for_selector("ad-login" if ANGULAR else "#signin:not([hidden])", timeout=10000)
             check("signed out", True)
             await browser.close()
 
@@ -773,12 +785,14 @@ async def main(show, transfers=True, supervision=True, ai=True, use_running_stac
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--angular", action="store_true", help="check the compiled Angular frontend at /app/")
     parser.add_argument("--show", action="store_true", help="open a visible Chrome window")
     parser.add_argument("--no-transfers", action="store_true", help="skip the M5 transfer phase")
     parser.add_argument("--no-supervision", action="store_true", help="skip the M6 supervisor phase")
     parser.add_argument("--no-ai", action="store_true", help="skip the M8 AI agent phase")
     parser.add_argument("--use-running-stack", action="store_true", help="use the existing make dev stack on port 8000 without stopping it")
     arguments = parser.parse_args()
+    ANGULAR = arguments.angular
     if arguments.use_running_stack:
         PORT = 8000
     sys.exit(

@@ -51,6 +51,11 @@ sudo ln -s /etc/nginx/sites-available/algodial /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
+Install Node.js **22.23+** and npm for the application user as well. The release script
+builds `frontend/` before restarting services. Django serves the compiled Angular app
+at `/app/`; the production host does not run `ng serve`. See
+[ANGULAR_FRONTEND.md](ANGULAR_FRONTEND.md).
+
 ## 2. First release
 
 ```bash

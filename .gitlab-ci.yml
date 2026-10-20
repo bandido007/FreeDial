@@ -36,6 +36,26 @@ default:
     - venv/bin/pip install --quiet --upgrade pip
     - venv/bin/pip install --quiet --require-hashes -r requirements/development.txt
 
+
+angular-build:
+  stage: lint
+  image: node:22-bookworm-slim
+  before_script: []
+  cache:
+    key:
+      files: [frontend/package-lock.json]
+    paths: [.cache/npm]
+  script:
+    - npm ci --prefix frontend --legacy-peer-deps --ignore-scripts --cache .cache/npm
+    - npm run format:check --prefix frontend
+    - npm run typecheck --prefix frontend
+    - npm test --prefix frontend
+    - npm run build --prefix frontend
+  artifacts:
+    paths: [frontend/dist/]
+    expire_in: 1 day
+
+
 # ── 1. Lint: style, imports, architecture, types ────────────────────────────
 lint:
   stage: lint
@@ -46,6 +66,8 @@ lint:
 # ── 2. Test: the suite against PostgreSQL and Redis ─────────────────────────
 test:
   stage: test
+  variables:
+    ANGULAR_TEST_URL: live
   services:
     - name: postgres:16-alpine
       alias: postgres
@@ -70,6 +92,7 @@ test:
 checks:
   stage: checks
   script:
+    - venv/bin/python scripts/sync_desk_frontend.py --check
     - make check
     - make validate-fe
     - make audit

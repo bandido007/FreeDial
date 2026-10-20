@@ -1,0 +1,399 @@
+<section class="page-heading records-heading">
+  <span class="page-icon"><ad-icon [name]="icon" /></span>
+  <div class="page-heading-copy">
+    <p class="eyebrow">{{ listing?.group || "Management" }}</p>
+    <div class="page-title-line">
+      <h1>{{ listing?.name || "Records" }}</h1>
+      @if (listing) {
+        <span class="count-badge">{{ listing.total }}</span>
+      }
+    </div>
+    <p class="muted">
+      {{
+        editor
+          ? "Choose a record to view its details, or edit the selection."
+          : "Search, review and manage your centre’s records."
+      }}
+    </p>
+  </div>
+  <div class="heading-actions">
+    @if (listing?.canAdd) {
+      <button class="button primary" (click)="open('new')"><ad-icon name="plus" />Add new</button>
+    }
+  </div>
+</section>
+@if (error) {
+  <div class="alert danger" role="alert">{{ error }}</div>
+}
+@if (notice) {
+  <div class="alert success" role="status">{{ notice }}</div>
+}
+<div class="record-workspace" [class.with-editor]="editor">
+  <section class="surface records-list" aria-label="Records">
+    <div class="table-toolbar">
+      <form class="search-form" (ngSubmit)="page = 1; load()">
+        <label class="search-box"
+          ><ad-icon name="search" /><input
+            name="search"
+            type="search"
+            [(ngModel)]="search"
+            aria-label="Search records"
+            placeholder="Search records…"
+          />
+          @if (search) {
+            <button type="button" class="search-clear" aria-label="Clear search" (click)="clearSearch()">
+              <ad-icon name="close" />
+            </button>
+          }</label
+        ><button class="button" type="submit" [disabled]="busy">Search</button>
+        @if (listing?.filters?.length || listing?.dateField) {
+          <button
+            class="button filter-toggle"
+            type="button"
+            [class.has-filters]="filterCount"
+            [attr.aria-expanded]="filtersOpen"
+            aria-controls="record-filters"
+            (click)="filtersOpen = !filtersOpen"
+          >
+            <ad-icon name="settings" />Filters
+            @if (filterCount) {
+              <span class="filter-count">{{ filterCount }}</span>
+            }
+          </button>
+        }
+        @if (filterCount) {
+          <button class="text-button" type="button" (click)="clearFilters()">Clear filters</button>
+        }
+      </form>
+      <div class="filter-row" id="record-filters" [hidden]="!filtersOpen">
+        @if (listing?.dateField) {
+          <label>From<input type="date" [(ngModel)]="dateFrom" (ngModelChange)="page = 1; load()" /></label
+          ><label>To<input type="date" [(ngModel)]="dateTo" (ngModelChange)="page = 1; load()" /></label>
+        }
+        @for (filter of listing?.filters; track filter.name) {
+          <label
+            >{{ filter.label
+            }}<select [(ngModel)]="filters[filter.name]" (ngModelChange)="page = 1; load()">
+              <option value="">All</option>
+              @for (option of filter.options; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select></label
+          >
+        }
+      </div>
+    </div>
+    @if (selected.size) {
+      <div class="bulk-bar">
+        <span>{{ selected.size }} selected</span
+        ><select aria-label="Action" [(ngModel)]="action">
+          <option value="">Choose action…</option>
+          @for (item of listing?.actions; track item.name) {
+            <option [value]="item.name">{{ item.label }}</option>
+          }</select
+        ><button class="button" [disabled]="!action || busy" (click)="runAction()">Apply</button>
+      </div>
+    }
+    <div class="table-scroll" tabindex="0" aria-label="Record table" [attr.aria-busy]="busy">
+      <table>
+        <thead>
+          <tr>
+            @if (listing?.actions?.length) {
+              <th scope="col" class="selection-column"><span class="sr-only">Select</span></th>
+            }
+            @for (column of listing?.columns; track column.name) {
+              <th
+                scope="col"
+                [class.primary-column]="$index === 0"
+                [class.secondary-column]="$index === 1"
+                [attr.aria-sort]="
+                  sort === column.name ? 'ascending' : sort === '-' + column.name ? 'descending' : 'none'
+                "
+              >
+                @if (column.sortable) {
+                  <button
+                    class="table-sort"
+                    (click)="sort = sort === column.name ? '-' + column.name : column.name; load()"
+                  >
+                    {{ column.label }}
+                    @if (sort === column.name || sort === "-" + column.name) {
+                      <ad-icon
+                        name="arrow"
+                        class="sort-indicator"
+                        [class.descending]="sort.startsWith('-')"
+                      />
+                    }
+                  </button>
+                } @else {
+                  {{ column.label }}
+                }
+              </th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of listing?.rows; track row.id) {
+            <tr [class.selected-row]="editor?.id === row.id">
+              @if (listing?.actions?.length) {
+                <td class="selection-column">
+                  <input
+                    type="checkbox"
+                    [checked]="selected.has(row.id)"
+                    (change)="toggle(row, $any($event.target).checked)"
+                    [attr.aria-label]="'Select ' + row.label"
+                  />
+                </td>
+              }
+              @for (value of row.values; track $index) {
+                <td [class.primary-column]="$index === 0" [class.secondary-column]="$index === 1">
+                  @if ($index === 0) {
+                    <button class="record-link" [title]="row.label" (click)="open(row.id)">
+                      {{ value || row.label }}
+                    </button>
+                  } @else {
+                    <span>{{ value || "—" }}</span>
+                  }
+                </td>
+              }
+            </tr>
+          } @empty {
+            <tr>
+              <td [attr.colspan]="(listing?.columns?.length || 1) + 1">
+                <div class="empty-state">
+                  <ad-icon name="search" />
+                  <h2>
+                    {{
+                      busy
+                        ? "Loading records…"
+                        : search || filterCount
+                          ? "No matching records"
+                          : "No records yet"
+                    }}
+                  </h2>
+                  <p>
+                    {{
+                      busy
+                        ? "Your records will appear here in a moment."
+                        : search || filterCount
+                          ? "Try a different search or clear your filters."
+                          : listing?.canAdd
+                            ? "Choose Add new to create your first record."
+                            : "New records will appear here when they are available."
+                    }}
+                  </p>
+                  @if (!busy && (search || filterCount)) {
+                    <button class="button small" (click)="search = ''; clearFilters()">
+                      Reset search and filters
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <footer class="table-footer">
+      <span>{{ listing?.total || 0 }} records</span>
+      <div>
+        <button class="button small" [disabled]="page <= 1 || busy" (click)="move(page - 1)">Previous</button
+        ><span>Page {{ listing?.page || 1 }} of {{ listing?.pages || 1 }}</span
+        ><button
+          class="button small"
+          [disabled]="page >= (listing?.pages || 1) || busy"
+          (click)="move(page + 1)"
+        >
+          Next
+        </button>
+      </div>
+    </footer>
+  </section>
+  @if (editor) {
+    <section class="surface editor-panel" aria-label="Record details">
+      <header class="editor-heading">
+        <div>
+          <p class="eyebrow">{{ editor.id ? "Record details" : "New record" }}</p>
+          <h2>{{ editor.label }}</h2>
+          <p class="editor-state">
+            <span [class.draft-indicator]="dirty">{{
+              dirty ? "Unsaved changes" : editor.canChange ? "Ready to edit" : "View only"
+            }}</span>
+          </p>
+        </div>
+        <button class="icon-button" aria-label="Close record" (click)="close()">
+          <ad-icon name="close" />
+        </button>
+      </header>
+      @if (editor.id) {
+        <div class="record-history">
+          <button type="button" class="button small" (click)="showHistory()">History</button>
+          @if (historyOpen) {
+            <ol>
+              @for (item of history; track $index) {
+                <li>
+                  <time>{{ item.at | date: "medium" }}</time> {{ item.user }}
+                  <p>{{ item.action }}</p>
+                </li>
+              } @empty {
+                <li>No recorded changes.</li>
+              }
+            </ol>
+          }
+        </div>
+      }
+      <form (ngSubmit)="save()" #recordForm="ngForm">
+        <div class="editor-content">
+          @for (message of editor.errors; track $index) {
+            <p class="alert danger" role="alert">{{ message }}</p>
+          }
+          <div class="editor-fields">
+            @for (field of editor.fields; track field.key) {
+              <ad-field
+                [field]="field"
+                [hidden]="field.hidden"
+                [class.full-field]="
+                  field.kind === 'textarea' || field.kind === 'multiselect' || !!field.media
+                "
+                (changed)="change()"
+                (search)="searchChoices(field, $event)"
+              />
+            }
+          </div>
+          @if (key === "users.user" && editor.id && editor.canChange) {
+            <section class="inline-group">
+              <button class="button" type="button" (click)="passwordOpen = !passwordOpen">
+                Change password
+              </button>
+              @if (passwordOpen) {
+                <label
+                  >Password sign-in<select name="passwordMode" [(ngModel)]="passwordMode">
+                    <option value="true">Set a password</option>
+                    <option value="false">Disable password sign-in</option>
+                  </select></label
+                >
+                @if (passwordMode === "true") {
+                  <label
+                    >New password<input
+                      type="password"
+                      name="password1"
+                      [(ngModel)]="password1"
+                      autocomplete="new-password" /></label
+                  ><label
+                    >Confirm new password<input
+                      type="password"
+                      name="password2"
+                      [(ngModel)]="password2"
+                      autocomplete="new-password"
+                  /></label>
+                }
+                @if (passwordError) {
+                  <p class="field-error" role="alert">{{ passwordError }}</p>
+                }
+                <button class="button" type="button" (click)="changePassword()">
+                  {{ passwordMode === "true" ? "Set password" : "Disable password sign-in" }}
+                </button>
+              }
+            </section>
+          }
+          @for (group of editor.inlines; track group.prefix) {
+            <section class="inline-group">
+              <h3>{{ group.name }}</h3>
+              @for (message of group.errors; track $index) {
+                <p class="alert danger" role="alert">{{ message }}</p>
+              }
+              @for (row of group.rows; track $index) {
+                <div class="inline-row">
+                  @for (field of row.fields; track field.key) {
+                    <ad-field
+                      [field]="field"
+                      (changed)="change()"
+                      (search)="searchChoices(field, $event, group)"
+                    />
+                  }
+                  @for (message of row.errors; track $index) {
+                    <p class="field-error" role="alert">{{ message }}</p>
+                  }
+                </div>
+              }
+              @if (group.canAdd) {
+                <button class="button small" type="button" (click)="addInline(group)">
+                  <ad-icon name="plus" />Add row
+                </button>
+              }
+            </section>
+          }
+          @if (key === "queues.skillruleset") {
+            <section class="rule-preview">
+              <h3>Routing steps</h3>
+              <p class="help">
+                Every step must keep the caller’s language at level 4 or higher. The last step lasts forever.
+              </p>
+              <ol class="rule-timeline">
+                @for (step of ruleSteps; track $index) {
+                  <li [class.invalid]="!step.valid">
+                    <strong>{{ step.from }} s — {{ step.until }}</strong
+                    ><span>{{ step.needs }}</span>
+                  </li>
+                }
+              </ol>
+              @if (editor.rulePreview) {
+                <h3>Test with agent</h3>
+                <div class="rule-test-fields">
+                  <label
+                    >Agent<select name="previewAgent" [(ngModel)]="previewAgent">
+                      <option value="">Choose agent…</option>
+                      @for (agent of editor.rulePreview.agents; track agent.uid) {
+                        <option [value]="agent.uid">{{ agent.number }} {{ agent.name }}</option>
+                      }
+                    </select></label
+                  ><label
+                    >Caller language<select name="previewLanguage" [(ngModel)]="previewLanguage">
+                      <option value="">Choose language…</option>
+                      @for (language of editor.rulePreview.languages; track language) {
+                        <option [value]="language">{{ language }}</option>
+                      }
+                    </select></label
+                  ><label
+                    >Wait in seconds<input
+                      type="number"
+                      name="previewWait"
+                      min="0"
+                      [(ngModel)]="previewWait" /></label
+                  ><label
+                    >Queue<select name="previewQueue" [(ngModel)]="previewQueue">
+                      <option value="">Skills only</option>
+                      @for (queue of editor.rulePreview.queues; track queue.uid) {
+                        <option [value]="queue.uid">{{ queue.name }}</option>
+                      }
+                    </select></label
+                  >
+                </div>
+                <p class="rule-result" role="status">{{ ruleMatch }}</p>
+              }
+            </section>
+          }
+        </div>
+        <footer class="editor-footer">
+          @if (editor.canChange) {
+            <button class="button primary" type="submit" [disabled]="saving">
+              {{ saving ? "Saving…" : "Save changes" }}
+            </button>
+          }
+          @if (dirty) {
+            <span class="help">Unsaved changes</span>
+          }
+          @if (editor.canDelete) {
+            <button
+              class="button danger-text"
+              type="button"
+              [disabled]="editor.deleteImpact?.blocked"
+              (click)="remove()"
+            >
+              Delete
+            </button>
+          }
+        </footer>
+      </form>
+    </section>
+  }
+</div>

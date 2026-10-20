@@ -60,6 +60,29 @@ say "Checking the production configuration"
 "$python" -c "import django; django.setup()" || fail "production settings refused to load — fix the values it listed"
 "$python" manage.py check --deploy --fail-level ERROR
 
+# The compiled SPA is served by Django at /app/ on the existing origin.
+# Build before touching services; a failure leaves the running release alone.
+if [ -f frontend/package-lock.json ]; then
+  say "Building the Angular workspace"
+  command -v npm >/dev/null 2>&1 || fail "Node.js 22.23+ and npm are required to build frontend/"
+  # Keep the previous compiled UI too: git checkout does not restore ignored dist/.
+  frontend_backup="$(mktemp -d "${TMPDIR:-/tmp}/algodial-frontend.XXXXXX")"
+  if [ -d frontend/dist ]; then cp -a frontend/dist "$frontend_backup/dist"; fi
+  cleanup_frontend() {
+    result=$?
+    trap - EXIT
+    if [ "$result" -ne 0 ]; then
+      rm -rf -- "$APP_DIR/frontend/dist"
+      if [ -d "$frontend_backup/dist" ]; then cp -a "$frontend_backup/dist" "$APP_DIR/frontend/dist"; fi
+    fi
+    rm -rf -- "$frontend_backup"
+    exit "$result"
+  }
+  trap cleanup_frontend EXIT
+  npm ci --prefix frontend --legacy-peer-deps --ignore-scripts
+  npm run build --prefix frontend
+fi
+
 # ── 5+6. Static files, schema, catalogues ───────────────────────────────────
 say "Collecting static files"
 "$python" manage.py collectstatic --no-input --clear --verbosity 0

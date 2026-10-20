@@ -1,0 +1,57 @@
+:host {
+  display: block;
+  max-width: 100%;
+}
+
+.ad-skeleton {
+  display: block;
+  max-width: 100%;
+  border-radius: var(--radius-chip);
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-hover) 0,
+    var(--color-surface-muted) 40px,
+    var(--color-surface-hover) 80px
+  );
+  background-size: 960px 100%;
+  animation: ad-skeleton-shimmer 1.4s linear infinite;
+
+  &--title {
+    border-radius: 8px;
+  }
+
+  &--block {
+    border-radius: var(--radius-menu);
+  }
+
+  &--circle {
+    border-radius: 50%;
+    aspect-ratio: 1 / 1;
+  }
+
+  &--pill {
+    border-radius: 999px;
+  }
+
+  &__stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+@keyframes ad-skeleton-shimmer {
+  from {
+    background-position: -480px 0;
+  }
+  to {
+    background-position: 480px 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ad-skeleton {
+    animation: none;
+    background: var(--color-surface-hover);
+  }
+}

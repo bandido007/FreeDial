@@ -1,0 +1,29 @@
+<div
+  class="scc-segmented"
+  role="radiogroup"
+  [class.scc-segmented--sm]="size === 'sm'"
+  [class.scc-segmented--full]="fullWidth"
+  [attr.aria-label]="ariaLabel || null"
+  [attr.aria-disabled]="disabled ? 'true' : null"
+>
+  @for (option of options; track $index) {
+    <button
+      #optionButton
+      type="button"
+      role="radio"
+      class="scc-segmented__option"
+      [class.scc-segmented__option--checked]="isChecked(option)"
+      [attr.aria-checked]="isChecked(option)"
+      [tabindex]="tabIndexFor($index)"
+      [disabled]="isDisabled(option)"
+      (click)="select(option)"
+      (keydown)="onKeydown($event, $index)"
+      (blur)="onBlur()"
+    >
+      @if (option.icon) {
+        <mat-icon class="material-icons-outlined scc-segmented__icon">{{ option.icon }}</mat-icon>
+      }
+      <span class="scc-segmented__label">{{ option.label }}</span>
+    </button>
+  }
+</div>

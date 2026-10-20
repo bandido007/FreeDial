@@ -29,7 +29,7 @@ from graphql import GraphQLSchema, parse, validate
 DOC_SUFFIXES = (".graphql.ts", ".queries.ts", ".mutations.ts", ".fragments.ts")
 ENV_FRONTEND_DIR = "FRONTEND_APP_DIR"
 
-_CONST_RE = re.compile(r"(?:export\s+)?const\s+(\w+)\s*(?::\s*string)?\s*=\s*`([^`]*)`", re.S)
+_CONST_RE = re.compile(r"(?:export\s+)?const\s+(\w+)\s*(?::\s*string)?\s*=\s*(?:gql\s*)?`([^`]*)`", re.S)
 _IMPORT_RE = re.compile(r"import\s*\{([^}]*)\}\s*from\s*['\"]([^'\"]+)['\"]")
 _INTERP_RE = re.compile(r"\$\{\s*(\w+)\s*\}")
 _MAX_RESOLVE_PASSES = 8
@@ -51,7 +51,8 @@ class FrontendDocument:
 def default_frontend_dir() -> Path:
     """``src/app`` of the frontend checkout.
 
-    :data:`ENV_FRONTEND_DIR` names it explicitly. Without it, the sibling
+    :data:`ENV_FRONTEND_DIR` names it explicitly. Without it, the repository's
+    ``frontend/src/app`` is preferred. Then the sibling
     folder ``<backend-folder-name with "backend" → "frontend">`` is tried, then
     a plain ``frontend`` sibling (CI checks the repos out side by side).
     """
@@ -59,6 +60,9 @@ def default_frontend_dir() -> Path:
     if override:
         return Path(override).expanduser().resolve()
     backend_root = Path(__file__).resolve().parents[2]
+    local = backend_root / "frontend" / "src" / "app"
+    if local.is_dir():
+        return local
     sibling = backend_root.name.replace("backend", "frontend")
     for name in (sibling, "frontend"):
         candidate = backend_root.parent / name / "src" / "app"

@@ -10,7 +10,7 @@ PATTERN = re.compile(r"(.+)-(light|dark)-(1366x768|1920x1080)\.png$")
 
 def build():
     cards = []
-    for workspace in ("agentdesk", "supervisor", "management"):
+    for workspace in ("angular", "agentdesk", "supervisor", "management"):
         for path in sorted((ROOT / workspace).glob("*.png")):
             match = PATTERN.fullmatch(path.name)
             if not match:
@@ -21,7 +21,7 @@ def build():
             full = path.with_stem(path.stem + "-full")
             extra = (
                 f'<a href="{html.escape(full.relative_to(ROOT).as_posix(), quote=True)}">Entire form</a>'
-                if full.exists()
+                if full.exists() and full.stat().st_mtime >= path.stat().st_mtime
                 else ""
             )
             cards.append(
@@ -44,7 +44,7 @@ img{display:block;width:100%;height:auto;border:1px solid #7a8688}article p a{ma
 [hidden]{display:none!important}:focus-visible{outline:3px solid #2e6e73;outline-offset:3px}
 </style></head><body><h1>AlgoDial production UI</h1>
 <p>Demo-centre screenshots of the implemented pages. Open an original PNG for readable controls, or the entire form for long management pages.</p>
-<div class="filters"><label>Workspace <select id="workspace"><option value="">All</option><option value="agentdesk">Agent</option><option value="supervisor">Supervisor</option><option value="management">Management</option></select></label>
+<div class="filters"><label>Workspace <select id="workspace"><option value="angular">Angular</option><option value="">All</option><option value="agentdesk">Agent</option><option value="supervisor">Supervisor</option><option value="management">Management</option></select></label>
 <label>Theme <select id="theme"><option value="light">Light</option><option value="dark">Dark</option></select></label>
 <label>Viewport <select id="size"><option>1366x768</option><option>1920x1080</option></select></label></div>
 <p id="count" role="status"></p><main>"""

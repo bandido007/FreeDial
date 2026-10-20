@@ -111,6 +111,7 @@ type = "layers"
 ignore_imports = ["apps.**.tests.** -> apps.**"]
 unmatched_ignore_imports_alerting = "none"
 layers = [
+    "apps.workspace",  # Angular adapts the existing pages and service policies
     "apps.setup",  # project: the setup guide reads every setup area
     "apps.supervisor",  # project: uses the agent page's phone types, and reports' measures (its dashboard)
     "apps.reports",  # project

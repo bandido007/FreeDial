@@ -1,0 +1,1343 @@
+ad-agent{display:block}ad-agent .desk-runtime{
+* {
+  box-sizing: border-box;
+}
+& {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font:
+    15px/1.45 Atkinson,
+    system-ui,
+    sans-serif;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+button,
+a,
+select {
+  touch-action: manipulation;
+}
+button,
+.button {
+  min-height: 36px;
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 6px 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--ink);
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+button:hover,
+.button:hover {
+  background: var(--paper);
+}
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+h1 {
+  font-size: 24px;
+  font-weight: 600;
+}
+h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.muted,
+small {
+  color: var(--muted);
+}
+small {
+  font-size: 13px;
+}
+.num,
+time {
+  font-variant-numeric: tabular-nums;
+}
+.primary {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.primary:hover {
+  background: var(--accent);
+  filter: brightness(0.92);
+}
+.danger {
+  color: var(--notready);
+  border-color: var(--notready);
+}
+.top {
+  height: 64px;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.brand strong {
+  font-size: 20px;
+  font-weight: 700;
+}
+.brand small {
+  border-left: 1px solid var(--line);
+  padding-left: 12px;
+}
+/* The logo (UI_DESIGN.md, "Logo"): the symbol in --accent, the word in --ink. The gap is the
+   bead's diameter (x, 28% of the symbol); never smaller than 24 px on screen. */
+.ui-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.ui-logo-symbol {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.ui-logo-large {
+  display: flex;
+  gap: 11px;
+}
+.ui-logo-large .ui-logo-symbol {
+  width: 40px;
+  height: 40px;
+}
+.ui-logo-ring,
+.ui-logo-needle {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 4;
+}
+.ui-logo-ring {
+  stroke-linecap: butt;
+}
+.ui-logo-needle {
+  stroke-linecap: round;
+}
+.ui-logo-dot {
+  fill: currentColor;
+  stroke: none;
+}
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.language {
+  display: flex;
+  gap: 0;
+}
+.language button {
+  border-radius: 0;
+  min-width: 36px;
+  padding: 4px 8px;
+}
+.language button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.language button:last-child {
+  border-radius: 0 6px 6px 0;
+  border-left: 0;
+}
+.language .selected {
+  background: var(--ink);
+  color: var(--surface);
+}
+.statebar {
+  background: var(--state);
+  color: var(--state-ink);
+  padding: 20px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 112px;
+}
+.state-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.state-main > svg {
+  width: 28px;
+  height: 28px;
+}
+.state-title {
+  font-size: 24px;
+  font-weight: 600;
+}
+.state-main small {
+  color: inherit;
+}
+.state-time {
+  font-size: 32px;
+  margin-left: 16px;
+}
+.statebar button {
+  background: transparent;
+  color: inherit;
+  border-color: currentColor;
+}
+.state-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+/* The next step the agent should take ("Go Ready") is filled, so it reads as a button. */
+.statebar .state-action.cta {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--surface);
+}
+.state-action .caret {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.state-load {
+  border-left: 1px solid currentColor;
+  padding-left: 24px;
+  margin-left: auto;
+}
+.state-load p {
+  font-weight: 600;
+}
+.phone-health {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.workspace {
+  margin: 24px 32px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  grid-template-columns: 35% minmax(0, 1fr) 260px;
+  min-height: 470px;
+}
+.zone {
+  padding: 24px;
+  min-width: 0;
+}
+.zone + .zone {
+  border-left: 1px solid var(--line);
+}
+.caller {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 8px 0;
+}
+.metadata {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 12px 0 24px;
+}
+.tag {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.call-time {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0;
+}
+.call-time time {
+  font-size: 32px;
+}
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 24px;
+}
+.controls button {
+  min-height: 44px;
+  justify-content: flex-start;
+}
+.controls kbd {
+  margin-left: auto;
+}
+.controls .danger {
+  grid-column: 1/-1;
+}
+kbd {
+  font:
+    13px Atkinson,
+    system-ui;
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  opacity: 0.85;
+}
+.summary {
+  border-left: 3px solid var(--accent);
+  padding-left: 16px;
+  margin: 16px 0 24px;
+  font-size: 18px;
+  line-height: 1.5;
+}
+.context-meta {
+  display: flex;
+  gap: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 24px;
+}
+.context-meta strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 15px;
+}
+.field {
+  display: block;
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+.field small {
+  font-weight: 400;
+  display: block;
+  margin: 4px 0 8px;
+}
+textarea,
+select,
+input {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--control-border);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+textarea {
+  height: 128px;
+  resize: vertical;
+  font-weight: 400;
+}
+.note-hint {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+.queues {
+  width: 100%;
+  border-collapse: collapse;
+}
+.queues td,
+.queues th {
+  text-align: left;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-weight: 400;
+}
+.queues th {
+  font-size: 13px;
+  color: var(--muted);
+}
+.queues td:not(:first-child),
+.queues th:not(:first-child) {
+  text-align: right;
+}
+.day {
+  margin-top: 32px;
+}
+.day > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+.day strong {
+  font-weight: 600;
+}
+.empty {
+  padding: 36px 0 24px;
+}
+.empty > svg {
+  width: 36px;
+  height: 36px;
+  color: var(--state);
+  margin-bottom: 20px;
+}
+.empty h1 {
+  margin-bottom: 12px;
+}
+.empty p {
+  max-width: 340px;
+  margin-bottom: 24px;
+}
+.empty .phone-health {
+  margin-top: 24px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.quiet-context {
+  margin-top: 40px;
+  max-width: 340px;
+}
+.quiet-context p {
+  margin-top: 12px;
+}
+.offer {
+  margin: 24px 32px 0;
+  background: var(--surface);
+  border: 1px solid var(--offered);
+  border-radius: 10px;
+  padding: 20px 24px;
+  box-shadow: 0 4px 14px #0002;
+  display: grid;
+  grid-template-columns: 35% 1fr auto;
+  gap: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.offer h2 {
+  margin-bottom: 4px;
+}
+.offer p {
+  max-width: 650px;
+}
+.offer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+/* A desk phone: what to do on the phone itself (answer, hang up, mute, digits). */
+.phone-hint {
+  margin: 0;
+  font-weight: 650;
+}
+.controls .phone-hint {
+  grid-column: 1 / -1;
+}
+.offer .progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 67%;
+  height: 4px;
+  background: var(--offered);
+}
+.offer + .workspace {
+  min-height: 360px;
+}
+.offer + .workspace .empty {
+  padding-top: 12px;
+}
+.offer + .workspace textarea {
+  height: 96px;
+}
+.transfer-leg {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.transfer-leg h3 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.transfer-leg p {
+  margin-top: 8px;
+}
+.transfer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+.transfer-actions button {
+  min-height: 44px;
+}
+.notice {
+  border-left: 3px solid var(--offline);
+  padding-left: 16px;
+  margin: 20px 0;
+}
+.bottom {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 32px 20px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.superbar {
+  background: var(--accent);
+  color: var(--surface);
+  padding: 24px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.superbar select {
+  width: 300px;
+  background: transparent;
+  color: inherit;
+  border-color: currentColor;
+  font-size: 18px;
+  font-weight: 600;
+}
+.metrics {
+  display: flex;
+  gap: 40px;
+}
+.metrics strong {
+  display: block;
+  font-size: 28px;
+  font-weight: 600;
+}
+.queue-strip {
+  margin: 24px 32px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 20px 0;
+  gap: 24px;
+}
+.queue-strip > div + div {
+  border-left: 1px solid var(--line);
+  padding-left: 24px;
+}
+.queue-strip h2 {
+  margin-bottom: 8px;
+}
+.queue-strip p {
+  display: flex;
+  gap: 24px;
+}
+.over {
+  color: var(--notready);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  margin-top: 8px;
+}
+.team-panel {
+  margin: 24px 32px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 24px;
+}
+.team-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.team-heading h2 {
+  margin-bottom: 4px;
+}
+.team {
+  width: 100%;
+  border-collapse: collapse;
+}
+.team th {
+  text-align: left;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 400;
+  padding: 12px;
+}
+.team td {
+  padding: 20px 12px;
+  border-top: 1px solid var(--line);
+  vertical-align: top;
+}
+.team td:first-child {
+  font-weight: 600;
+}
+.team td small {
+  display: block;
+  margin-top: 4px;
+  font-weight: 400;
+}
+.state-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--row-state);
+  font-weight: 600;
+}
+.row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.row-actions button {
+  font-size: 13px;
+  padding: 6px 10px;
+}
+.monitor-bar {
+  margin: 24px 32px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+}
+.monitor-bar strong {
+  margin-right: auto;
+}
+.gallery {
+  max-width: 1200px;
+  margin: 48px auto;
+  padding: 0 24px;
+}
+.gallery h1 {
+  font-size: 32px;
+  margin: 16px 0;
+}
+.gallery p {
+  margin-bottom: 24px;
+}
+.gallery table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+.gallery td,
+.gallery th {
+  border: 1px solid var(--line);
+  padding: 12px;
+  text-align: left;
+}
+.gallery a {
+  color: var(--accent);
+}
+.gallery .links {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.review-note {
+  padding: 16px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  margin-bottom: 32px;
+}
+.review-note p {
+  margin: 0;
+}
+.gallery h2 {
+  margin-top: 32px;
+}
+.gallery figure {
+  margin: 16px 0;
+}
+.gallery img {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.gallery figcaption {
+  font-size: 13px;
+  color: var(--muted);
+}
+@media (min-width: 1600px) {
+  .workspace {
+    grid-template-columns: 35% minmax(0, 1fr) 320px;
+    min-height: 650px;
+  }
+  .zone {
+    padding: 32px;
+  }
+  .top,
+  .statebar {
+    padding-left: 48px;
+    padding-right: 48px;
+  }
+  .workspace,
+  .offer,
+  .queue-strip,
+  .team-panel,
+  .monitor-bar {
+    margin-left: 48px;
+    margin-right: 48px;
+  }
+  .summary {
+    max-width: 650px;
+  }
+  textarea {
+    height: 220px;
+  }
+  .offer + .workspace {
+    min-height: 530px;
+  }
+  .offer + .workspace textarea {
+    height: 180px;
+  }
+  .bottom {
+    margin-left: 48px;
+    margin-right: 48px;
+  }
+  .team td {
+    padding-top: 28px;
+    padding-bottom: 28px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media (max-height: 800px) {
+  &[data-page="incoming"] .top {
+    height: 56px;
+  }
+  &[data-page="incoming"] .statebar {
+    min-height: 96px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  &[data-page="incoming"] .offer {
+    margin-top: 12px;
+    padding: 12px 20px;
+    gap: 16px;
+  }
+  &[data-page="incoming"] .offer h2 {
+    font-size: 15px;
+  }
+  &[data-page="incoming"] .offer h1 {
+    font-size: 24px;
+  }
+  &[data-page="incoming"] .workspace {
+    margin-top: 12px;
+    margin-bottom: 12px;
+    min-height: 330px;
+  }
+  &[data-page="incoming"] .zone {
+    padding: 16px;
+  }
+  &[data-page="incoming"] h2 {
+    margin-bottom: 12px;
+  }
+  &[data-page="incoming"] .queues td,
+  &[data-page="incoming"] .queues th {
+    padding: 6px 0;
+  }
+  &[data-page="incoming"] .day {
+    margin-top: 16px;
+  }
+  &[data-page="incoming"] .day > div {
+    padding: 4px 0;
+  }
+  &[data-page="incoming"] .zone > p {
+    margin-top: 16px !important;
+  }
+  &[data-page="incoming"] .bottom {
+    margin-bottom: 8px;
+  }
+}
+@media (max-height: 800px) {
+  .summary {
+    font-size: 15px;
+    margin: 12px 0 16px;
+  }
+  .context-meta {
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+    gap: 16px;
+  }
+  .workspace h2 {
+    margin-bottom: 16px;
+  }
+  .workspace textarea {
+    height: 96px;
+  }
+  .workspace .field {
+    margin-bottom: 12px;
+  }
+  .team td {
+    padding: 16px 12px;
+  }
+  .team-panel {
+    padding: 20px 24px;
+  }
+  .queue-strip {
+    margin-top: 20px;
+    margin-bottom: 20px;
+  }
+}
+@media (max-height: 800px) {
+  &[data-page="supervisor"] .superbar {
+    padding: 16px 32px;
+  }
+  &[data-page="supervisor"] .queue-strip {
+    padding: 12px 0;
+    margin: 16px 32px;
+    gap: 16px;
+  }
+  &[data-page="supervisor"] .queue-strip > div + div {
+    padding-left: 16px;
+  }
+  &[data-page="supervisor"] .team-panel {
+    margin: 16px 32px;
+    padding: 16px 20px;
+  }
+  &[data-page="supervisor"] .team-heading {
+    margin-bottom: 8px;
+  }
+  &[data-page="supervisor"] .team th {
+    padding: 8px;
+  }
+  &[data-page="supervisor"] .team td {
+    padding: 12px 8px;
+  }
+  &[data-page="supervisor"] .row-actions {
+    gap: 4px;
+  }
+  &[data-page="supervisor"] .row-actions button {
+    padding: 4px 8px;
+  }
+  &[data-page="supervisor"] .monitor-bar {
+    margin-top: 16px;
+    padding: 8px 16px;
+  }
+  &[data-page="supervisor"] .bottom {
+    margin-bottom: 8px;
+  }
+}
+@media (max-height: 800px) {
+  &[data-page="supervisor"] .superbar > div:first-child {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  &[data-page="supervisor"] .superbar label {
+    margin: 0 !important;
+  }
+  &[data-page="supervisor"] .team td {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  &[data-page="supervisor"] .team-panel > small {
+    margin-top: 8px !important;
+  }
+  &[data-page="supervisor"] .queue-strip small {
+    font-size: 12px;
+  }
+}
+@media (max-height: 800px) {
+  &[data-page="supervisor"] .queue-strip {
+    padding: 8px 0;
+    margin-top: 12px;
+    margin-bottom: 12px;
+  }
+  &[data-page="supervisor"] .team-panel {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  &[data-page="supervisor"] .bottom {
+    margin-bottom: 4px;
+  }
+}
+@media (max-height: 800px) {
+  &[data-page="supervisor"] .monitor-bar {
+    padding: 4px 12px;
+    margin-top: 8px;
+  }
+  &[data-page="supervisor"] .monitor-bar + .team-panel {
+    margin-top: 8px;
+  }
+  &[data-page="supervisor"] .metrics strong {
+    font-size: 24px;
+  }
+  &[data-page="supervisor"] .superbar {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+}
+@media (min-width: 1600px) {
+  &[data-page="supervisor"] .team td {
+    padding-top: 20px;
+    padding-bottom: 20px;
+  }
+}
+[hidden] {
+  display: none !important;
+}
+.icon-definitions {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+& {
+  --state: var(--notready);
+}
+&[data-state="ready"] {
+  --state: var(--ready);
+}
+&[data-state="incoming"] {
+  --state: var(--offered);
+}
+&[data-state="talking"] {
+  --state: var(--talking);
+}
+&[data-state="transfer"],
+&[data-state="on-hold"] {
+  --state: var(--hold);
+}
+&[data-state="wrap-up"] {
+  --state: var(--wrap);
+}
+&[data-state="phone-problem"] {
+  --state: var(--offline);
+}
+.statebar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+.health {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.health small {
+  color: inherit;
+}
+.state-menu {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 32px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.menu-heading {
+  font-weight: 600;
+}
+.reason-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.notice {
+  margin: 12px 32px;
+  padding: 12px 16px;
+  border-color: var(--notready);
+  background: var(--surface);
+}
+.error {
+  color: var(--notready);
+}
+.signin-panel {
+  width: min(440px, calc(100% - 32px));
+  margin: 10vh auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 32px;
+}
+.signin-panel h1 {
+  margin-bottom: 8px;
+}
+.signin-panel p {
+  margin-bottom: 24px;
+}
+.signin-panel input {
+  margin-top: 8px;
+}
+.signin-panel button {
+  min-height: 44px;
+}
+.signin-panel .error {
+  margin-top: 16px;
+}
+.ring-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  border: 0;
+  border-radius: 0;
+  appearance: none;
+  background: transparent;
+}
+.ring-progress::-webkit-progress-bar {
+  background: transparent;
+}
+.ring-progress::-webkit-progress-value {
+  background: var(--offered);
+}
+.ring-progress::-moz-progress-bar {
+  background: var(--offered);
+}
+.wrapup-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+.wrapup-actions label,
+.wrapup-actions select {
+  width: 100%;
+}
+.wrapup-actions select {
+  max-width: 260px;
+}
+.wrapup-actions small {
+  width: 100%;
+  color: var(--muted);
+}
+#wrapup-code {
+  margin-bottom: 16px;
+}
+#wrapup-search {
+  margin-bottom: 8px;
+}
+.transfer-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 16px;
+}
+.transfer-form label {
+  font-size: 13px;
+}
+.transfer-form select,
+.transfer-form input {
+  grid-column: 1/-1;
+}
+.transfer-form label:nth-of-type(2) {
+  grid-column: 1/-1;
+}
+.transfer-form button {
+  grid-column: 1/-1;
+}
+.keypad {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+.keypad input {
+  width: 160px;
+}
+.keypad label {
+  width: 100%;
+}
+.diagnostics {
+  position: relative;
+}
+.diagnostics ol {
+  position: absolute;
+  right: 0;
+  bottom: 28px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  width: 420px;
+  max-height: 250px;
+  overflow: auto;
+  padding: 16px 16px 16px 32px;
+  z-index: 4;
+}
+.diagnostics time {
+  margin-right: 8px;
+}
+#notes-zone {
+  margin-top: 20px;
+}
+#ai-reason {
+  display: block;
+  margin-bottom: 16px;
+}
+#wrapup:not([hidden]) ~ #notes-zone textarea {
+  height: 96px;
+}
+.offer:not([hidden]) {
+  animation: offer-in 0.18s ease-out;
+}
+#call-controls:has(#hold[hidden]):has(#resume[hidden]) {
+  grid-template-columns: 1fr 1fr;
+}
+.bottom {
+  min-height: 20px;
+  gap: 24px;
+}
+@keyframes offer-in {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@media (max-height: 800px) {
+  &[data-page="incoming"] .workspace {
+    min-height: 330px;
+  }
+  &[data-state="wrap-up"] .workspace {
+    min-height: 470px;
+  }
+  #notes-zone {
+    margin-top: 12px;
+  }
+  .wrapup-actions {
+    margin-top: 12px;
+    gap: 8px;
+  }
+  #wrapup-code {
+    margin-bottom: 8px;
+  }
+  #ai-reason {
+    margin-bottom: 8px;
+  }
+  .transfer-form {
+    margin-top: 12px;
+  }
+  .transfer-form select {
+    padding: 6px 10px;
+  }
+  &:has(.transfer-form:not([hidden])) .metadata,
+  &:has(.transfer-form:not([hidden])) .call-time {
+    margin-top: 12px;
+    margin-bottom: 12px;
+  }
+  &:has(.transfer-form:not([hidden])) .controls {
+    margin-top: 12px;
+  }
+  .transfer-form {
+    grid-template-columns: 1fr 1fr;
+  }
+  .transfer-form label {
+    grid-column: auto !important;
+  }
+  .transfer-form select,
+  .transfer-form input {
+    grid-column: auto;
+  }
+  .transfer-form #transfer-agent,
+  .transfer-form #transfer-queue,
+  .transfer-form #transfer-number {
+    grid-column: 1/-1;
+  }
+}
+@media (max-width: 1000px) {
+  .top {
+    padding: 12px 16px;
+    height: auto;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .top-actions {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .statebar {
+    padding: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .state-load {
+    margin-left: 0;
+  }
+  .workspace {
+    margin: 16px;
+    grid-template-columns: 1fr 1fr;
+  }
+  .workspace aside {
+    grid-column: 1/-1;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .offer {
+    margin: 16px;
+    grid-template-columns: 1fr 1fr;
+  }
+  .offer-actions {
+    grid-column: 1/-1;
+  }
+  .state-menu {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 640px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+  .zone + .zone {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .offer {
+    grid-template-columns: 1fr;
+  }
+  .brand small {
+    display: none;
+  }
+  .state-time {
+    margin-left: 0;
+  }
+  .state-title {
+    font-size: 18px;
+  }
+  .bottom {
+    margin: 16px;
+    flex-wrap: wrap;
+  }
+}
+.controls:has(#transfer-toggle[hidden]) .danger {
+  grid-column: auto;
+}
+@media (max-height: 800px) {
+  &[data-state="wrap-up"] .zone:nth-child(2) {
+    padding-top: 20px;
+    padding-bottom: 20px;
+  }
+  &[data-state="wrap-up"] #wrapup-search {
+    padding: 6px 10px;
+  }
+  &[data-state="wrap-up"] #wrapup-code {
+    padding: 6px 10px;
+  }
+  &[data-state="wrap-up"] #notes {
+    height: 64px;
+  }
+  &[data-state="wrap-up"] .wrapup-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+  }
+  &[data-state="wrap-up"] .wrapup-actions label {
+    font-size: 13px;
+  }
+  &[data-state="wrap-up"] .wrapup-actions select {
+    padding: 6px 10px;
+  }
+  &[data-state="wrap-up"] .wrapup-actions small {
+    grid-column: 1/-1;
+  }
+  &[data-state="wrap-up"] .wrapup-actions button {
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+  &[data-state="transfer"] .transfer-leg {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+}
+@media (max-height: 800px) {
+  &[data-state="wrap-up"] .bottom {
+    margin-bottom: 8px;
+  }
+}
+.diagnostics .recovery {
+  position: absolute;
+  right: 0;
+  bottom: 28px;
+  background: var(--surface);
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  padding: 16px;
+  width: 420px;
+  z-index: 4;
+}
+.recovery textarea {
+  margin: 12px 0;
+  height: 160px;
+}
+.bottom #unsaved-notes {
+  margin-left: auto;
+}
+
+/* UX_PRINCIPLES.md section 5: the AI can be wrong, and the agent can say so. */
+.ai-feedback {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.ai-feedback button {
+  font-size: 13px;
+  min-height: 32px;
+}
+/* Section 4: the last wrap-up code stays correctable for 2 minutes. */
+.last-wrap {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.last-wrap p,
+.last-wrap small {
+  flex-basis: 100%;
+}
+
+}

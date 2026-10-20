@@ -1,0 +1,319 @@
+/* Selected SCC semantic design tokens. */
+:root {
+  /* Typography */
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: var(--font-sans);
+
+  --text-base: text-md;
+
+  /* Raw palette: lake (brand blue) */
+  --color-lake-50: #eef6fc;
+  --color-lake-100: #d6e9f7;
+  --color-lake-200: #add3ef;
+  --color-lake-300: #7db8e3;
+  --color-lake-400: #52a0d6;
+  --color-lake-500: #338ecb;
+  --color-lake-600: #1f72ae;
+  --color-lake-700: #1a5c8d;
+  --color-lake-800: #174a70;
+  --color-lake-900: #133b59;
+
+  /* Raw palette: signal (green) */
+  --color-signal-50: #ecf8ef;
+  --color-signal-100: #cdedd5;
+  --color-signal-500: #3da858;
+  --color-signal-700: #217a3b;
+
+  /* Raw palette: sun (yellow) */
+  --color-sun-50: #fefae6;
+  --color-sun-100: #fbf0b5;
+  --color-sun-400: #f2dc5d;
+  --color-sun-800: #6b5a00;
+
+  /* Raw palette: slate (neutrals) */
+  --color-slate-0: #ffffff;
+  --color-slate-25: #f7f9fc;
+  --color-slate-50: #f1f4f9;
+  --color-slate-100: #e4e9f1;
+  --color-slate-200: #cbd4e1;
+  --color-slate-300: #a9b5c7;
+  --color-slate-400: #8693a8;
+  --color-slate-500: #66738a;
+  --color-slate-600: #4b5870;
+  --color-slate-700: #36425a;
+  --color-slate-800: #232d42;
+  --color-slate-900: #141b2e;
+
+  /* Raw palette: danger (red) and amber */
+  --color-danger-50: #fdecec;
+  --color-danger-100: #f6c4c4;
+  --color-danger-500: #c62f2f;
+  --color-danger-700: #a32424;
+
+  --color-amber-50: #fff4db;
+  --color-amber-500: #e0a100;
+  --color-amber-700: #a15c00;
+
+  /* Semantic tokens - LIGHT values (dark values below) */
+  --color-canvas: #eef2f7;
+  --color-canvas-dot: #d5dde8;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-surface-muted: #f7f9fc;
+  --color-surface-hover: #f1f4f9;
+  --color-line: #e4e9f1;
+  --color-line-strong: #cbd4e1;
+  --color-fg: #141b2e;
+  --color-fg-secondary: #36425a;
+  --color-fg-muted: #66738a;
+  --color-fg-disabled: #a9b5c7;
+  --color-brand: #1f72ae;
+  --color-brand-hover: #1a5c8d;
+  --color-on-brand: #ffffff;
+  --color-brand-soft: #eef6fc;
+  --color-brand-soft-fg: #1a5c8d;
+  --color-focus: #1f72ae;
+  --color-focus-halo: #d6e9f7;
+  --color-success: #3da858;
+  --color-success-soft: #ecf8ef;
+  --color-success-strong: #217a3b;
+  --color-caution: #e0a100;
+  --color-caution-soft: #fff4db;
+  --color-caution-strong: #a15c00;
+  --color-danger: #c62f2f;
+  --color-danger-hover: #a32424;
+  --color-danger-soft: #fdecec;
+  --color-danger-strong: #c62f2f;
+  --color-on-danger: #ffffff; /* text on danger fills */
+  --color-count: #fbf0b5;
+  --color-count-fg: #6b5a00;
+  --color-inverse: #141b2e;
+  --color-on-inverse: #ffffff;
+  --color-backdrop: rgba(20, 27, 46, 0.4);
+
+  /* Elevation */
+  --shadow-shell: 0 1px 2px rgba(20, 27, 46, 0.06), 0 4px 12px rgba(20, 27, 46, 0.06);
+  --shadow-overlay: 0 12px 32px rgba(20, 27, 46, 0.14);
+  --shadow-dialog: 0 24px 64px rgba(20, 27, 46, 0.28);
+
+  /* Radii */
+  --radius-chip: 6px;
+  --radius-control: 10px;
+  --radius-menu: 12px;
+  --radius-card: 16px;
+  --radius-dialog: 20px;
+  --radius-shell: 24px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Back-compat scales used by existing templates (new values) */
+  --color-primary-50: #eef6fc;
+  --color-primary-100: #d6e9f7;
+  --color-primary-200: #add3ef;
+  --color-primary-300: #7db8e3;
+  --color-primary-400: #52a0d6;
+  --color-primary-500: #338ecb;
+  --color-primary-600: #1f72ae;
+  --color-primary-700: #1a5c8d;
+  --color-primary-800: #174a70;
+  --color-primary-900: #133b59;
+  --color-primary: #1f72ae;
+
+  --color-secondary-50: #fefae6;
+  --color-secondary-100: #fbf0b5;
+  --color-secondary-200: #f8e78a;
+  --color-secondary-300: #f5e070;
+  --color-secondary-400: #f2dc5d;
+  --color-secondary-500: #e3c93f;
+  --color-secondary-600: #c4ab25;
+  --color-secondary-700: #9c8714;
+  --color-secondary-800: #6b5a00;
+  --color-secondary-900: #4a3e00;
+  --color-secondary: #f2dc5d;
+
+  --color-accent-50: #eef6fc;
+  --color-accent-100: #d6e9f7;
+  --color-accent-200: #add3ef;
+  --color-accent-300: #7db8e3;
+  --color-accent-400: #52a0d6;
+  --color-accent-500: #338ecb;
+  --color-accent-600: #1f72ae;
+  --color-accent-700: #1a5c8d;
+  --color-accent-800: #174a70;
+  --color-accent-900: #133b59;
+  --color-accent: #338ecb;
+  --color-info: #1f72ae;
+
+  /* Legacy "warning" has always meant RED in this codebase; kept as a danger alias.
+     New code uses the `caution` (amber) and `danger` semantic tokens. */
+  --color-warning-50: #fdecec;
+  --color-warning-100: #f6c4c4;
+  --color-warning-200: #ee9d9d;
+  --color-warning-300: #e57373;
+  --color-warning-400: #d94f4f;
+  --color-warning-500: #c62f2f;
+  --color-warning-600: #b52929;
+  --color-warning-700: #a32424;
+  --color-warning-800: #8a1e1e;
+  --color-warning-900: #6e1818;
+  --color-warning: #c62f2f;
+  --color-red: #c62f2f;
+
+  --color-success-50: #ecf8ef;
+  --color-success-100: #cdedd5;
+  --color-success-200: #a6ddb3;
+  --color-success-300: #7acb8e;
+  --color-success-400: #55b96f;
+  --color-success-500: #3da858;
+  --color-success-600: #2f944a;
+  --color-success-700: #217a3b;
+  --color-success-800: #1b6331;
+  --color-success-900: #144a25;
+  --color-success-A100: #a6ddb3;
+  --color-success-A200: #7acb8e;
+  --color-success-A400: #3da858;
+  --color-success-A700: #217a3b;
+
+  --color-gray: #8693a8;
+  --color-gray-transparent: #8693a860;
+  --color-gray-dark: #4b5870;
+  --color-gray-light: #cbd4e1;
+  --color-gray-light-2: #e4e9f1;
+  --color-orange: #e0a100;
+  --color-background-light: #f7f9fc;
+
+  --container-max-width-xxl: 1450px;
+  --container-padding-xxl: 10px;
+}
+:root[data-theme="dark"] {
+  --color-canvas: #0b1020;
+  --color-canvas-dot: #1a2236;
+  --color-surface: #121a2c;
+  --color-surface-raised: #182238;
+  --color-surface-muted: #0f1626;
+  --color-surface-hover: #1c2740;
+  --color-line: #243049;
+  --color-line-strong: #33405c;
+  --color-fg: #e8edf5;
+  --color-fg-secondary: #c4cddb;
+  --color-fg-muted: #8e9ab0;
+  --color-fg-disabled: #5a6680;
+  --color-brand: #52a0d6;
+  --color-brand-hover: #7db8e3;
+  --color-on-brand: #0b1020;
+  --color-brand-soft: rgba(82, 160, 214, 0.16);
+  --color-brand-soft-fg: #add3ef;
+  --color-focus: #7db8e3;
+  --color-focus-halo: rgba(82, 160, 214, 0.3);
+  --color-success: #3da858;
+  --color-success-soft: rgba(61, 168, 88, 0.16);
+  --color-success-strong: #74cd84;
+  --color-caution: #e0a100;
+  --color-caution-soft: rgba(224, 161, 0, 0.16);
+  --color-caution-strong: #f2c14e;
+  --color-danger: #e65757;
+  --color-danger-hover: #eb7474;
+  --color-danger-soft: rgba(230, 87, 87, 0.16);
+  --color-danger-strong: #f19c9c;
+  --color-on-danger: #0b1020;
+  --color-count: rgba(242, 220, 93, 0.18);
+  --color-count-fg: #f2dc5d;
+  --color-inverse: #26324c;
+  --color-on-inverse: #f1f4f9;
+  --color-backdrop: rgba(3, 6, 14, 0.62);
+
+  --shadow-shell: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
+  --shadow-overlay: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.6);
+
+  /*
+     * Dark remap of the Tailwind ramps that feature templates use directly (bg-gray-50, text-primary-700, …).
+     * Neutral ramps invert; tinted 50–200 become translucent washes; 600–900 text shades get lighter.
+     * Design-system code reads semantic tokens and raw lake/slate/signal/sun values, which are not remapped.
+     */
+  --color-gray-50: #141c2f;
+  --color-gray-100: #1a2338;
+  --color-gray-200: #243049;
+  --color-gray-300: #33405c;
+  --color-gray-400: #5a6680;
+  --color-gray-500: #8e9ab0;
+  --color-gray-600: #a9b4c6;
+  --color-gray-700: #c4cddb;
+  --color-gray-800: #dce3ee;
+  --color-gray-900: #e8edf5;
+  --color-gray-950: #f4f7fb;
+  --color-gray: #8e9ab0;
+  --color-gray-dark: #c4cddb;
+  --color-gray-light: #33405c;
+  --color-gray-light-2: #243049;
+  --color-gray-transparent: rgba(142, 154, 176, 0.3);
+  --color-background-light: #0f1626;
+
+  --color-primary-50: rgba(82, 160, 214, 0.1);
+  --color-primary-100: rgba(82, 160, 214, 0.18);
+  --color-primary-200: rgba(82, 160, 214, 0.28);
+  --color-primary-300: #2f6e9c;
+  --color-primary-400: #3e86bc;
+  --color-primary-500: #52a0d6;
+  --color-primary-600: #5fa9db;
+  --color-primary-700: #7db8e3;
+  --color-primary-800: #add3ef;
+  --color-primary-900: #d6e9f7;
+  --color-primary: #52a0d6;
+  --color-accent-50: rgba(82, 160, 214, 0.1);
+  --color-accent-100: rgba(82, 160, 214, 0.18);
+  --color-accent-200: rgba(82, 160, 214, 0.28);
+  --color-accent-700: #7db8e3;
+  --color-accent-800: #add3ef;
+  --color-accent-900: #d6e9f7;
+  --color-info: #52a0d6;
+  --color-blue-50: rgba(82, 160, 214, 0.1);
+  --color-blue-100: rgba(82, 160, 214, 0.18);
+  --color-blue-700: #7db8e3;
+  --color-blue-800: #add3ef;
+
+  --color-secondary-50: rgba(242, 220, 93, 0.1);
+  --color-secondary-100: rgba(242, 220, 93, 0.18);
+  --color-secondary-200: rgba(242, 220, 93, 0.28);
+  --color-secondary-700: #f5e070;
+  --color-secondary-800: #f8e78a;
+  --color-secondary-900: #fbf0b5;
+  --color-yellow-50: rgba(224, 161, 0, 0.12);
+  --color-yellow-100: rgba(224, 161, 0, 0.2);
+  --color-yellow-700: #f2c14e;
+  --color-yellow-800: #f5d07a;
+  --color-amber-50: rgba(224, 161, 0, 0.12);
+  --color-amber-700: #f2c14e;
+
+  --color-red-50: rgba(230, 87, 87, 0.1);
+  --color-red-100: rgba(230, 87, 87, 0.18);
+  --color-red-200: rgba(230, 87, 87, 0.28);
+  --color-red-500: #e65757;
+  --color-red-600: #eb7474;
+  --color-red-700: #f19c9c;
+  --color-red-800: #f6c4c4;
+  --color-warning-50: rgba(230, 87, 87, 0.1);
+  --color-warning-100: rgba(230, 87, 87, 0.18);
+  --color-warning-200: rgba(230, 87, 87, 0.28);
+  --color-warning-500: #e65757;
+  --color-warning-600: #eb7474;
+  --color-warning-700: #f19c9c;
+  --color-warning-800: #f6c4c4;
+  --color-warning: #e65757;
+  --color-red: #e65757;
+
+  --color-green-50: rgba(61, 168, 88, 0.1);
+  --color-green-100: rgba(61, 168, 88, 0.18);
+  --color-green-200: rgba(61, 168, 88, 0.28);
+  --color-green-600: #55b96f;
+  --color-green-700: #74cd84;
+  --color-green-800: #a6ddb3;
+  --color-success-50: rgba(61, 168, 88, 0.1);
+  --color-success-100: rgba(61, 168, 88, 0.18);
+  --color-success-200: rgba(61, 168, 88, 0.28);
+  --color-success-600: #55b96f;
+  --color-success-700: #74cd84;
+  --color-success-800: #a6ddb3;
+}

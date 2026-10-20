@@ -1,0 +1,9 @@
+dist/
+node_modules/
+.angular/
+src/app/modules/desk/*.controller.js
+src/app/modules/desk/*.component.html
+src/app/modules/desk/agent.scss
+src/app/modules/desk/supervisor.scss
+src/app/modules/desk/supervisor-base.scss
+src/app/modules/desk/desk-ui.js

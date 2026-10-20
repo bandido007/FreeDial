@@ -1,0 +1,151 @@
+.login-layout {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.login-story {
+  background: var(--color-surface-muted);
+  border-right: 1px solid var(--color-line);
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.login-story h1 {
+  font-size: clamp(38px, 4.4vw, 68px);
+  line-height: 1.13;
+  letter-spacing: -2px;
+  margin: 20px 0;
+}
+.login-story p {
+  max-width: 400px;
+  color: var(--color-fg-muted);
+  font-size: 18px;
+}
+.login-proof {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 40px;
+  font-size: 13px;
+  color: var(--color-fg-secondary);
+}
+.login-proof ad-icon {
+  color: var(--color-brand);
+}
+.login-main {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  background: var(--color-surface);
+}
+.login-card {
+  width: 100%;
+  max-width: 400px;
+}
+.login-card > ad-brand {
+  display: none;
+}
+.login-card h1 {
+  font-size: 28px;
+  letter-spacing: -0.8px;
+  line-height: 1.25;
+  margin: 12px 0;
+}
+.login-card form {
+  margin-top: 32px;
+}
+.login-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.login-card input {
+  min-height: 46px;
+}
+.login-card .button {
+  min-height: 46px;
+  margin-top: 8px;
+}
+.login-theme {
+  position: absolute;
+  right: 28px;
+  top: 24px;
+}
+.login-foot {
+  font-size: 13px;
+  text-align: center;
+  color: var(--color-fg-muted);
+  margin-top: 24px;
+}
+.secret {
+  display: block;
+  overflow-wrap: anywhere;
+  margin: 16px 0;
+}
+@media (max-width: 800px) {
+  .login-layout {
+    grid-template-columns: 1fr;
+  }
+  .login-story {
+    display: none;
+  }
+  .login-card > ad-brand {
+    display: inline-flex;
+    margin-bottom: 40px;
+  }
+  .login-main {
+    min-height: 100vh;
+    padding: 28px;
+  }
+}
+
+// The dial motif and deep teal identify AlgoDial before sign-in.
+.login-story {
+  --color-fg: #edf5f2;
+  --color-fg-muted: #c2d7d4;
+  --color-fg-secondary: #d4e5e0;
+  --color-brand: #a0d4d0;
+  position: relative;
+  overflow: hidden;
+  border-right: 0;
+  background: #183f43;
+  color: var(--color-fg);
+}
+.login-story::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  width: 420px;
+  height: 420px;
+  border: 1px solid rgb(212 235 226 / 14%);
+  border-radius: 50%;
+  right: -270px;
+  top: 36%;
+  box-shadow:
+    0 0 0 56px rgb(212 235 226 / 4%),
+    0 0 0 112px rgb(212 235 226 / 3%);
+}
+.login-story > * {
+  position: relative;
+  z-index: 1;
+}
+.login-story h1 {
+  letter-spacing: -1.8px;
+}
+.login-proof {
+  border-top: 1px solid rgb(212 235 226 / 20%);
+  padding-top: 24px;
+}
+.login-card .eyebrow {
+  color: var(--color-brand);
+}
+.login-card h1 {
+  margin-bottom: 12px;
+}

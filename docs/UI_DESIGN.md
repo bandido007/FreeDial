@@ -4,6 +4,17 @@ The spec for every AlgoDial web page: the agent page (M3), the supervisor page (
 admin pages. Read it before writing any HTML, CSS or JS. If something here conflicts with
 habit or a component library default, this document wins.
 
+## Angular migration (19 October 2026)
+
+The user approved an independent Angular frontend using SCC's architecture and design,
+limited to features already present in AlgoDial's templates. Its shell, typography,
+spacing, surfaces, theme tokens and shared controls replace the corresponding original
+visual prescriptions in the new `frontend/` application. The plain-JS constraint applies
+to the original desks. The operational principles, existing call behaviours, branding
+and accessibility requirements below still apply. The
+original templates remain the source for the shared desk controllers during migration.
+See [ANGULAR_FRONTEND.md](ANGULAR_FRONTEND.md) for the implementation and feature map.
+
 ## 1. Who uses it and what that demands
 
 Agents sit on 8-hour shifts, mostly on the phone, on office laptops (many at 1366x768),

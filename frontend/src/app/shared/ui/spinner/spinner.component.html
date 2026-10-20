@@ -1,0 +1,15 @@
+<span
+  class="ad-spinner"
+  [class.ad-spinner--16]="size === 16"
+  [class.ad-spinner--24]="size === 24"
+  [class.ad-spinner--40]="size === 40"
+  [class.ad-spinner--neutral]="tone === 'neutral'"
+  [class.ad-spinner--inverse]="tone === 'inverse'"
+  [class.ad-spinner--hidden]="!visible"
+  role="status"
+  [attr.aria-label]="label | translate"
+>
+  @if (visible) {
+    <span class="ad-spinner__ring" aria-hidden="true"></span>
+  }
+</span>

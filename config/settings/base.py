@@ -128,6 +128,7 @@ PROJECT_APPS: list[str] = [
     "apps.supervisor",
     "apps.reports",
     "apps.setup",
+    "apps.workspace",
     # <scaffold:project-apps>
 ]
 

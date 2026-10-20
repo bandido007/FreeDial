@@ -22,7 +22,9 @@ def _show_toolbar(request):
     buttons (Sign out sits under it) and those pages talk to the API, not to Django templates."""
     from debug_toolbar.middleware import show_toolbar
 
-    return show_toolbar(request) and not request.path.startswith(("/agent/", "/supervisor/"))
+    return show_toolbar(request) and not request.path.startswith(
+        ("/agent/", "/supervisor/", "/app/", "/api/app/")
+    )
 
 
 DEBUG_TOOLBAR_CONFIG = {"SHOW_TOOLBAR_CALLBACK": _show_toolbar}

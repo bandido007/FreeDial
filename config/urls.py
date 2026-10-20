@@ -42,6 +42,7 @@ core_urlpatterns = [
         name="graphql",
     ),
     path("oauth2/", include("apps.authentication.urls")),
+    path("", include("apps.workspace.urls")),
     path("files/", include("apps.attachments.urls")),
     path("", include("apps.agentdesk.urls")),  # project: /agent/, the agent page
     path("", include("apps.calls.urls")),  # project: voicemail messages for callback tasks
@@ -50,6 +51,8 @@ core_urlpatterns = [
 
 
 urlpatterns = list(core_urlpatterns)
+# Stable same-origin mount used by the Angular client.
+urlpatterns.append(path("api/", include((core_urlpatterns, "angular_api"), namespace="angular_api")))
 if settings.API_MOUNT_PREFIX:
     # Wrapped in its own namespace so the second mount does not shadow the
     # first when URLs are reversed.

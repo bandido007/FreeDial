@@ -92,3 +92,11 @@ def test_frontend_documents_match_live_schema():
     assert documents, f"no GraphQL documents found under {app_dir}"
     failures = validate_documents(schema.graphql_schema, documents)
     assert not failures, "Frontend documents drifted from the schema:\n  " + "\n  ".join(failures)
+
+
+def test_gql_tagged_templates_are_checked_too(tmp_path, toy_schema):
+    app = tmp_path / "app"
+    _write(app / "core/query.graphql.ts", "export const Q = gql`query { me { uid unknownField } }`;\n")
+    documents = collect_documents(app)
+    assert len(documents) == 1
+    assert "unknownField" in validate_documents(toy_schema, documents)[0]

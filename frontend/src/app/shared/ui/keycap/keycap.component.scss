@@ -1,0 +1,17 @@
+:host {
+  display: inline-flex;
+}
+
+.ad-keycap {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid var(--color-line-strong);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--color-surface-muted);
+  color: var(--color-fg-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+}

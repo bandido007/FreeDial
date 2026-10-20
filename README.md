@@ -5,6 +5,7 @@ call decision through ARI, and the web app is where people work. AI agents hand 
 to humans by rule.
 
 - **How the project works and the rules that never break:** [CLAUDE.md](CLAUDE.md)
+- **Angular workspace, scope and architecture:** [docs/ANGULAR_FRONTEND.md](docs/ANGULAR_FRONTEND.md)
 - **What gets built, milestone by milestone:** [docs/POC_PLAN.md](docs/POC_PLAN.md)
 
 ## Three parts
@@ -40,6 +41,9 @@ make agentcheck    # the agent page in headless Chrome: sign in, take a call, wr
 
 The agent page is at http://127.0.0.1:8000/agent/ (an agent needs the "Agent" role and an
 Agent record linked to their user).
+
+Build the Angular workspace with `make frontend-build`, then open http://127.0.0.1:8000/app/.
+See [frontend/README.md](frontend/README.md) for development and checks.
 
 `make help` lists every target.
 

@@ -1,0 +1,19 @@
+@if (variant === "text" || variant === "title") {
+  <span class="ad-skeleton__stack">
+    @for (i of lineList; track i) {
+      <span
+        class="ad-skeleton ad-skeleton--{{ variant }}"
+        [style.width]="lineWidth(i)"
+        [style.height]="resolvedHeight"
+        [style.border-radius]="resolvedRadius"
+      ></span>
+    }
+  </span>
+} @else {
+  <span
+    class="ad-skeleton ad-skeleton--{{ variant }}"
+    [style.width]="width"
+    [style.height]="resolvedHeight"
+    [style.border-radius]="resolvedRadius"
+  ></span>
+}

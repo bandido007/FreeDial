@@ -1,0 +1,270 @@
+ad-supervisor .desk-runtime{
+* {
+  box-sizing: border-box;
+}
+[hidden] {
+  display: none !important;
+}
+& {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font:
+    15px/1.45 Atkinson,
+    system-ui,
+    sans-serif;
+}
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+h1 {
+  font-size: 24px;
+  font-weight: 600;
+}
+h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+button,
+.ui-button {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+button:hover,
+.ui-button:hover {
+  background: var(--paper);
+}
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+input,
+select,
+textarea {
+  padding: 8px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  min-height: 36px;
+}
+input[type="checkbox"],
+input[type="radio"] {
+  min-height: 24px;
+  width: 24px;
+  accent-color: var(--accent);
+}
+a {
+  color: var(--accent);
+}
+.ui-primary {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: var(--accent);
+}
+.ui-danger {
+  color: var(--notready);
+  border-color: var(--notready);
+}
+.ui-muted,
+small {
+  color: var(--muted);
+}
+small {
+  font-size: 13px;
+}
+.ui-number,
+time {
+  font-variant-numeric: tabular-nums;
+}
+.ui-icon,
+button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+.ui-header {
+  min-height: 64px;
+  padding: 12px 32px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.ui-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.ui-brand strong {
+  font-size: 20px;
+  font-weight: 700;
+}
+.ui-brand small {
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+}
+/* The logo (UI_DESIGN.md, "Logo"): the symbol in --accent, the word in --ink. The gap is the
+   bead's diameter (x, 28% of the symbol); never smaller than 24 px on screen. */
+.ui-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.ui-logo-symbol {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.ui-logo-large {
+  display: flex;
+  gap: 11px;
+}
+.ui-logo-large .ui-logo-symbol {
+  width: 40px;
+  height: 40px;
+}
+.ui-logo-ring,
+.ui-logo-needle {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 4;
+}
+.ui-logo-ring {
+  stroke-linecap: butt;
+}
+.ui-logo-needle {
+  stroke-linecap: round;
+}
+.ui-logo-dot {
+  fill: currentColor;
+  stroke: none;
+}
+.ui-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.ui-field {
+  display: block;
+  margin: 16px 0;
+  font-weight: 600;
+}
+.ui-field input {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+}
+.ui-signin {
+  width: min(440px, calc(100% - 32px));
+  margin: 10vh auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 32px;
+}
+.ui-signin .error {
+  margin-top: 16px;
+  color: var(--notready);
+}
+.ui-notice {
+  margin: 16px 32px;
+  border-left: 3px solid var(--notready);
+  padding: 12px 16px;
+  background: var(--surface);
+  color: var(--notready);
+}
+.ui-language {
+  display: flex;
+  gap: 0;
+}
+.ui-language button {
+  border-radius: 0;
+  min-width: 36px;
+  padding: 4px 8px;
+}
+.ui-language button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.ui-language button:last-child {
+  border-radius: 0 6px 6px 0;
+  border-left: 0;
+}
+.ui-language .selected {
+  background: var(--ink);
+  color: var(--surface);
+}
+@media (min-width: 1600px) {
+  .ui-header {
+    padding-left: 48px;
+    padding-right: 48px;
+  }
+}
+@media (max-width: 900px) {
+  .ui-header,
+  .ui-header-actions {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .ui-header {
+    padding: 12px 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+}
