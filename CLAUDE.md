@@ -38,7 +38,7 @@ recommendation with evidence (docs, source code, who does it this way), then wai
 | Simulator | `make sim` (`a="--skills"` for the Swahili rule set): a virtual busy hour through the real brain core on a virtual clock (`brain/sim/simulator.py`), every queue strategy compared. Call test 10 (`make calltests t=10`) is ring-all on the real Asterisk |
 | What Asterisk sends (recorded) | Reject (486) = `ChannelDestroyed` cause 17; ring timeout = cause 19; hung up by the brain = 16; offline phone = the originate itself fails `500 Allocation failed`. A customer's hangup sends only `StasisEnd`. ARI channel JSON has no linkedid, so the dialplan passes it as an arg |
 | Repo | `~/AlgoDial`, built from the team starter `~/Django Starter/django-5` (commit `263e849`) |
-| Local services | `make up` (Docker): PostgreSQL **5442**, Redis **6392**, Mailpit **8025** (UI) / **1025** (SMTP), all on 127.0.0.1. Web on 8000 |
+| Local services | `make up` (Docker): PostgreSQL **5442**, Redis **6392**, Mailpit **8035** (UI) / **1035** (SMTP; 8025/1025 belong to the scc project), on Docker network `algodial-net` (10.242.17.0/24, away from the LAN ranges this laptop gets), all on 127.0.0.1. Web on 8000 |
 | Lab prototype | `~/AlgoDial/lab/` (`brain.py`, `events.py`, `celtail.py`); `ari.env` (not in git) |
 | Network | Laptop IP changes between networks. Anything on 127.0.0.1 is unaffected |
 

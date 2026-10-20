@@ -3,7 +3,8 @@
 #
 #    make up      PostgreSQL + Redis + Mailpit        make down      stop them
 #
-#  Mailpit catches every e-mail the backend sends: http://localhost:8025
+#  Mailpit catches every e-mail the backend sends: http://localhost:8035 (8025/1025 belong to
+#  another project's Mailpit on the lab machine)
 #  project: every port is published on 127.0.0.1 only, on ports that are free on
 #  the lab machine (5432 and 6379 belong to other stacks there).
 #  Production is bare metal: see deploy/ and docs/DEPLOYMENT.md.
@@ -13,6 +14,7 @@ name: ${PROJECT_SLUG:-algodial}
 services:
   postgres:
     image: postgres:16-alpine
+    networks: [algodial]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-algodial}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -29,6 +31,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    networks: [algodial]
     # project: append-only file on, so the command and event streams survive a restart.
     command: ["redis-server", "--save", "", "--appendonly", "yes"]
     ports:
@@ -43,9 +46,10 @@ services:
 
   mailpit:
     image: axllent/mailpit:latest
+    networks: [algodial]
     ports:
-      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"   # web UI
-      - "127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025" # SMTP
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8035}:8025"   # web UI
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-1035}:1025" # SMTP
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
@@ -53,3 +57,15 @@ services:
 volumes:
   postgres-data:
   redis-data:
+
+# project: a network of AlgoDial's own on a fixed subnet nothing else here uses. Left to itself,
+# Docker picked 172.17.0.0/16 (19 Oct 2026), the range this laptop's LAN address is in on some
+# networks (172.17.18.126), which would cut the laptop off from LAN phones such as 1002.
+# 10.242.17.0/24: clear of docker0 (10.220.0.0/24), the other stacks (172.18-25), libvirt
+# (192.168.122) and home Wi-Fi (192.168.x). Ports stay published on 127.0.0.1 only.
+networks:
+  algodial:
+    name: algodial-net
+    ipam:
+      config:
+        - subnet: 10.242.17.0/24
